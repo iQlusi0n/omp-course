@@ -18,9 +18,11 @@ Design notes that matter for omp (omp://mcp-server-tool-authoring.md, §4):
 - omp exposes each tool as `mcp__<server>_<tool>`, lowercased, non-[a-z0-9_]
   replaced by `_`. Server name `lab-fs` + tool `list_files` ->
   `mcp__lab_fs_list_files`.
-- omp strips its harness-injected intent field `i` from arguments UNLESS the
-  tool's own inputSchema.properties declares `i`. `read_file` declares it so
-  the intent survives and we echo it back; `list_files` does not.
+- omp strips its harness-injected intent field `i` from every tool call's
+  arguments before execution and shows it as the card's intent line. The
+  bridge doc says a tool whose inputSchema.properties declares `i` keeps it,
+  but on omp 18.3.1 the field was already gone upstream: `read_file` declares
+  `i` and still reports "[no intent field delivered]". Don't depend on it.
 - Optional properties sent as "" or {} are dropped before the call; validate
   the normalized payload, don't assume every field arrives.
 """

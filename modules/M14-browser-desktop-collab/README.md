@@ -37,7 +37,16 @@ Every setting default above was read with `omp config get <key>` on a machine wh
   - Python: `tab = await browser.open(name="main", url=...)`; `browser.tab(...)`, `tab.id(...)`, `tab.ref(...)` are synchronous lookups; keyword args become the trailing JS options object.
   - Reusing a name while the tab is open **reuses** the tab (`Reused tab "signup" …`); an errored cell that skipped `tab.close()` leaves it open for the next cell.
 - **Inspect before you act.** `observe({ includeAll?, viewportOnly? })` returns `{url, title, viewport, scroll, elements:[{id, role, name, states}]}`; the numeric `id` feeds `tab.id(n)`. `ariaSnapshot(selector?, {depth?, boxes?})` returns a YAML-ish tree with `[ref=eN]` markers that feed `tab.ref("eN")`. Navigation or re-render invalidates both — **observe and act in the same cell**.
-- **Direct helpers** (each is one host-bridge call returning a real value): `url()`, `title()`, `goto(url,{waitUntil?})`; `screenshot({selector?, fullPage?, silent?})`, `extract("markdown"|"text")`; `click(sel)`, `type(sel, text)`, `fill(sel, value)`, `press(key,{selector?})`, `scroll(dx,dy)`, `drag(from,to)`, `scrollIntoView(sel)`, `select(sel, ...values)` (required for `<select>`; `fill` refuses them), `uploadFile(sel, ...paths)`; `waitFor(sel,{timeout?})`, `waitForSelector(sel,{timeout?, visible?, hidden?})`, `waitForUrl(strOrRegExp,{timeout?})`; `evaluate(fnOrSource, ...args)`. Direct `waitFor*` return booleans. Element handles from `tab.id`/`tab.ref` support `click, type, fill, press, hover, focus, select, uploadFile, scrollIntoView, boundingBox, isVisible, isHidden, evaluate`.
+- **Direct helpers** — each is one host-bridge call that returns a real value (no `tab.run` needed):
+
+  | Group | Helpers | Notes |
+  |---|---|---|
+  | Navigation | `url()`, `title()`, `goto(url, { waitUntil? })` | |
+  | Inspection | `observe({ includeAll?, viewportOnly? })`, `ariaSnapshot(selector?, { depth?, boxes? })`, `screenshot({ selector?, fullPage?, silent? })`, `extract("markdown" \| "text")` | `extract` is the cheap "did the text appear anywhere" check |
+  | Interaction | `click(sel)`, `type(sel, text)`, `fill(sel, value)`, `press(key, { selector? })`, `scroll(dx, dy)`, `drag(from, to)`, `scrollIntoView(sel)`, `select(sel, ...values)`, `uploadFile(sel, ...paths)` | `select` is required for `<select>`; `fill` refuses them |
+  | Waiting | `waitFor(sel, { timeout? })`, `waitForSelector(sel, { timeout?, visible?, hidden? })`, `waitForUrl(strOrRegExp, { timeout? })` | direct forms return **booleans**; `timeout` observed in **ms** |
+  | Page JS | `evaluate(fnOrSource, ...args)` | runs in the page — `document` exists here |
+  | Element handles (`tab.id(n)`, `tab.ref("eN")`) | `click, type, fill, press, hover, focus, select, uploadFile, scrollIntoView, boundingBox, isVisible, isHidden, evaluate` | a string passed to `el.evaluate` is a function expression called with the element |
 - **Selectors.** CSS plus Puppeteer `aria/…`, `text/…`, `xpath/…`, `pierce/…`. Playwright-only pseudos (`:has-text()`, `:visible`) are rejected.
 - **`tab.run(fnOrCode, { args?, timeout? })`.** Runs *in the browser worker*, not in the page: the function receives `{ tab, page, browser, wait, assert }`, cannot capture cell closures, and gets plain-data `args`. The inner `tab` adds handle-returning `waitFor`/`waitForSelector` and `waitForNavigation`/`waitForResponse` (start the wait *before* the click that triggers it). Python `tab.run` accepts a JavaScript **string** only. Inner `display()` text prints in the outer cell.
 - **Where the DOM is.** `document` does not exist inside `tab.run` (it is the worker). Reach the page with `tab.evaluate(...)`, `page.$eval(...)`, or `page.$$eval(...)`.
@@ -59,10 +68,45 @@ Prerequisite: none beyond omp — headless Chromium is managed by omp (the build
 
 1. In the lab root, start the API as a supervised service from the composer (`!` bang or ask omp): *"Start `python3 -m api` as a bash service named `lab-api`, ready when port 8080 answers."* omp calls `bash` with `{"command":"python3 -m api","name":"lab-api","ready":{"port":8080}}`. The API also serves `web/` as static files, so `http://127.0.0.1:8080/` is the signup form (`web/index.html`).
    **Expected:** a service card `lab-api: ready pid=<n>`; `read proc://lab-api` shows status and log tail.
-2. Ask: *"Using eval (JS), open `http://127.0.0.1:8080/` in a browser tab named `signup` and show me `observe()`."*
-   **Expected:** the eval card prints `Opened tab "signup" on headless browser (hidden, shared)`, `URL: http://127.0.0.1:8080/`, `Title: omp-course-lab signup`, then the `elements` list: two `role: "textbox"` rows named `Name` and `Email` and one `role: "button"` named `Sign up`, each with a numeric `id`.
-3. Ask: *"In the same cell style: fill the name and email fields via `tab.id(...)`, click the submit button, wait for `#banner` to be visible, and assert its text is exactly `Welcome aboard!`. Then `tab.screenshot({silent:true})` and print the path."* The cell omp writes should look like `demos/14.1-browser-signup.md`, in particular `await tab.run(async ({ tab }, sel, expected) => { await tab.waitForSelector(sel, { visible: true, timeout: 5000 }); const text = await tab.evaluate(s => document.querySelector(s).textContent, sel); if (text !== expected) throw new Error(text); return text; }, { args: ["#banner", "Welcome aboard!"] })`. (The lab form's ids are `#name`, `#email`, `#submit`, `#banner` — CSS selectors work too; `observe()`+`tab.id` is the habit that survives pages you did not write.)
-   **Expected:** output `banner: Welcome aboard!` and a path like `/tmp/omp-sshots-<hex>.webp` (observed on the build machine; with `browser.screenshotDir` set, the path is under that directory).
+2. Ask: *"Using eval (JS), open `http://127.0.0.1:8080/` in a browser tab named `signup` and show me `observe()`."* The cell omp should write (or type it yourself into an eval call):
+
+   ```js
+   const tab = await browser.open({ name: "signup", url: "http://127.0.0.1:8080/", wait_until: "load" });
+   const obs = await tab.observe();
+   console.log(JSON.stringify({ url: obs.url, title: obs.title, elements: obs.elements }));
+   ```
+
+   **Expected:** the eval card prints `Opened tab "signup" on headless browser (hidden, shared)`, `URL: http://127.0.0.1:8080/`, `Title: omp-course-lab signup`, then the `elements` list: two `role: "textbox"` rows named `Name` and `Email` and one `role: "button"` named `Sign up`, each with a numeric `id`:
+
+   ```
+   {"url":"http://127.0.0.1:8080/","title":"omp-course-lab signup","elements":[
+     {"id":1,"role":"textbox","name":"Name ","states":["required"]},
+     {"id":2,"role":"textbox","name":"Email ","states":["required"]},
+     {"id":3,"role":"button","name":"Sign up","states":[]}]}
+   ```
+
+3. Ask: *"In the same cell style: re-observe, fill the name and email fields via `tab.id(...)`, click the submit button, wait for `#banner` to be visible, and assert its text is exactly `Welcome aboard!`. Then `tab.screenshot({silent:true})` and print the path."* Reference cell (verified):
+
+   ```js
+   const tab = await browser.open({ name: "signup", url: "http://127.0.0.1:8080/", wait_until: "load" });
+   const obs = await tab.observe();
+   const byName = (n) => obs.elements.find(e => e.name.trim() === n);
+   await tab.id(byName("Name").id).fill("Ada Lovelace");
+   await tab.id(byName("Email").id).fill("ada@example.com");
+   await tab.id(byName("Sign up").id).click();
+   const banner = await tab.run(async ({ tab }, sel, expected) => {
+     await tab.waitForSelector(sel, { visible: true, timeout: 5000 });          // ms
+     const text = await tab.evaluate((s) => document.querySelector(s).textContent, sel);
+     if (text !== expected) throw new Error(`banner was ${JSON.stringify(text)}`);
+     return text;
+   }, { args: ["#banner", "Welcome aboard!"], timeout: 30 });
+   console.log("banner:", banner);
+   console.log("screenshot:", await tab.screenshot({ silent: true }));
+   ```
+
+   The lab form's ids are `#name`, `#email`, `#submit`, `#banner`, so CSS selectors (`tab.fill("#name", …)`) work too; `observe()` + `tab.id` is the habit that survives pages you did not write. Python version: `demos/14.1-browser-signup.md` §4.
+
+   **Expected:** `Reused tab "signup" …` (step 2 left it open), then `banner: Welcome aboard!` and a path like `/tmp/omp-sshots-<hex>.webp` (observed on the build machine; with `browser.screenshotDir` set, the path is under that directory).
 4. Ask omp to `read` the screenshot path.
    **Expected:** the image renders inline in the transcript and the banner is visible.
 5. Ask: *"Close the tab."* (`await tab.close()`).
@@ -77,7 +121,7 @@ Prerequisite: none beyond omp — headless Chromium is managed by omp (the build
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `browser is not defined` / `NameError: browser` | eval or `browser.enabled` off | `omp config get browser.enabled`, `eval.js`, `eval.py`; set to `true`; start a new session |
+| the `browser` global is missing in the cell (undefined-name error) | eval or `browser.enabled` off | `omp config get browser.enabled`, `eval.js`, `eval.py`; set to `true`; start a new session |
 | `RuntimeError: document is not defined` inside `tab.run` | run code executes in the browser worker, not the page | use `tab.evaluate("<expr>")`, `page.$eval(sel, fn)`, or `page.$$eval` |
 | `tab.waitForSelector("#banner") timed out after 5ms` | `timeout` is in **milliseconds** (observed) | pass `timeout: 5000` |
 | `evaluate` returns `{}` in Python | the string was an arrow function, not an expression | pass the expression (`"document.querySelector('#banner').textContent"`) or use `tab.run("return await page.$eval(...)")` |
@@ -146,11 +190,29 @@ Prerequisites: a desktop session (not SSH-only), Python with `tkinter` for `bin/
 2. In omp: `/computer status` → **Expected:** reports disabled. `/computer on` → **Expected:** enabled for this session; the eval prelude docs now list `computer`.
 3. Ask: *"eval (JS): `display(await computer.capabilities())`."*
    **Expected:** an object naming the backend, `capture`/`input`/`ax` availability and permission states. If `capture: false` on Wayland or `PermissionDenied` on macOS, stop and fix the platform row above; nothing else will work.
-4. Ask: *"List windows whose title contains `Lab GUI Demo`, then screenshot that window."* omp writes `const wins = await computer.windows({ title: "Lab GUI Demo" }); display(wins); const win = await computer.window(wins[0].id); await win.screenshot();`.
+4. Ask: *"List windows whose title contains `Lab GUI Demo`, then screenshot that window."* omp writes:
+
+   ```js
+   const wins = await computer.windows({ title: "Lab GUI Demo" });
+   display(wins);                                   // [{ id, app, title, pid, bounds, focused }]
+   const win = await computer.window(wins[0].id);   // or computer.window({ title: "Lab GUI Demo" })
+   await win.screenshot();                          // → { path, width, height } + inline image
+   ```
+
    **Expected:** one window row (`id, app, title, pid, bounds, focused`) and an inline screenshot of just the Tk window. No approval prompt — both calls are `read` tier.
 5. Ask: *"Print `await win.ax({ maxDepth: 6 })`."*
    **Expected:** a textual tree with `[ref=eN]` markers. Look for a `button` role. If the tree is empty or has no button, see Troubleshooting (Tk widgets are not exposed on every platform) — the walkthrough continues with the pixel fallback in step 7.
-6. Ask: *"`find` the button by role and press it via AX."* → `const btns = await win.find({ role: "button" }); if (btns.length !== 1) throw new Error("expected one button"); await btns[0].press();`
+6. Ask: *"`find` the button by role and press it via AX."* →
+
+   ```js
+   const btns = await win.find({ role: "button" });
+   if (btns.length !== 1) throw new Error(`expected one button, got ${btns.length}`);
+   await btns[0].press();                                       // exec tier → prompt in write mode
+   console.log((await win.ax()).includes("Clicked!") ? "label changed" : "label unchanged");
+   ```
+
+   Python: `btns = await win.find(role="button"); await btns[0].press()`.
+
    **Expected:** in `write` mode an approval prompt shows `press` and the resolved JavaScript; after approving, the label reads **Clicked!**. Re-run `win.ax()` (look for `Clicked!`) or screenshot to confirm.
 7. *(Pixel fallback, only if step 6 found no button)* `await win.screenshot()` then `await win.click(x, y)` using the button's pixel position **from that screenshot**.
    **Expected:** the label reads **Clicked!**. If you get `InvalidCoordinateFrame`, you clicked with coordinates from an older capture — screenshot again first.
@@ -164,7 +226,7 @@ Prerequisites: a desktop session (not SSH-only), Python with `tkinter` for `bin/
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `computer is not defined` | prelude gated off | `/computer on` for this session, or `computer.enabled: true` in config + new session; confirm eval on |
+| the `computer` global is missing in the cell (undefined-name error) | prelude gated off | `/computer on` for this session, or `computer.enabled: true` in config + new session; confirm eval on |
 | `/computer on` works but a new session forgets it | `/computer` never persists | put it in `config.yml` |
 | macOS: `PermissionDenied` / blank capture | Screen Recording or Accessibility not granted to the launching app | System Settings → Privacy & Security → grant to your terminal app → **restart the terminal** |
 | Wayland: `capture: false` | released binaries lack `wayland-pipewire` | use AX-only flows, or X11 |
@@ -237,7 +299,14 @@ Prerequisites: a desktop session (not SSH-only), Python with `tkinter` for `bin/
 2. Terminal B (guest), any directory: `omp join "<roomId>.<key>"` (paste the exact string from step 1, quotes included).
    **Expected:** B renders A's transcript natively — same cards, footer shows A's cwd/model/context %. A's transcript shows a join notice with B's display name.
 3. From B, type a prompt: *"Run the lab test suite and summarize."* **Expected:** A executes it (tool cards appear on both sides); on both transcripts the prompt carries B's name badge.
-4. Terminal C (any shell): `omp collab list` → **Expected:** one row: A's PID/session, participant count 2, `busy` `working` while step 3 runs then `idle`, access `control`. `omp collab list --json | python -m json.tool` → `"version": 1` and one host object.
+4. Terminal C (any shell): `omp collab list` → **Expected:** one row: A's PID/session, participant count 2, `busy` `working` while step 3 runs then `idle`, access `control`. Then:
+
+   ```sh
+   omp collab list --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["version"], len(d["hosts"]), "host(s)"); print(json.dumps(d["hosts"][0], indent=1)[:600])'
+   ```
+
+   **Expected:** `1 1 host(s)` and the host object with `instanceId`, `generation`, PID, session, cwd, model, participant count, `access` fields. (Before step 1 the same command prints `1 0 host(s)` — observed.)
+
 5. From B, `/leave`. **Expected:** B's previous session (or a fresh one) is restored; A's `/collab status` shows one participant.
 6. A: `/collab stop`. **Expected:** `omp collab list` → `No active Collab hosts.`
 

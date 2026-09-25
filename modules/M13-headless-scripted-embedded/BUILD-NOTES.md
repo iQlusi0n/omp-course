@@ -10,6 +10,8 @@ Built against `omp/18.3.1` on the Python-only build machine. A model **was** con
 - `/review` runs under `-p`; trailing text after `/review` reaches the model and can dictate an output format.
 - RPC: `ready` frame fields match rpc.md verbatim; `negotiate_protocol` v2, `get_state`, `prompt` → `prompt_result` → `session_settled`, `abort` → `status:"aborted"`, `steer` mid-turn, `set_host_tools` → `host_tool_call` → `host_tool_result`, malformed line → `command:"parse"` with `id:null` and the loop continues, stdin EOF → exit `0`.
 - `ci-review.sh`: exit `1` on P0, `0` on clean diff, `1` on deadline.
+- `tools.approvalMode: yolo` + `tools.approval.bash: prompt` under `-p`: `tool_execution_end … isError:true` with text `Tool "bash" requires approval but no interactive UI available.` — basis for the 13.4 stretch and the 13.5 "blocked call" example.
+- The inline stdlib RPC snippet in 13.2 was executed as written (printed `hello`, `status=completed`, child exit `0`).
 
 ## Deviations from the outline / dropped claims
 - **13.2 "TS `RpcClient` and Python `omp-rpc`"** — described only to the extent of rpc.md (constructor kwargs, `get_state`, `prompt_and_wait`, `require_assistant_text`, `get_messages`, `command=[...]`). The install path for `omp-rpc` (PyPI name, pip command) is not in `omp://`; the lesson says "bundled in the omp source tree at `python/omp-rpc`" and ships a stdlib client instead. `setCustomTools()` for the TS helper is mentioned as in rpc.md; no other TS helper methods are claimed.

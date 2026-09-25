@@ -351,6 +351,35 @@ Card drawings in this module and in `demos/` are schematic (`›` = your message
 
 ---
 
+## Reference — where a message lands while a turn is running
+
+All five mid-turn moves from Lesson 3.4 are the same question asked of the runtime: *at which boundary does my text reach the model?*
+
+```mermaid
+flowchart LR
+  T[you type while streaming] -->|Enter| S[steer queue]
+  T -->|Ctrl+Q / Ctrl+Enter| F[follow-up queue]
+  T -->|Esc| A[abort turn: in-flight tool cancelled, transcript kept]
+  T -->|/pause| P[gate: in-flight call finishes, nothing new starts]
+  S -->|interruptMode immediate| B[next tool boundary: remaining calls in the batch may be cut]
+  S -->|interruptMode wait| E[end of turn]
+  F --> E
+  P -->|Esc Enter Space Ctrl+C| R[resume where parked]
+```
+
+| Queue | Delivered | Setting (default) | Dequeue |
+|---|---|---|---|
+| steer | between tool calls (`immediate`) or after the turn (`wait`) | `interruptMode: immediate`; `steeringMode: one-at-a-time` | `Alt+Up` / `Shift+Up` |
+| follow-up | after the turn ends | `followUpMode: one-at-a-time` | `Alt+Up` / `Shift+Up` |
+
+`one-at-a-time` delivers one queued message per turn; `all` drains the whole queue at once. Slash commands typed while streaming go through the same queues after expansion — except extension-registered commands, which execute immediately (Module 12). Compaction (Module 5) preserves queued steer/follow-up messages and replays them afterwards.
+
+Things that are **not** queues: `/btw` runs beside the main session and never enters its transcript; `/fresh` is refused while streaming and touches only provider-side state.
+
+**Source:** omp://rpc.md (mode semantics), omp://settings.md (Interaction), omp://slash-command-internals.md (§8 streaming path), omp://compaction.md (queued steer/follow-up on resume)
+
+---
+
 ## Coursework
 
 See `exercises.md` (W / G / G / S with pass conditions) and `cheatsheet.md`. Instructor notes are in `solutions/`.

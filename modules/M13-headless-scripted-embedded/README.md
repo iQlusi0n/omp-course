@@ -394,12 +394,53 @@ graph LR
   2. `--config ci.yml` with `tools.approvalMode: always-ask` (only `read`-tier auto-approved) plus `tools.approval: {write: deny, edit: deny, bash: deny, eval: deny, task: deny}` — a user `deny` cannot be bypassed by any mode, so even a tool that sneaks in via an extension is blocked.
   3. `--max-time 10m` — cost/time cap; exit `1` on `Deadline exceeded`.
   4. `--no-session --no-extensions --no-skills` — nothing persisted, nothing from a developer's home dir loaded. Consider `--profile ci-bot` for a fully separate identity.
+
+  `solutions/ci.yml` in full:
+
+  ```yaml
+  tools:
+    approvalMode: always-ask   # only the `read` tier is auto-approved
+    approval:
+      write: deny
+      edit: deny
+      bash: deny
+      eval: deny
+      task: deny
+  ```
+
+  What a blocked call looks like inside the JSON stream (a `tools.approval.bash: prompt` policy under `-p`, captured on 18.3.1): `tool_execution_end … "isError": true`, result text `Tool "bash" requires approval but no interactive UI available.` — the model then reports the error and the run still exits `0`.
+- **Skeleton of `ci-review.sh`** (the shipped file adds arg parsing and a `pr://` mode):
+
+  ```bash
+  omp -p --mode json --no-session --no-extensions --no-skills \
+      --config ci/ci.yml --tools read,grep,glob --max-time 10m \
+      "/review Respond with ONLY a JSON object … {\"findings\":[…],\"verdict\":\"pass|fail\"}" > "$RAW" 2>/dev/null \
+    || { echo "omp failed — failing closed" >&2; exit 1; }
+  python3 - "$RAW" <<'PY'      # last assistant message_end → strip ``` → json.loads → exit 1 on any P0
+  …
+  PY
+  ```
 - **`/review` runs headless.** `omp -p "/review …"` resolves the working diff itself (bundled review command) and any trailing text is appended to its prompt — that is where you specify the JSON verdict format. There is no documented native JSON output for `/review`; the shipped script asks for `{"findings":[{severity,file,line,title}],"verdict"}` and strips the code fence the model sometimes adds anyway.
 - **Verdict from content, not exit code.** omp exits `0` after a refused tool or an empty review. Parse the last assistant `message_end` from `--mode json`, then exit `1` on any `P0` (or on unparseable output — fail closed).
 - **PRs:** `read pr://<N>` (or `pr://<owner>/<repo>/<N>`) gives the PR view (`?comments=0` to drop comments); `pr://<N>/diff` lists changed files, `pr://<N>/diff/<i>` one file, `pr://<N>/diff/all` the full unified diff. The same URIs work from the shell: `omp read pr://12/diff/all`. Needs `gh` authenticated; results are cached in `~/.omp/cache/github-cache.db` (`github.cache.*` settings). `ci-review.sh` switches to a `pr://` target with `OMP_REVIEW_TARGET=pr://12`.
 - **Secrets via environment.** Provider keys are read from env (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, …; `omp --help` lists them) or `--api-key`. Put them in the CI secret store, never in `ci.yml` or the repo. The lab's `.env.example` `labtok_…` token exists so you can check the bot never echoes it.
 - **MCP in CI:** print mode waits for configured MCP servers up to `OMP_MCP_TIMEOUT_MS`; set `OMP_MCP_REQUIRE_READY=1` to fail fast, or avoid MCP in the bot profile.
 - **`robomp`** (`python/robomp`, Python ≥ 3.11): a self-hosted service that receives GitHub webhooks, classifies issues, resumes an `omp --mode rpc` session per issue, comments or opens a fix PR, and handles follow-ups; dashboard on `http://localhost:6543/` under Docker Compose; commands `robomp serve|triage|replay|status|cleanup`. It is what the shell script grows into once you want *fixes*, not just reviews.
+- **Pipeline skeleton** (generic CI YAML; the only omp-specific lines are the install and the two commands):
+
+  ```yaml
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }          # full history so /review can diff against the base branch
+      - run: <install omp per omp.sh>      # see Module 1 for install paths
+      - run: bash ci/review.sh --max-time 5m
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # or OPENAI_API_KEY, …
+          OMP_REVIEW_TARGET: pr://${{ github.event.pull_request.number }}
+          OMP_MCP_REQUIRE_READY: "1"
+  ```
 
 **Try it (Walkthrough):**
 1. `mkdir -p ci && cp modules/M13-headless-scripted-embedded/solutions/{ci-review.sh,ci.yml} ci/ && chmod +x ci/ci-review.sh`

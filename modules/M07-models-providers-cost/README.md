@@ -152,10 +152,17 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
 **Try it (Walkthrough):**
 1. `omp usage`.
    Expected: one block per authenticated account with its limit windows — or `No credentials found. Run \`omp\` and use /login to add accounts.` if you only use env keys.
-2. Create `omp-course-lab/.env` containing `OLLAMA_BASE_URL=http://127.0.0.1:11434` and a comment line. Run `omp -p 'Reply with the value of $OLLAMA_BASE_URL only' ` from the lab (the model can `bash` `echo "$OLLAMA_BASE_URL"`).
-   Expected: the value from the repo `.env`. Run the same from `~` — Expected: empty (the repo `.env` is only read from its own cwd).
-3. Export a conflicting value: `OLLAMA_BASE_URL=http://example:1 omp -p '…same prompt…'` inside the lab.
-   Expected: `http://example:1` — the process environment wins over every `.env` file.
+2. Make a repo-local `.env` drive provider discovery. This step needs the lab mock from 7.4 running: `python3 tools/mock-provider.py --port 8765`. First, from `~`, run `omp models lm-studio`.
+   Expected: `No models matching "lm-studio"` (nothing answers on LM Studio's default port).
+3. Create `omp-course-lab/.env`:
+   ```dotenv
+   # lab-local endpoint, read only when omp starts in this directory
+   LM_STUDIO_BASE_URL=http://127.0.0.1:8765/v1
+   ```
+   Still from the lab directory, prove the process environment beats the file: `LM_STUDIO_BASE_URL=http://127.0.0.1:1 omp models lm-studio`.
+   Expected: `No models matching "lm-studio"` — the exported value (a dead port) won over `.env`.
+   Now plain `omp models lm-studio` from the lab.
+   Expected: an `lm-studio (1)` table listing `mock-1` — the `.env` value was read because the cwd is the lab. (Order matters: once discovered, the row is cached in `<agent dir>/models.db` and keeps showing from other directories; delete the file `omp-course-lab/.env` when done.)
 4. Add to `omp-course-lab/.omp/config.yml`:
    ```yaml
    disabledProviders:
@@ -166,7 +173,7 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
 5. `omp config get disabledProviders` from both directories.
    Expected: `["<id>"]` inside the lab, `[]` from `~`.
 
-**Guided task:** Prove precedence between `.env` layers. Goal: define `LAB_PROBE=agent` in `~/.omp/agent/.env` and `LAB_PROBE=repo` in `omp-course-lab/.env`; predict, then observe, the value inside the lab and from `~/`. Hints: `omp -p 'run: echo $LAB_PROBE'` from each directory. Checkpoint: inside the lab you get `repo`. Pass condition: from `~` you get `agent`, and after `export LAB_PROBE=shell` both directories return `shell`. Clean up both files.
+**Guided task:** Prove precedence between `.env` layers. Goal: with the mock running on port 8765 and a second copy on 8766, put `LM_STUDIO_BASE_URL=http://127.0.0.1:8766/v1` in `~/.omp/agent/.env` and `LM_STUDIO_BASE_URL=http://127.0.0.1:8765/v1` in `omp-course-lab/.env`; predict, then observe, which server is discovered from each directory. Hints: `rm "$(omp config path)/models.db"*` before each `omp models lm-studio` so the cache does not mask the change; the mock's stderr shows which instance received `GET /v1/models`. Checkpoint: inside the lab the 8765 instance logs the request. Pass condition: from `~` the 8766 instance logs it, and after `export LM_STUDIO_BASE_URL=http://127.0.0.1:1` neither does and `omp models lm-studio` prints `No models matching "lm-studio"` from both directories. Clean up both files.
 **Stretch:** Pin a key for a gateway without leaking it into the shell. Goal: a custom provider whose `apiKey` is `"!cat ~/.omp/lab-gateway.key"` (command-resolved secret). Pass condition: `omp models <provider>` lists the model, `env | grep -i lab-gateway` is empty, and the key file is never referenced in `config.yml`. (Build the provider block in 7.4.)
 
 **Troubleshooting:**
@@ -211,7 +218,7 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
   | `lm-studio` | `LM_STUDIO_BASE_URL` → `http://127.0.0.1:1234/v1` | `openai-completions`; `GET /models` — works for *any* OpenAI-compatible local server |
   All three are keyless; their models are selectable as soon as the engine answers. `OLLAMA_CONTEXT_LENGTH` only changes omp's budget, not Ollama's `num_ctx`.
 - **Discovered proxy/gateway models are priced at zero** ("local-unknown") — see 7.6.
-- **The lab's mock provider:** `python3 tools/mock-provider.py --port 8765` serves `GET /v1/models` (one model, `mock-1`) and `POST /v1/chat/completions` (streaming and non-streaming; reply `Hello from mock-1. You said: <your message>`), logs every request to stderr, needs no key. `--fail` turns every chat request into HTTP `429` with `Retry-After: 1` (7.5). `--model <id>` renames the model.
+- **The lab's mock provider:** `python3 tools/mock-provider.py --port 8765` serves `GET /v1/models` (one model, `mock-1`) and `POST /v1/chat/completions` (streaming and non-streaming; reply `Hello from mock-1. You said: <last user message>` — omp prepends a `<system-reminder>` block with the date and cwd to your message, so the echo may include it), logs every request to stderr, needs no key. `--fail` turns every chat request into HTTP `429` with `Retry-After: 1` (7.5). `--model <id>` renames the model.
 - **Exact block for the mock** — append to `~/.omp/agent/models.yml`:
   ```yaml
   providers:
@@ -232,7 +239,7 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
             cacheRead: 0
             cacheWrite: 0
   ```
-- **Verify:** `omp models mock` → a `mock (1)` table with `mock-1 │ 33K │ 4.1K │ - │ no`; `omp -p --model mock/mock-1 "say hi"` → `Hello from mock-1. You said: say hi`.
+- **Verify:** `omp models mock` → a `mock (1)` table with `mock-1 │ 33K │ 4.1K │ - │ no`; `omp -p --model mock/mock-1 "say hi"` → `Hello from mock-1. You said: … say hi`.
 - **Tiny on-device models** (catalog provider `local`, kind `tiny`): `omp models --kind tiny`; `omp tiny-models list`; `omp tiny-models download <id>` / `download all` (default download `lfm2.5-230m`, ~214 MB). Assign with `modelRoles.tiny: local/lfm2.5-230m` (titles) and `modelRoles.memory: local/lfm2-1.2b` (Module 9 memory); `judge: local/lfm2-1.2b` for on-device judgments. Weights download only when a local candidate is used or prefetched; inference runs in a per-model worker (`~/.omp/run/tiny/<model>-<backend>.sock`) that exits after 15 min idle. CPU by default; `providers.tinyModelDevice` / `PI_TINY_DEVICE` (`gpu`, `cuda`, `mlx`, …) and `providers.tinyModelDtype` / `PI_TINY_DTYPE` (`q4` default) are opt-outs.
 - **Speech:** `omp setup speech` picks, persists and downloads `modelRoles.speech` (`local/kokoro`, ~100 MB) and `modelRoles.dictation` (`local/parakeet-tdt-0.6b-v3` default, or `local/whisper-*`); `omp models --kind tts|stt` lists them. Keep chains empty (`retry.fallbackChains.speech: []`) to stay local.
 - **Cache:** discovered rows persist in `<agent dir>/models.db`; `omp models refresh` forces a re-fetch (the help text calls it the replacement for `rm -rf ~/.omp/models.db`).
@@ -251,7 +258,7 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
    └────────┴─────────┴─────────┴──────────┴────────┘
    ```
 3. `omp -p --model mock/mock-1 "say hi"`.
-   Expected: `Hello from mock-1. You said: say hi`; the mock's stderr shows `"POST /v1/chat/completions HTTP/1.1" 200`.
+   Expected: `Working...` then `Hello from mock-1. You said: … say hi`; the mock's stderr shows `"POST /v1/chat/completions HTTP/1.1" 200`.
 4. Break it on purpose: delete the `baseUrl:` line and run `omp models`.
    Expected: `Warning: models.yml validation failed — custom providers disabled` followed by `Provider mock: "baseUrl" is required when defining custom models.`; built-in providers still list. Restore the line.
 5. Discovery without a file: comment out the whole `mock:` block, then `LM_STUDIO_BASE_URL=http://127.0.0.1:8765/v1 omp models lm-studio`.
@@ -332,7 +339,7 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
    ```
    Expected: `omp config get retry.fallbackChains` → `{"default":["mock-backup/mock-1","…"]}`.
 4. In the lab: `omp` then `say hi`.
-   Expected: the request fails on `mock/mock-1`, omp shows a fallback warning from `mock/mock-1` to `mock-backup/mock-1` with the `429 rate limited (mock --fail)` reason, and the answer `Hello from mock-1. You said: say hi` arrives from the backup (~10–30 s; the mock's `Retry-After: 1` is honoured first). The status line chip now reads `Mock 1 (backup)`.
+   Expected: the request fails on `mock/mock-1`, omp shows a fallback warning from `mock/mock-1` to `mock-backup/mock-1` with the `429 rate limited (mock --fail)` reason, and the answer `Hello from mock-1. You said: … say hi` arrives from the backup (~10–30 s; the mock's `Retry-After: 1` is honoured first). The status line chip now reads `Mock 1 (backup)`.
 5. Same thing headless, as proof you can grep: `omp -p --mode json --no-session "say hi" | grep -E 'retry_fallback_(applied|succeeded)'`.
    Expected: two JSON lines — `{"type":"retry_fallback_applied","from":"mock/mock-1","to":"mock-backup/mock-1","role":"default","reason":"Request failed: 429 rate limited (mock --fail) …"}` and `{"type":"retry_fallback_succeeded","model":"mock-backup/mock-1","role":"default"}`.
 6. Restore `modelRoles.default` to your real model and stop the `--fail` mock.

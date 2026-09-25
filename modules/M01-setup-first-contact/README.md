@@ -468,9 +468,9 @@ false
 3. `omp config get tools.approvalMode`
    **Expected:** `yolo`.
 4. `omp config set startup.showSplash true && omp config get startup.showSplash`
-   **Expected:** `true` printed twice (once by `set`, once by `get`); `config.yml` now contains a `startup:` block.
+   **Expected:** `✔ Set startup.showSplash = true` then `true`; `grep -n -A1 startup "$(omp config path)/config.yml"` shows a `startup:` block with `showSplash: true`.
 5. `omp config reset startup.showSplash && omp config get startup.showSplash`
-   **Expected:** `false` (the default) and the key is gone from `config.yml`.
+   **Expected:** `✔ Reset startup.showSplash to false` then `false`; the `grep` above finds nothing.
 6. `omp setup python --check`
    **Expected:** `Python: /usr/bin/python3` (or your path) and `✔ Python execution is ready`.
 7. `omp config list | grep -c .`

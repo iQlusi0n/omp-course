@@ -24,7 +24,8 @@ def matrix_rows() -> list[tuple[str, list[int], str]]:
     for line in sec.splitlines():
         if not line.startswith("|") or line.startswith("| Feature") or line.startswith("|---"):
             continue
-        feat, mods, default = [c.strip() for c in line.strip("|").split("|")]
+        cells = [c.strip() for c in re.split(r"\|(?=(?:[^`]*`[^`]*`)*[^`]*$)", line.strip("|"))]
+        feat, mods, default = cells
         mod_nums = [int(m) for m in re.findall(r"\d+", mods)]
         rows.append((feat, mod_nums, default))
     return rows

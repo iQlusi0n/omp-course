@@ -162,12 +162,27 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
 - **`memory_edit({ op, id, content?, importance?, replacement_id? })`** — `op` ∈ `update | forget | invalidate`; `id` comes from a `recall` bullet. `update` replaces text and/or importance (clamped 0..1) **wholesale**; `forget` hard-deletes a working-memory row; `invalidate` soft-supersedes a working *or* episodic row (optionally recording `replacement_id`). Fact-table rows are read-only → `not_editable`; `update`/`forget` on an episodic id → `not_found`. Result: `Memory <id> updated|deleted|invalidated in bank <bank> (<store>).`
 - **Rule: read before update.** `read memory://<id>` returns the full row behind YAML frontmatter. Do it before every `update`; copying a clipped preview into `content` deletes the unseen tail. Prefer `invalidate` over `forget` when history may still be useful.
 - **Prompt phrasing that tends to trigger each tool** (the model chooses; these are the natural cues, not guarantees):
-  - `retain` — "Remember that …", "Store this for future sessions: …", "Keep a note that …".
-  - `recall` — "What do you remember about …?", "Have we hit this before?", "Search your memory for …".
-  - `reflect` — "Based on what you remember about this repo, how should I …?" (a question that needs an answer, not a list).
-  - `memory_edit` — "That memory is wrong — update it to say …", "Forget the memory about …", "Mark the memory about X as outdated; the replacement is Y."
-- **Auto vs explicit.** `mnemopi.autoRecall` (first turn), `mnemopi.autoRetain` every 4 user turns (episodes, `importance 0.65`, `veracity unknown`). Explicit tool calls are per-session work on the same scoped bank. Subagents alias the parent state for explicit calls but run no auto loops of their own.
-- **Durability.** Normal exit gives the retain/flush drain 1.5 s and does not promote fresh rows. `/memory enqueue` is the strong boundary: forces retention, flushes extraction, consolidates rows older than 12 h.
+
+  | You say | Tool the model reaches for | What you get back |
+  |---|---|---|
+  | "Remember that …", "Store this for future sessions: …", "Keep a note that …" | `retain` | `N memory stored.` |
+  | "What do you remember about …?", "Have we hit this before?", "Search your memory for …" | `recall` | bullet list with ids |
+  | "Based on what you remember about this repo, how should I …?" (needs an *answer*, not a list) | `reflect` | `Based on recalled memories:` + context |
+  | "That memory is wrong — update it to say …" | `read memory://<id>` then `memory_edit update` | `Memory <id> updated …` |
+  | "Mark the memory about X as outdated; Y replaces it" | `memory_edit invalidate` (+ `replacement_id`) | `Memory <id> invalidated …` |
+  | "Forget the memory about …" | `memory_edit forget` | `Memory <id> deleted …` |
+
+- **Where a memory comes from decides what it is.** Three writers feed the same scoped bank with different metadata, and `memory_edit`'s rules depend on the *store* a row sits in:
+
+  | Writer | `memory_type` | `importance` | `veracity` | `source` |
+  |---|---|---|---|---|
+  | `retain` tool | `fact` | `0.75` | `tool` | `coding-agent-retain` |
+  | `learn` tool (Lesson 9.3) | `fact` | `0.8` | `tool` | `coding-agent-learn` |
+  | auto-retain (every 4 user turns) | `episode` | `0.65` | `unknown` | `coding-agent-transcript` |
+
+  New rows land in the **working** store. Mnemopi's sleep/consolidation (run by `/memory enqueue`, and only for unconsolidated working rows older than half the 24-hour working-memory TTL = 12 h) promotes eligible rows; normal shutdown never does. Every row reports its store — `working`, `episodic`, or `fact` — in `memory://<id>` frontmatter and in `memory_edit` results. `update`/`forget` work on working rows only; `invalidate` works on working *and* episodic rows; fact-table rows are read-only. This is why an id that `recall` showed you yesterday may answer `not_found` to `update` today — use `invalidate`.
+- **Auto vs explicit.** `mnemopi.autoRecall` (first turn, `<memories>` block) and `mnemopi.autoRetain` (episodes) run without you asking. Explicit tool calls are per-session work on the same scoped bank; an explicit `recall` does not rewrite the injected `<memories>` block. Subagents alias the parent state for explicit calls but run no auto loops of their own.
+- **Durability.** Normal exit gives the retain/flush drain 1.5 s and does not promote fresh rows; already-written working rows are durable. `/memory enqueue` is the strong boundary: forces retention of the current session, flushes pending extraction, consolidates rows older than 12 h.
 - **Approval:** all four are `approval = "read"` — no prompt in any mode.
 
 **Try it (Walkthrough):** (backend `mnemopi` from Lesson 9.1; cwd `omp-course-lab/`)
@@ -224,7 +239,23 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
 - **`learn({ memory, context?, skill? })`** — stores the lesson **first**, then optionally writes a skill. Per backend: `local` → normalises and appends to `~/.omp/agent/memories/<encoded-cwd>/learned.md` (newest-first, deduplicated, secret-redacted, ≤ 100 bullets, `memory` ≤ 2,000 chars, `context` ≤ 400) — injected starting with the **next** session, so the current prompt-cache prefix is untouched; `mnemopi` → a `fact` row, `importance 0.8`, `source: coding-agent-learn`; `hindsight` → queued. Result: `Lesson stored.` / `Lesson queued for retention.`, plus `Created managed skill "<name>".` when `skill` is given. `skill = { action: create|update, name, description, body }` (body is Markdown **without** frontmatter). Approval is dynamic: `write` if `skill` is present or the backend is `local`; otherwise `read`.
 - **`manage_skill({ action, name, description?, body? })`** — `create` (exclusive; fails if it exists), `update` (must exist), `delete`. `approval = "write"`. Unlike `learn`, it **refreshes the active skill list immediately**, so the running session can use the skill.
 - **Where managed skills live:** `~/.omp/agent/managed-skills/<name>/SKILL.md` (default agent dir; a `--profile` moves it). Name is trimmed, lowercased, must match `[a-z0-9][a-z0-9-]{0,63}`; description collapsed to one line; whole file ≤ 64,000 bytes; frontmatter (`name`, `description`) is generated for you.
-- **How they surface next session:** skill discovery runs the `omp-managed` provider (priority 5, dead-last) **unconditionally** — even with autolearn off — so the skill appears in the system prompt's skill list, is readable with `read skill://<name>`, and gets a `/skill:<name>` command when `skills.enableSkillCommands` is on. A same-named authored skill (`.omp/skills/`, `.agents/skills/`, plugins…) always wins; `learn`/`manage_skill create` against such a name returns an error with `shadowed: true` and writes nothing.
+
+  What the tool writes (you supply `name`, `description`, `body`; the frontmatter is generated):
+
+  ```markdown
+  ---
+  name: lab-issue-6-misleading-error
+  description: Diagnose the misleading '<text>' error in omp-course-lab
+  ---
+  ## When you see '<text>'
+  1. Do not trust the file the message names.
+  2. Check <X> first.
+  3. Fix <file>:<line>; re-run <command>.
+  ```
+
+  Rejections you can hit: `Invalid skill name "…"`, `Managed skill "<name>" needs a non-empty description.`, `… needs a non-empty body.`, `Managed skill is <bytes> bytes; the limit is 64000.`, plus symlink/hard-link safety errors on `update`.
+- **The autolearn nudge, end to end.** Turn ends → if it used ≥ `autolearn.minToolCalls` tools, omp queues a reminder → with `autoContinue: false` the reminder rides your *next* prompt (no extra tokens until you send one); with `true`, omp runs one capture turn immediately → the model decides whether anything is worth a `learn` (memory-only) or `learn` + `skill` / `manage_skill` (procedure) → skills land in `managed-skills/`, lessons in the backend. You stay in control: with `autoContinue` off, nothing is written until you send another turn, and you can say "don't capture anything".
+- **How they surface next session:** skill discovery runs the `omp-managed` provider (priority 5, dead-last) **unconditionally** — even with autolearn off — so the skill appears in the system prompt's skill list, is readable with `read skill://<name>`, and gets a `/skill:<name>` command when `skills.enableSkillCommands` is on. A same-named *authored* skill (`<repo>/.omp/skills/<name>/SKILL.md`, `~/.omp/agent/skills/<name>/SKILL.md`, `.agents/skills/`, plugins…) always wins; `learn`/`manage_skill create` against such a name returns an error with `shadowed: true` and writes nothing. Note the two user-level directories: `~/.omp/agent/skills/` is *yours* (authored, native provider, priority 100); `~/.omp/agent/managed-skills/` is the *model's* (managed, priority 5).
 - **Do not confuse with "Memory Guidance".** That block is the `local` backend's injected `memory_summary.md` + `learned.md` lessons. Managed skills are not part of it; they arrive through skill discovery. With `mnemopi`, lessons arrive through `<memories>`/recall instead.
 - **When to use which:** fact → `learn` without `skill` (or plain `retain`); repeatable multi-step procedure → `learn` with `skill` (lesson + playbook in one call) or `manage_skill` when you want it usable *now*. Docs: use `learn` sparingly — one precise lesson beats several vague ones.
 
@@ -293,7 +324,34 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
 - **What actually happens (at `turn_end`, not when the card appears):** the session branches at the checkpoint entry with a `branch_summary` (the report), appends a hidden `rewind-report` custom message (developer-role guidance + the report for the next turn), rebuilds the in-memory messages from the new branch, resets advisor state (cost preserved), resyncs todos, and closes provider sessions whose history was rewritten. The abandoned entries remain in the `.jsonl` file; if the checkpoint entry cannot be found the rewind branches from root and logs a warning.
 - **Observing it:** the status line's `context_pct` segment (in the default `statusLine.rightSegments`) drops after the turn ends; `/tree` shows the branch point, and with `Alt+A` (all entries) you can search `rewind` to find the `custom` bookkeeping entry; the `branch_summary` renders as a `<summary>` block in compaction context.
 - **Resume-safe.** On `/resume`, session switch, or `/tree` navigation, an unfinished checkpoint (successful `checkpoint` result with no later report on the active branch) is rehydrated, so `rewind` still works after a restart.
-- **Versus compaction (M5):** compaction = automatic, threshold-driven, model-written summary of *old* context, methods `remote, snapcompact, handoff, shake, soft`; rewind = explicit, scoped to one investigation, report written by the agent doing the work. They compose: a rewind's `branch_summary` is itself preserved through later compaction.
+- **What the session tree looks like** before and after — the abandoned entries stay in the `.jsonl` and remain visible in `/tree`; only the *active branch* changes:
+
+  ```mermaid
+  graph TD
+    U1[user: investigate #7 with a checkpoint] --> C[assistant: checkpoint ✓  ← branch point]
+    C --> X1[read/grep/bash …]
+    X1 --> X2[… dozens of exploratory cards …]
+    X2 --> R[assistant: rewind ✓]
+    C --> BS[branch_summary: the report]
+    BS --> RR[custom: rewind-report]
+    RR --> U2[user: what was the red herring?]
+    style X1 fill:#eee,stroke:#999,color:#666
+    style X2 fill:#eee,stroke:#999,color:#666
+    style R fill:#eee,stroke:#999,color:#666
+  ```
+
+  After `turn_end` the leaf sits at `rewind-report`; the next provider call is built from `U1 → C → BS → RR`, not from the shaded exploratory path.
+- **Versus the other ways to shrink context** (M5):
+
+  | | Compaction (`/compact`, auto) | `checkpoint` → `rewind` | `/tree` → `Summarize` |
+  |---|---|---|---|
+  | Who decides *when* | thresholds (`compaction.thresholdPercent/Tokens`, reserve) or you (`/compact`) | the agent, at a boundary it declared before exploring | you, by hand |
+  | What is summarised | everything older than `keepRecentTokens`, across the whole conversation | exactly the entries after the checkpoint | the abandoned branch between old and new leaf |
+  | Who writes the summary | a model, via `compaction.methodOrder` (`remote, snapcompact, handoff, shake, soft`) | the working agent, in `report` | a model (`branchSummary.enabled` prompt) |
+  | Persisted as | `compaction` entry | `branch_summary` + hidden `rewind-report` custom message | `branch_summary` |
+  | Needs a setting | on by default | `checkpoint.enabled: true` | `branchSummary.enabled` for the prompt; `Shift+Enter` works regardless |
+
+  They compose: a rewind's `branch_summary` is a message-bearing entry that later compaction retains and renders as a `<summary>` block.
 - **Prompt phrasing:** "Set a checkpoint with the goal '…', investigate, and when you know the answer rewind with a report containing X, Y, Z." Being explicit about what the report must contain is what makes the retained context useful.
 
 **Try it (Walkthrough):** (cwd `omp-course-lab/`; memory backend irrelevant)
