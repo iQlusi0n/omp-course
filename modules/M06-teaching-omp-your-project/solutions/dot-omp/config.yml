@@ -1,0 +1,17 @@
+# omp-course-lab/.omp/config.yml — project settings.
+# Deep-merged OVER ~/.omp/agent/config.yml when omp starts in this directory
+# (objects merge key-by-key; arrays and scalars replace the global value wholesale).
+# Only read when omp's cwd is this repo root: settings discovery does not walk up.
+
+tools:
+  approvalMode: write        # global default is yolo; here omp prompts before non-workspace actions
+
+theme:
+  dark: titanium
+
+secrets:
+  enabled: true              # off by default; pairs with .omp/secrets.yml (Lesson 6.9)
+
+# Uncomment to drop a competing context file without disabling its whole provider:
+# disabledExtensions:
+#   - context-file:project:CLAUDE.md

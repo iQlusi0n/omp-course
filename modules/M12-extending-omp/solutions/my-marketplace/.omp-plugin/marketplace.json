@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "course-marketplace",
+  "owner": { "name": "omp course" },
+  "metadata": {
+    "description": "Local marketplace built in Module 12",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "lab-tools",
+      "description": "One skill (lab conventions) and one command (/lab-tools:standup) for omp-course-lab",
+      "version": "1.0.0",
+      "category": "development",
+      "source": "./lab-tools"
+    }
+  ]
+}

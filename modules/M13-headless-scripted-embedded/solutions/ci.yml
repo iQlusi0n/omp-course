@@ -1,0 +1,15 @@
+# ci.yml — config overlay for the unattended review bot.
+# Load per run with:  omp -p --mode json --no-session --config ci.yml ...
+# Keys verified in omp://settings.md ("tools.approvalMode", "tools.approval")
+# and omp://approval-mode.md.
+tools:
+  # always-ask auto-approves only the `read` tier. write/exec calls need a prompt,
+  # and print mode has no UI to answer one, so they are rejected (fail closed).
+  approvalMode: always-ask
+  # Belt and braces: an explicit user `deny` cannot be bypassed by any mode.
+  approval:
+    write: deny
+    edit: deny
+    bash: deny
+    eval: deny
+    task: deny

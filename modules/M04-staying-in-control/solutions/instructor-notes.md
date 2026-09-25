@@ -1,0 +1,78 @@
+# Module 4 — Instructor notes (solutions)
+
+Built against omp/18.3.1. Verify pass conditions with the commands listed; do not accept "it worked".
+
+## 4-W1 (approvals + patterns)
+
+Expected observations on issue #4 (`stats` subcommand) under `always-ask`:
+- `read`/`grep`/`glob` never prompt (tier `read`).
+- First prompt is usually the pre-change `bash python3 -m unittest discover -s tests` (exec).
+- `edit` prompts (write tier) — 2–4 of them: `cli/commands.py`, `cli/__main__.py`, a test file, `README.md`.
+- `bash python3 -m cli stats` and the post-change test run prompt again.
+Typical count: 5–8 approval cards. A learner reporting 0 did not leave `yolo` (check `omp config get tools.approvalMode`).
+
+Denying the first `edit`: the model must not proceed silently; acceptable behaviors are an explanation, a question (`ask` card), or a retry with a different plan. If it simply retried the identical edit without comment, that is still a correct demonstration that a denial is just an error result to the model.
+
+Pattern rule check:
+```bash
+omp config get bash.patterns
+# [{"match":"python3 -m unittest*","approval":"allow"}]
+omp config get tools.approvalMode   # write
+```
+Why step 8 switches to `write`: an `allow` rule lowers the command to the `write` tier (approval-mode.md "Safety overrides"). In `always-ask`, `write` still prompts, so the rule would appear to do nothing. Common learner confusion — worth saying out loud.
+
+Step 10 (`… && rm -rf .pytest_cache`): with `bash.allowCompoundCommands` at its default `false`, `allow` cannot approve a compound line → exec-tier prompt in `write` mode. If the learner also added `rm -rf *: deny`, the line is denied instead (segment match). Both are correct outcomes; the report should say which.
+
+## 4-G1 (plan mode, issue #5)
+
+Pass check:
+```bash
+git diff --stat                      # api/server.py, cli/__main__.py (+ cli/commands.py), tests/…
+grep -ri "email\|smtp" api cli tests # no new hits (compare against module-4-start)
+python3 -m unittest discover -s tests
+LAB_ISSUE=5 python3 -m unittest tests.test_issues
+```
+If the email sub-item was implemented anyway: either the annotation was added to the wrong section, or the learner picked "Paste"/left plan mode without approving and then prompted normally. Ask them to `/plan-review` (only works while still in plan mode) or to show the annotation text in `notes/m4-plan.md`.
+
+Terminal chord problems: `Alt+Shift+P` needs the Kitty keyboard protocol (Module 1). Fallback taught: `plan.defaultOnStartup: true` (`omp config set plan.defaultOnStartup true`) — remember to reset it afterwards.
+
+Session naming: after approval the session is auto-named from the plan title only if the session had no name yet (session-tree-plan.md). A learner who `/rename`d earlier will not see it; not a failure.
+
+## 4-G2 (annotate → review → commit)
+
+- Both notes must be visible in `notes/m4-review.md` verbatim; the review report should reference them (the overlay passes them as operator focus to `/review`).
+- `omp commit --dry-run` must leave `git status` dirty. Then ≥ 2 commits with distinct scopes: check `git log --oneline -3`. Because `omp commit` stages the whole tree (observed with `--legacy`: "Staging all changes…"), the practical way to get two scoped commits is two passes: implement/commit `api/`, then `cli/`; or `git stash push -- cli/` before the first `omp commit`.
+- `No model available for commit generation` → no provider, or `commit`/`smol` roles resolve to nothing; `omp commit -m <model>` or `/login`.
+- Changelog: if the lab has no `CHANGELOG.md`, `--no-changelog` is irrelevant; if it does, expect an entry.
+
+## 4-S1 (conflict-lab)
+
+Reference resolution (adapt to the actual seeded conflicts in `api/server.py` and `cli/__main__.py`):
+1. `read api/server.py:conflicts` → `#1`; `read cli/__main__.py:conflicts` → `#2` (ids are global per session, so the second file continues numbering).
+2. Inspect `conflict://1/ours` and `/theirs`.
+3. Combined literal resolution for the server block (example shape — keep both branches' behaviors):
+   ```
+   write conflict://1
+   <literal lines merged from both sides>
+   @theirs        ← optional: append the other side's block verbatim when additive
+   ```
+4. `write conflict://*` with `2: @theirs`.
+5. Re-read both `:conflicts` → none. Tests green. `omp commit -c "merge main into conflict-lab: #1 combined both; #2 kept theirs because …"`.
+Pitfalls: writing to `conflict://1/ours` (read-only scope → ToolError); `@base` without diff3 (`git config merge.conflictStyle diff3` before merging fixes it); reusing an id after resolution (invalidated → re-read).
+
+Pass check:
+```bash
+git grep -n '<<<<<<<\|>>>>>>>' -- api cli   # empty
+python3 -m unittest discover -s tests       # exit 0
+git log -1 --format='%P'                    # two parents
+```
+
+## 4-S2 (fork/undo)
+
+Pass check: `/resume` (Tab for all) lists two sessions for this folder whose transcripts diverge at the rename prompt; `git status` clean. `omp --fork <id>` from the shell also satisfies it. Reject if the learner used `--no-session` (fork impossible) or forked mid-stream (refused with a warning).
+
+## Reset after the module
+```bash
+omp config reset bash.patterns; omp config reset bash.allowCompoundCommands
+omp config reset tools.approval; omp config reset tools.approvalMode; omp config reset plan.defaultOnStartup
+```

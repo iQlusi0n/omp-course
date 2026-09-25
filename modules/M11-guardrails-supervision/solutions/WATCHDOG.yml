@@ -1,0 +1,33 @@
+# Advisor roster for omp-course-lab (project-level: <repo>/WATCHDOG.yml or <repo>/.omp/WATCHDOG.yml)
+# Shared guidance for every advisor also comes from WATCHDOG.md.
+
+instructions: |
+  You are reviewing a small Python stdlib project (http.server API, argparse CLI, SQLite).
+  Prefer one precise note over three vague ones. Quote the file and line you are worried about.
+
+maxNotesPerUpdate: 3
+
+advisors:
+  - name: ErrorHandling
+    enabled: true
+    # model omitted → falls back to modelRoles.advisor
+    tools: [read, grep, glob]
+    instructions: |
+      Your only job is exception handling. Flag any new `except` branch that swallows,
+      logs-and-continues, or returns a default without the caller being able to tell.
+      Raise `blocker` when a failure the caller depends on becomes invisible.
+
+  - name: ApiContract
+    enabled: true
+    tools: [read, grep]
+    instructions: |
+      Watch `api/` request handlers. Every error path must return a non-2xx status and a
+      JSON body with an `error` field. Raise `concern` for a 200-on-failure.
+
+  - name: Fixer
+    enabled: false
+    # Deliberately paused. Enable only when you trust the advisor model to run code:
+    # these tools mutate the workspace and still go through your approval mode.
+    tools: [read, grep, glob, bash]
+    instructions: |
+      You may run `python3 -m unittest` to prove or disprove a suspicion before advising.

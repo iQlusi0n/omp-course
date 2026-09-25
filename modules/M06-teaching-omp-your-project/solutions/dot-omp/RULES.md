@@ -1,0 +1,3 @@
+- Never run `git commit`, `git push`, or rewrite history unless the user explicitly asks in the current message.
+- Never edit files under `generated/`; change the generator input instead and say so.
+- Never add a third-party dependency without asking first.
