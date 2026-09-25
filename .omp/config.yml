@@ -1,0 +1,4 @@
+task:
+  isolation:
+    enabled: true
+  maxConcurrency: 16

@@ -1,0 +1,4 @@
+- Never state an omp command, flag, key, setting, or default without having read it in `omp://` docs or `omp --help` output this session.
+- Never cite third-party blogs or guides as fact.
+- Never edit files outside the directory you were assigned.
+- Never run `git commit`; the orchestrator commits.
