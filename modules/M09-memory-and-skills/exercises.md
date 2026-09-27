@@ -54,9 +54,9 @@ Lesson 9.1 + 9.2. Enable **only** the `memory:`/`mnemopi:` block from the config
 5. `how do the tests in this repo pick their database?`
    Expected: a `recall` or `reflect` card whose result contains `DATABASE_URL` and an `(id: …)`; the answer repeats the fact. Copy the id.
 6. `read memory://<id>`
-   Expected: a `read` card showing YAML frontmatter (`id`, `bank`, `store`, `memory_type: fact`, `importance: 0.75`, `source: coding-agent-retain`) and the full content.
-7. Shell: `ls ~/.omp/agent/memories/mnemopi/`
-   Expected: `mnemopi.db` and sibling bank database files.
+   Expected: a `read` card showing YAML frontmatter (`id`, `bank`, `store: working`, `source: coding-agent-retain`, `importance: 0.75`, `veracity: tool`, timestamps, `session_id`, `metadata` — omp 18.3.5 omits the `memory_type` key the docs list) and the full content.
+7. Shell: `ls ~/.omp/agent/memories/mnemopi/banks/`
+   Expected: one `omp-course-lab-<hash>/` directory (the per-project bank) containing `mnemopi.db` plus its `-wal`/`-shm` sidecars. The shared `mnemopi/mnemopi.db` appears only once a `global`-scoped bank has been used.
 
 **Pass:** (a) a `recall`/`reflect` card in the *new* session cites the `DATABASE_URL` fact, and (b) `read memory://<id>` returns the row with frontmatter. (`read memory://root` is *not* the check here — that URL is file-backed and only exists under `memory.backend: local`.)
 

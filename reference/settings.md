@@ -118,7 +118,7 @@ Objects merge across layers; **arrays and scalars replace**. `omp config set --j
 | `stt.enabled` · `stt.submitTrigger` · `stt.language` | ⚠ `false` · `never` · `en` | M14 |
 | `speech.enabled` · `speech.mode` · `speech.voice` · `live.voice` | `false` · `assistant` · `af_heart` · `sol` | M14 |
 
-¹ The course build repo ships `.omp/config.yml` with `task.isolation.enabled: true` and `task.maxConcurrency: 16`; modules M10/M11 quote those effective values. `omp read cfg://<key>` shows `source: project config` when that override is active.
+¹ Definition defaults. Note that the course *build* repo ships its own `.omp/config.yml` with `task.isolation.enabled: true` and `task.maxConcurrency: 16` for building; that override must not be mistaken for a default. `omp read cfg://<key>` shows `source: project config` when an override is active; verify defaults from a directory with no `.omp/config.yml`.
 
 ## Commands
 

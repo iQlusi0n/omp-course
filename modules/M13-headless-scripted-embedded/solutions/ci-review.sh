@@ -27,7 +27,9 @@ if [[ -n "$TARGET" ]]; then
   PROMPT="Read $TARGET/diff/all and review it. Respond with ONLY a JSON object (no prose, no code fence) of the form $SCHEMA. P0 = must-fix security or data-loss bug; P1 = correctness bug; P2 = style."
 else
   # /review is omp's bundled review command; the trailing text is appended to its prompt.
-  PROMPT="/review Respond with ONLY a JSON object (no prose, no code fence) of the form $SCHEMA. P0 = must-fix security or data-loss bug; P1 = correctness bug; P2 = style."
+  # Scope it to the diff: without the first two sentences the reviewer roams the whole repo and
+  # rates the lab's seeded issues (#1-#8) as P1 with verdict=fail even on a clean tree.
+  PROMPT="/review Review ONLY the lines changed in the working diff; pre-existing code outside the diff is out of scope. If the diff is empty, answer {\"findings\":[],\"verdict\":\"pass\"}. Respond with ONLY a JSON object (no prose, no code fence) of the form $SCHEMA. P0 = must-fix security or data-loss bug; P1 = correctness bug; P2 = style."
 fi
 
 RAW="$(mktemp)"

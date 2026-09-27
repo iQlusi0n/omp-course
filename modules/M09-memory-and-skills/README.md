@@ -92,7 +92,7 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
   | `memory://root/skills/<name>/SKILL.md` | `local` | a generated playbook (`memory://root/...` also works as a `glob` pattern) |
   | `memory://<memory-id>` | `mnemopi` | the full row — working or episodic — behind YAML frontmatter (`id`, `bank`, `store`, `memory_type`, `source`, timestamps, `importance`, `veracity`, `session_id`, `metadata`); only the calling session's scoped banks |
 
-  Under `mnemopi` the `root` form does not resolve; under `hindsight` the id form returns a corrective pointer. These URLs are session-side: the shell `omp read memory://…` reports `Unknown protocol: memory://`.
+  Under `mnemopi` the `root` form does not resolve; under `hindsight` the id form returns a corrective pointer. These URLs are session-side: from a directory where the backend is `off` the shell `omp read memory://…` reports `Unknown protocol: memory://`; inside the lab with `mnemopi` on it resolves the protocol but reports that the id is `not found in the calling session's scoped bank` — the row is only readable from inside the session.
 - **`/memory` subcommands:** `view` (current injection payload) · `stats` (backend statistics) · `diagnose` · `queue` (pending deltas awaiting consolidation) · `sync` (run consolidation now) · `clear`/`reset` (delete active backend data; Mnemopi: every scoped DB + WAL/SHM) · `enqueue`/`rebuild` (force consolidation/retention; Mnemopi: retains the current session, flushes extraction, runs sleep/consolidation for rows older than 12 h; local: marks work for the next startup) · `mm …` (Hindsight only; unsupported in ACP mode).
 - **How the tools render.** `retain`/`recall`/`reflect`/`memory_edit` are *discoverable* tools. With `tools.xdev` (observed `true` on 18.3.1) they may be presented as devices — the card can read `write xd://recall` instead of a top-level `recall` card, and `read xd://` lists the mounted devices. Passing `--tools=recall,retain,reflect` keeps them top-level. Either rendering is the same tool.
 - **Approval.** `recall`, `reflect` and `memory_edit` declare `approval = "read"`, so they never prompt in any approval mode (Module 4), even though `memory_edit` writes to disk. `retain` is `read` too, except a call with a `scope: "global"` item is `write` (that option is only offered under `global`/`per-project-tagged` scoping — never under the default `per-project`).
@@ -117,7 +117,7 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
 5. Ask: `read xd:// and tell me which memory-related devices are mounted` (or, if `tools.xdev` is off, simply `which memory tools do you have?`).
    Expected: the answer names `recall`, `retain`, `reflect`, `memory_edit`. If `learn` is missing, that is correct — it needs `autolearn.enabled` (Lesson 9.3).
 6. `ls ~/.omp/agent/memories/`.
-   Expected: a `mnemopi/` directory holding `mnemopi.db` (the backend opens its SQLite databases when a session starts with it active; project banks are sibling files).
+   Expected: a `mnemopi/` directory. With the default `per-project` scoping the project bank lives at `mnemopi/banks/<cwd-basename>-<hash>/mnemopi.db`; the shared `mnemopi/mnemopi.db` is created only when a `global` bank is used.
 
 **Guided task:** *Goal:* prove the backend/tool matrix to yourself. *Hints:* flip `memory.backend` between `local` and `mnemopi` in the project `.omp/config.yml`, restart omp each time, and ask omp "which of retain, recall, reflect, memory_edit can you call right now?". Also ask it to `read memory://root` under each. *Checkpoints:* (a) under `local` the four tools are absent and `memory://root` either reads `memory_summary.md` or reports that no summary exists yet; (b) under `mnemopi` the four tools are present and `memory://root` does not resolve. *Pass condition:* your notes for (a) and (b) match the table at the top of this README.
 
@@ -130,7 +130,7 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
 | `omp config get memory.backend` still prints `off` after editing `.omp/config.yml` | You ran it outside the repo, or the file is not under `<repo>/.omp/` | `cd omp-course-lab` first; the project layer loads only when the cwd has a non-empty `.omp/` |
 | Memory tool says `Mnemopi backend is not initialised for this session.` | Backend startup failed (DB or embedding/LLM model init) and the session continued inert | `/memory diagnose`; try `mnemopi.noEmbeddings: true` (FTS-only) and/or `mnemopi.llmMode: none`; restart |
 | `read memory://root` fails under `mnemopi` | The file-backed root exists only with `memory.backend: local` | Use `recall`/`reflect`, or `read memory://<id>` for a specific row |
-| Shell `omp read memory://root` → `Unknown protocol: memory://` | `memory://` is resolved inside a session, not by the CLI reader | Ask omp to `read memory://…` in-session |
+| Shell `omp read memory://root` → `Unknown protocol: memory://` (backend off) or `… not found in the calling session's scoped bank` (backend on) | `memory://` rows are resolved inside a session, not by the CLI reader | Ask omp to `read memory://…` in-session |
 | I set `memory.backend: local` but no `MEMORY.md` ever appears | Consolidation only processes sessions idle ≥ 12 h and ≤ 30 days old, at the *next* startup | Come back tomorrow; `/memory enqueue` marks work for the next startup, `/memory sync` runs it now |
 | `learn` is missing even though memory is on | `learn` also needs `autolearn.enabled: true` | Lesson 9.3 |
 
@@ -145,7 +145,7 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
 | Inspect | `/memory view` · `/memory stats` · `/memory diagnose` · `/memory queue` |
 | Force work | `/memory enqueue` (Mnemopi: retain now + flush + consolidate rows > 12 h) · `/memory sync` |
 | Wipe | `/memory clear` (Mnemopi: deletes every scoped DB) |
-| Files | local: `~/.omp/agent/memories/<encoded-cwd>/{MEMORY.md,memory_summary.md,learned.md,skills/}` · mnemopi: `~/.omp/agent/memories/mnemopi/mnemopi.db` |
+| Files | local: `~/.omp/agent/memories/<encoded-cwd>/{MEMORY.md,memory_summary.md,learned.md,skills/}` · mnemopi: `~/.omp/agent/memories/mnemopi/banks/<cwd-basename>-<hash>/mnemopi.db` (per-project) · `mnemopi/mnemopi.db` (global bank) |
 
 **Source:** omp://memory.md, omp://mnemosyne-memory-backend.md, omp://settings.md, omp://config-usage.md, omp://tools/read.md, omp://tools/retain.md, omp://approval-mode.md
 
@@ -193,7 +193,7 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
 3. `how do the tests in this repo pick their database?`
    Expected: a `recall` and/or `reflect` card; the result bullet contains `DATABASE_URL` and an `(id: …)`; the answer repeats the fact. Note the id.
 4. `read memory://<that id>`
-   Expected: a `read` card with YAML frontmatter (`id`, `bank`, `store`, `memory_type: fact`, `importance: 0.75`, `source: coding-agent-retain`) and the full content.
+   Expected: a `read` card with YAML frontmatter (`id`, `bank`, `store: working`, `source: coding-agent-retain`, `importance: 0.75`, `veracity: tool`; the documented `memory_type` key is absent on 18.3.5) and the full content.
 5. `that memory should also say that the sqlite:/// URL form from .env.example only works once issue #6 is fixed in api/db.py — before that, only a plain path works. Update it.`
    Expected: the model re-reads `memory://<id>` (or uses the full row it already has), then a `memory_edit` card with `op: update` and result `Memory <id> updated in bank <bank> (working).`
 6. `/memory stats`

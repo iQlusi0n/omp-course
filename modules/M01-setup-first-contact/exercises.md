@@ -54,9 +54,9 @@ Prerequisite: a provider account (OAuth: Anthropic, OpenAI Codex, GitHub Copilot
    python3 -m cli orders --month 2026-03 | tail -1
    LAB_ISSUE=1 python3 -m unittest tests.test_issues
    ```
-   **Expected:** `12 orders for 2026-03, total $1943.94`, then `OK` (was `FAILED (failures=2, …)` before the fix).
+   **Expected:** `12 orders for 2026-03, total $1943.94`, then `OK (skipped=18)` (was `FAILED (failures=2, skipped=18)` before the fix — the 18 skips are the other issues' gated tests).
 
-**Pass:** `omp --version` printed a version; `omp token <provider>` exits 0; `git diff --stat | tail -1` says `1 file changed` and the file is `cli/format.py`; `LAB_ISSUE=1 python3 -m unittest tests.test_issues` ends in `OK`.
+**Pass:** `omp --version` printed a version; `omp token <provider>` exits 0; `git diff --stat | tail -1` says `1 file changed` and the file is `cli/format.py`; `LAB_ISSUE=1 python3 -m unittest tests.test_issues` finishes with `OK (skipped=18)`.
 
 If the diff touches more than one file: `git checkout -- <extra file>` and read Lesson 1.5's troubleshooting — the prompt's "touch only the file that contains the bug" is doing real work.
 

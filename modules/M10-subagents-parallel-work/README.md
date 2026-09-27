@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Built against** | `omp/18.3.5` (`omp --version`) |
+| **Built against** | `omp/18.3.1` (`omp --version`); audited on `omp/18.3.5` (see `BUILD-NOTES.md`) |
 | **Prerequisites** | Module 8 (eval kernels, `local://`, `artifact://`). Module 4 for `/review`. |
 | **Practice repo** | `omp-course-lab` — `git checkout module-10-start` |
 | **Goal** | Fan work out, watch it, steer it, and get typed results back. |

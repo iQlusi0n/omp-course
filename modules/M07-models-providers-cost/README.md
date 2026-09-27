@@ -218,7 +218,7 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
   | `lm-studio` | `LM_STUDIO_BASE_URL` → `http://127.0.0.1:1234/v1` | `openai-completions`; `GET /models` — works for *any* OpenAI-compatible local server |
   All three are keyless; their models are selectable as soon as the engine answers. `OLLAMA_CONTEXT_LENGTH` only changes omp's budget, not Ollama's `num_ctx`.
 - **Discovered proxy/gateway models are priced at zero** ("local-unknown") — see 7.6.
-- **The lab's mock provider:** `python3 tools/mock-provider.py --port 8765` serves `GET /v1/models` (one model, `mock-1`) and `POST /v1/chat/completions` (streaming and non-streaming; reply `Hello from mock-1. You said: <last user message>` — the `<system-reminder>` block omp prepends to your message is stripped from the echo, and the echo is cut at 80 characters), prints one banner line to stdout, logs every request to stderr as `[mock-provider] POST /v1/chat/completions -> "POST /v1/chat/completions HTTP/1.1" 200 -`, needs no key. `--fail` turns every chat request into HTTP `429` with `Retry-After: 1` (7.5). `--model <id>` renames the model; `--host` rebinds it.
+- **The lab's mock provider:** `python3 tools/mock-provider.py --port 8765` serves `GET /v1/models` (one model, `mock-1`) and `POST /v1/chat/completions` (streaming and non-streaming; reply `Hello from mock-1. You said: <last user message>` — the echo is cut at 80 characters, and because omp prepends a `<system-reminder>` block with the date and cwd to your message, what you see is `Hello from mock-1. You said: <system-reminder> Today: …` rather than your own words), prints one banner line to stdout, logs every request to stderr as `[mock-provider] POST /v1/chat/completions -> "POST /v1/chat/completions HTTP/1.1" 200 -`, needs no key. `--fail` turns every chat request into HTTP `429` with `Retry-After: 1` (7.5). `--model <id>` renames the model; `--host` rebinds it.
 - **Exact block for the mock** — append to `~/.omp/agent/models.yml`:
   ```yaml
   providers:
@@ -239,7 +239,7 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
             cacheRead: 0
             cacheWrite: 0
   ```
-- **Verify:** `omp models mock` → a `mock (1)` table with `mock-1 │ 33K │ 4.1K │ - │ no`; `omp -p --model mock/mock-1 "say hi"` → `Hello from mock-1. You said: say hi`.
+- **Verify:** `omp models mock` → a `mock (1)` table with `mock-1 │ 33K │ 4.1K │ - │ no`; `omp -p --model mock/mock-1 "say hi"` → a line starting `Hello from mock-1. You said: <system-reminder> Today:`.
 - **Tiny on-device models** (catalog provider `local`, kind `tiny`): `omp models --kind tiny`; `omp tiny-models list`; `omp tiny-models download <id>` / `download all` (default download `lfm2.5-230m`, ~214 MB). Assign with `modelRoles.tiny: local/lfm2.5-230m` (titles) and `modelRoles.memory: local/lfm2-1.2b` (Module 9 memory); `judge: local/lfm2-1.2b` for on-device judgments. Weights download only when a local candidate is used or prefetched; inference runs in a per-model worker (`~/.omp/run/tiny/<model>-<backend>.sock`) that exits after 15 min idle. CPU by default; `providers.tinyModelDevice` / `PI_TINY_DEVICE` (`gpu`, `cuda`, `mlx`, …) and `providers.tinyModelDtype` / `PI_TINY_DTYPE` (setting default `default` = each model's shipped dtype, currently `q4`) are opt-outs.
 - **Speech:** `omp setup speech` picks, persists and downloads `modelRoles.speech` (`local/kokoro`, ~100 MB) and `modelRoles.dictation` (`local/parakeet-tdt-0.6b-v3` default, or `local/whisper-*`); `omp models --kind tts|stt` lists them. Keep chains empty (`retry.fallbackChains.speech: []`) to stay local.
 - **Cache:** discovered rows persist in `<agent dir>/models.db`; `omp models refresh` forces a re-fetch (the help text calls it the replacement for `rm -rf ~/.omp/models.db`).
@@ -258,7 +258,7 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
    └────────┴─────────┴─────────┴──────────┴────────┘
    ```
 3. `omp -p --model mock/mock-1 "say hi"`.
-   Expected: `Working...` then `Hello from mock-1. You said: say hi`; the mock's stderr shows `"POST /v1/chat/completions HTTP/1.1" 200`.
+   Expected: `Working...` then a line starting `Hello from mock-1. You said: <system-reminder> Today:` (the 80-character echo is filled by the block omp prepends, so `say hi` itself is cut off); the mock's stderr shows `"POST /v1/chat/completions HTTP/1.1" 200`.
 4. Break it on purpose: delete the `baseUrl:` line and run `omp models`.
    Expected: `Warning: models.yml validation failed — custom providers disabled` followed by `Provider mock: "baseUrl" is required when defining custom models.`; built-in providers still list. Restore the line.
 5. Discovery without a file: comment out the whole `mock:` block, then `LM_STUDIO_BASE_URL=http://127.0.0.1:8765/v1 omp models lm-studio`.
@@ -339,7 +339,7 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
    ```
    Expected: `omp config get retry.fallbackChains` → `{"default":["mock-backup/mock-1","…"]}`.
 4. In the lab: `omp` then `say hi`.
-   Expected: the request fails on `mock/mock-1`, omp shows a fallback warning from `mock/mock-1` to `mock-backup/mock-1` with the `429 rate limited (mock --fail)` reason, and the answer `Hello from mock-1. You said: say hi` arrives from the backup (~10–15 s; the mock's `Retry-After: 1` is honoured first). The status line chip now reads `Mock 1 (backup)`.
+   Expected: the request fails on `mock/mock-1`, omp shows a fallback warning from `mock/mock-1` to `mock-backup/mock-1` with the `429 rate limited (mock --fail)` reason, and the answer `Hello from mock-1. You said: <system-reminder> Today: …` arrives from the backup (~10–15 s; the mock's `Retry-After: 1` is honoured first). The status line chip now reads `Mock 1 (backup)`.
 5. Same thing headless, as proof you can grep: `omp -p --mode json --no-session "say hi" | grep -E 'retry_fallback_(applied|succeeded)'`.
    Expected: two JSON lines — `{"type":"retry_fallback_applied","from":"mock/mock-1","to":"mock-backup/mock-1","role":"default","reason":"Request failed: 429 rate limited (mock --fail) …"}` and `{"type":"retry_fallback_succeeded","model":"mock-backup/mock-1","role":"default"}`.
 6. Restore `modelRoles.default` to your real model and stop the `--fail` mock.

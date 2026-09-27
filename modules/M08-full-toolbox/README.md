@@ -238,7 +238,7 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 **Guided task:** Rename `get_user` → `fetch_user` across the `api/` package (re-exported from `api/__init__.py`), then replace `print($$$A)` with `logger.debug($$$A)` in `cli/` via `ast_edit`, accepting the proposal.
 - Hints: do the rename first (LSP needs a clean tree to index), then the codemod; `cli/log.py` already exposes `logger`; ask for `apply: false` first if you want to see the preview.
 - Checkpoints: (a) `lsp references` lists ≥ 4 files; (b) `Applied rename:`; (c) `Staged as a proposal`; (d) `write xd://resolve` → `Applied …`.
-- Pass: `grep -rn "print(" cli/` prints nothing; `python3 -m unittest discover -s tests` passes; `api/__init__.py` imports `fetch_user`.
+- Pass: `grep -rn "print(" cli/commands.py` prints nothing (the two docstring mentions in `cli/log.py` are not calls and stay); `python3 -m unittest discover -s tests` passes; `api/__init__.py` imports `fetch_user`.
 
 **Stretch:** Write `.omp/lsp.json` that disables `pylsp` and raises `idleTimeoutMs` to 120000, then `lsp reload` (`file: "*"`) and confirm with `lsp status`. Then move `api/db.py` to `api/storage/db.py` with `lsp rename_file` and make the tests pass. Pass: `lsp status` no longer lists `pylsp`; `git status` shows the move plus updated imports; tests `OK`.
 

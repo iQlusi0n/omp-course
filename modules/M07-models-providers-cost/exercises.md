@@ -62,7 +62,7 @@ Checkpoints:
 - `omp models mock` prints a `mock (1)` table whose row starts `│ mock-1 │     33K │    4.1K │`.
 - `omp models find mock` returns the same row; `omp models --json` includes `{"provider":"mock","id":"mock-1",…}`.
 
-**Pass:** `omp -p --model mock/mock-1 "say hi"` prints `Hello from mock-1. You said: say hi` (the mock strips the `<system-reminder>` block omp prepends), and the mock's stderr shows `[mock-provider] POST /v1/chat/completions -> "POST /v1/chat/completions HTTP/1.1" 200 -`.
+**Pass:** `omp -p --model mock/mock-1 "say hi"` prints a line starting `Hello from mock-1. You said: <system-reminder> Today:` (the mock echoes the first 80 characters of the last user message, and omp prepends a `<system-reminder>` block with the date and cwd, so `say hi` itself is cut off), and the mock's stderr shows `[mock-provider] POST /v1/chat/completions -> "POST /v1/chat/completions HTTP/1.1" 200 -`.
 
 ---
 

@@ -414,13 +414,13 @@ graph LR
   ```bash
   omp -p --mode json --no-session --no-extensions --no-skills \
       --config ci/ci.yml --tools read,grep,glob --max-time 10m \
-      "/review Respond with ONLY a JSON object … {\"findings\":[…],\"verdict\":\"pass|fail\"}" > "$RAW" 2>/dev/null \
+      "/review Review ONLY the lines changed in the working diff; if the diff is empty answer pass. Respond with ONLY a JSON object … {\"findings\":[…],\"verdict\":\"pass|fail\"}" > "$RAW" 2>/dev/null \
     || { echo "omp failed — failing closed" >&2; exit 1; }
   python3 - "$RAW" <<'PY'      # last assistant message_end → pull the JSON object out of any fence/prose → exit 1 on any P0 or verdict=fail
   …
   PY
   ```
-- **`/review` runs headless.** `omp -p "/review …"` resolves the working diff itself (bundled review command) and any trailing text is appended to its prompt — that is where you specify the JSON verdict format. There is no documented native JSON output for `/review`; the shipped script asks for `{"findings":[{severity,file,line,title}],"verdict"}` and pulls the JSON object out of the reply even when the model wraps it in a code fence or prefixes prose (both observed despite "no prose, no code fence").
+- **`/review` runs headless.** `omp -p "/review …"` runs the bundled review command and any trailing text is appended to its prompt — that is where you specify the JSON verdict format. Two things observed on the lab (18.3.5): the reviewer, having no `bash`, reconstructs the working diff by reading the tree (and even `.git/`), and if you do not tell it to judge *only the diff* it reviews the whole repository and rates the lab's seeded issues as `P1` with `verdict: "fail"` — even on a clean tree. The shipped script therefore says "Review ONLY the lines changed in the working diff … If the diff is empty, answer pass". There is no documented native JSON output for `/review`; the script asks for `{"findings":[{severity,file,line,title}],"verdict"}` and pulls the JSON object out of the reply even when the model wraps it in a code fence or prefixes prose (both observed despite "no prose, no code fence").
 - **Verdict from content, not exit code.** omp exits `0` after a refused tool or an empty review. Parse the last assistant `message_end` from `--mode json`, then exit `1` on any `P0` or on `verdict: "fail"` (or on unparseable output — fail closed).
 - **PRs:** `read pr://<N>` (or `pr://<owner>/<repo>/<N>`) gives the PR view (`?comments=0` to drop comments); `pr://<N>/diff` lists changed files, `pr://<N>/diff/<i>` one file, `pr://<N>/diff/all` the full unified diff. The same URIs work from the shell: `omp read pr://12/diff/all`. Needs `gh` authenticated; results are cached in `~/.omp/cache/github-cache.db` (`github.cache.*` settings). `ci-review.sh` switches to a `pr://` target with `OMP_REVIEW_TARGET=pr://12`.
 - **Secrets via environment.** Provider keys are read from env (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, …; `omp --help` lists them) or `--api-key`. Put them in the CI secret store, never in `ci.yml` or the repo. The lab's `.env.example` `labtok_…` token exists so you can check the bot never echoes it.
@@ -446,9 +446,9 @@ graph LR
 1. `mkdir -p ci && cp ../modules/M13-headless-scripted-embedded/solutions/ci-review.sh ci/review.sh && cp ../modules/M13-headless-scripted-embedded/solutions/ci.yml ci/ && chmod +x ci/review.sh`
    **Expected:** `ci/review.sh`, `ci/ci.yml` exist.
 2. Clean tree: `bash ci/review.sh --max-time 3m; echo EXIT=$?`
-   **Expected:** `review: 0 finding(s), 0 P0, verdict=pass`, `EXIT=0` (the working diff is empty).
+   **Expected:** `review: 0 finding(s), 0 P0, verdict=pass`, `EXIT=0` (the working diff is empty and the prompt is diff-scoped; drop the "Review ONLY the lines changed…" sentence from the script and the same run lists the lab's seeded issues as `P1` rows with `verdict=fail`, `EXIT=1`).
 3. Plant a P0: append `os.system("rm -rf " + input())` (with `import os`) to `cli/__init__.py`, rerun.
-   **Expected:** `EXIT=1` — normally a `P0  cli/__init__.py:<line>  …` row and `verdict=fail`. Models are not deterministic here: on the audit run the reviewer listed the lab's seeded issues as `P1` rows and still returned `verdict=fail` (see `BUILD-NOTES.md`); the script goes red either way.
+   **Expected:** `EXIT=1` — normally a `P0  cli/__init__.py:<line>  …` row and `verdict=fail`. Models are not deterministic here: on the audit run the reviewer listed the lab's seeded issues as `P1` rows and still returned `verdict=fail`; on the 18.3.5 dry run it named the planted line in two of three runs and answered `pass` once (see `BUILD-NOTES.md`). Rerun if it misses.
 4. Watch the fences: `omp -p --mode json --no-session --config ci/ci.yml --tools read,grep,glob "/review Respond with one line." 2>/dev/null | jq -r 'select(.type=="tool_execution_start") | .toolName' | sort | uniq -c`
    **Expected:** only `read`, `grep`, `glob` rows.
 5. Deadline path: `bash ci/review.sh --max-time 1; echo EXIT=$?`

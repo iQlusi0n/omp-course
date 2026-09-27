@@ -66,7 +66,7 @@ The mock cannot follow the commit agent's protocol, so the fallback message is e
 
 ## 7-G2 (custom provider)
 
-Pass line observed: `Hello from mock-1. You said: say hi`. omp prepends a `<system-reminder>` block to the user message; the mock strips it from the echo (and cuts the echo at 80 characters). Grade on `Hello from mock-1` and the `200` in the mock's stderr.
+Pass line observed (dry run on 18.3.5 against the shipped `tools/mock-provider.py`): `Hello from mock-1. You said: <system-reminder> Today: 2026-09-27; current working directory: '/tmp/dry2'. Do`. omp prepends a `<system-reminder>` block to the user message; the mock echoes the first 80 characters of it, so `say hi` never appears. Grade on `Hello from mock-1` and the `200` in the mock's stderr.
 
 ## 7-G3 (fallback chain)
 

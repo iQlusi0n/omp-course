@@ -17,7 +17,7 @@ Prerequisites: omp 18.3.1 logged in to one provider (Module 1); a terminal that 
 Goal: run one read-only turn, expand every card, and identify one `read`, one `grep`, and one `glob` card by shape.
 
 1. Prompt exactly: `Explain how api/ handles a request. Read only; do not edit anything.`
-   Expected: a spinner in the status line, then a mix of inline `🔍 Glob:` / `🔍 Grep:` lines and boxed `• Read …` cards, then prose. (If the model used only `read` cards, follow up with `Also show me where the word "month" is used in api/ and list the files under tests/` to force a `grep` and a `glob`.)
+   Expected: a spinner in the status line, then a mix of inline `🔍 Glob:` / `🔍 Grep:` lines and boxed `• Read …` cards, then prose. A `$ python3 …` `bash` card is possible too — "read only" forbids edits, not commands. (If the model used only `read` cards, follow up with `Also show me where the word "month" is used in api/ and list the files under tests/` to force a `grep` and a `glob`.)
 2. Press `Ctrl+O`.
    Expected: boxed cards expand to their full content; `… N more matches` folds under grep open.
 3. Press `Ctrl+O` again, then `Ctrl+Shift+O` twice.

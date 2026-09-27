@@ -1,4 +1,4 @@
-# Module 10 cheat sheet — Subagents & Parallel Work (`omp/18.3.5`)
+# Module 10 cheat sheet — Subagents & Parallel Work (`omp/18.3.1`, audited on 18.3.5)
 
 ## `task` (batch shape, `task.batch: true`)
 | | |

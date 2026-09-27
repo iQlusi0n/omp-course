@@ -32,7 +32,7 @@ Built against `omp/18.3.1` on the build machine (Python 3 only). Verification me
 - Outline 7.1 lists `Shift+Ctrl+P` cycling in 7.2 — kept; chord verified in `omp://keybindings.md` (`app.model.cycleBackward`).
 - Outline 7.6 "per-turn cost in status line": docs describe a `cost` segment showing *recorded session cost* (`omp://settings.md`), not per-turn; lesson wording follows the doc.
 - Outline 7.5 "round-robin credentials": docs say stored OAuth accounts are "ranked and rotated automatically" (`omp://providers.md`) and that credential switching happens before model fallback (`omp://non-compaction-retry-policy.md`); the phrase "round-robin" appears only in an internal porting doc, so lessons say "rotated".
-- The mock strips omp's injected `<system-reminder>` block from "You said: …" (re-checked in the shipped `tools/mock-provider.py`), so the expected echo is exactly `Hello from mock-1. You said: say hi`.
+- Dry-run correction (2026-09-27, omp/18.3.5): the shipped `tools/mock-provider.py` does **not** strip omp's injected `<system-reminder>` block — `_reply_text` echoes the first 80 characters of the last user message verbatim. The observed reply is `Hello from mock-1. You said: <system-reminder> Today: …`; README 7.4/7.5, exercises 7-G2, demos and solutions now expect that prefix. If the lab mock gains a strip step, revert these expectations to `You said: say hi`.
 
 ## Not verified / dropped
 - `Ctrl+P` / `Alt+P` / `^` chip / `Alt+M` interactive behaviour could not be exercised in the pty (raw escape sequences were interpreted as search text by the picker); claims are limited to `omp://keybindings.md`, `omp://task-agent-discovery.md`, `omp://tools/task.md`.

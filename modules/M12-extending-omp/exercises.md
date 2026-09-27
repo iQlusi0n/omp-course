@@ -1,6 +1,6 @@
 # Module 12 — Exercises
 
-All exercises run in `omp-course-lab` from `git checkout module-12-start`. `<module-dir>` is this directory (`modules/M12-extending-omp`). Record evidence in `notes/m12.md` (gitignored). Every exercise has three tiers: **W** (Walkthrough — exact keys), **G** (Guided — goal + hints + checkpoints), **S** (Stretch — goal only; instructor notes in `solutions/`).
+All exercises run in `omp-course-lab` from `git checkout module-12-start`. `<module-dir>` is this directory — with the course checked out beside the lab and your cwd in `omp-course-lab`, that is `../modules/M12-extending-omp`. Record evidence in `notes/m12.md` (gitignored). Every exercise has three tiers: **W** (Walkthrough — exact keys), **G** (Guided — goal + hints + checkpoints), **S** (Stretch — goal only; instructor notes in `solutions/`).
 
 Time budget: W 25 min · G1 15 · G2 20 · G3 20 · S 20.
 

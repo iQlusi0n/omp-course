@@ -9,7 +9,7 @@ Built against `omp/18.3.1` on the Python-only build machine. A model **was** con
 - `--tools read,grep,glob` removes `write`; `--config` overlay with `tools.approvalMode: always-ask` makes a headless write attempt fail (exit still `0`); `--config … --yolo` lets the write through (runtime flag > overlay, matching settings.md precedence).
 - `/review` runs under `-p`; trailing text after `/review` reaches the model and can dictate an output format.
 - RPC: `ready` frame fields match rpc.md verbatim; `negotiate_protocol` v2, `get_state`, `prompt` → `prompt_result` → `session_settled`, `abort` → `status:"aborted"`, `steer` mid-turn, `set_host_tools` → `host_tool_call` → `host_tool_result`, malformed line → `command:"parse"` with `id:null` and the loop continues, stdin EOF → exit `0`.
-- `ci-review.sh`: exit `1` on P0, `0` on clean diff, `1` on deadline.
+- `ci-review.sh`: exit `1` on P0, `0` on clean diff, `1` on deadline. Dry run 2026-09-27 (18.3.5, lab `module-13-start`): the unscoped `/review` prompt made a clean tree fail (`8 finding(s), 0 P0, verdict=fail` — the seeded issues) because the reviewer, lacking `bash`, reads the whole tree instead of a diff; the shipped prompt now scopes the review to the working diff and answers `pass` on an empty diff. With that: clean → `EXIT=0`; planted P0 → `EXIT=1` in 2 of 3 runs (one miss); `--max-time 1` → `EXIT=1`.
 - `tools.approvalMode: yolo` + `tools.approval.bash: prompt` under `-p`: `tool_execution_end … isError:true` with text `Tool "bash" requires approval but no interactive UI available.` — basis for the 13.4 stretch and the 13.5 "blocked call" example.
 - The inline stdlib RPC snippet in 13.2 was executed as written (printed `hello`, `status=completed`, child exit `0`).
 

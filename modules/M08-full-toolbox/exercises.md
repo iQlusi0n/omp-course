@@ -22,7 +22,7 @@ Type, one at a time: `read docs/spec.pdf:1-40` · `read data/lab.sqlite:orders?l
 
 ### 8.1-W  Write to a database row and an archive member (5 min)
 Prompt: *"Insert a user named Grace (email grace@lab.test) with the write tool into data/lab.sqlite:users, read it back with ?where=, then add a file notes/todo.txt containing 'hello' inside fixtures/bundle.zip and read it back."*
-**Pass:** cards `Inserted row into users`, a `read` with `?where=name='Grace'` showing the row, `Successfully wrote 5 bytes to fixtures/bundle.zip:notes/todo.txt`, and `read fixtures/bundle.zip:notes/todo.txt` → `hello`. Then `git checkout -- data/lab.sqlite fixtures/bundle.zip`.
+**Pass:** cards `Inserted row into users`, a `read` with a `?where=` clause (`name='Grace'` or `email='grace@lab.test'`) showing the new row, `Successfully wrote 5 bytes to fixtures/bundle.zip:notes/todo.txt`, and `read fixtures/bundle.zip:notes/todo.txt` → `hello`. Then `git checkout -- data/lab.sqlite fixtures/bundle.zip`.
 
 ### 8.1-G  Busiest month, no shell (10 min)
 Goal: find the month with the most orders.
@@ -80,13 +80,13 @@ Prompts: `lsp references` for `get_user` on its `def` line in `api/db.py`; `lsp 
 
 ### 8.3-W  Codemod with preview and `xd://resolve` (10 min)
 Start omp with `astGrep.enabled` on (`omp config set astGrep.enabled true` or a `--config` overlay). Prompts: `ast_grep` pattern `print($$$A)` on `cli`; `ast_edit` `print($$$A)` → `logger.debug($$$A)` on `["cli"]`; *"apply the staged proposal by writing a reason to xd://resolve"*; then grep and tests.
-**Pass:** `Staged as a proposal — files NOT modified yet` card, then `Applied 10 replacements in 1 file.` (all 10 `print(` calls live in `cli/commands.py`; the docstring mentions in `cli/log.py` are not matched), `grep -rn "print(" cli/` empty, tests `OK` after adding `from cli.log import logger` to `cli/commands.py`.
+**Pass:** `Staged as a proposal — files NOT modified yet` card, then `Applied 10 replacements in 1 file.` (all 10 `print(` calls live in `cli/commands.py`; the docstring mentions in `cli/log.py` are not matched), `grep -rn "print(" cli/commands.py` empty (`grep -rn "print(" cli/` still shows the two docstring lines in `cli/log.py`), tests `OK` after adding `from cli.log import logger` to `cli/commands.py`.
 
 ### 8.3-G  Rename + codemod end to end (15 min)
 Goal: LSP rename `get_user` → `fetch_user` across `api/` (re-exported from `api/__init__.py`); then `ast_edit` `print($$$A)` → `logger.debug($$$A)` in `cli/`, accepting the proposal.
 Hints: rename first; `lsp references` before `rename`; `cli/log.py` already exports `logger`; multi-argument prints need a second look after the codemod.
 Checkpoints: (a) references ≥ 4 files; (b) `Applied rename:`; (c) `Staged as a proposal`; (d) `write xd://resolve` → `Applied …`.
-**Pass:** `grep -rn "print(" cli/` prints nothing; tests pass; `grep -n fetch_user api/__init__.py` shows the re-export.
+**Pass:** `grep -rn "print(" cli/commands.py` prints nothing; tests pass; `grep -n fetch_user api/__init__.py` shows the re-export.
 
 ### 8.3-G  Semantic find (5 min; needs a judge)
 Goal: locate "where the HTTP handler looks up a user by id" without knowing file names.

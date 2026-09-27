@@ -26,7 +26,7 @@ Check: `omp config get <key>` **from inside the repo**. Project: hand-edit `<rep
 | Storage | `~/.omp/agent/memories/<encoded-cwd>/` | `~/.omp/agent/memories/mnemopi/mnemopi.db` (+ sibling banks) | remote `hindsight.apiUrl` (default `http://localhost:8888`) |
 | Injected | **Memory Guidance** block (≤ `memories.summaryInjectionTokenLimit` 5000) | `<memories>` on first turn | `<memories>` + `<mental_models>` |
 
-`memory://` resolves only inside a session (shell `omp read memory://…` → `Unknown protocol`).
+`memory://` resolves only inside a session (shell `omp read memory://…` → `Unknown protocol` with the backend off, `not found in the calling session's scoped bank` with it on).
 
 ## `/memory`
 

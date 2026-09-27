@@ -15,15 +15,15 @@ All scripts here were executed on the build machine (omp 18.3.1, `anthropic/clau
 ```bash
 #!/usr/bin/env bash
 omp -p --no-session --mode json --tools read,grep,glob,bash \
-  "Run LAB_ISSUE=all python3 -m unittest tests.test_issues and list only the failing test ids, one per line." 2>/dev/null \
+  "Run LAB_ISSUE=all python3 -m unittest tests.test_issues and list only the failing test ids, one per line. No header, no other text." 2>/dev/null \
 | jq -rs '[.[] | select(.type=="message_end" and .message.role=="assistant")] | last
           | .message.content[] | select(.type=="text") | .text'
 ```
-Grading: `bash notes/failing.sh 2>&1 >/dev/null | wc -c` must be `0` — students often forget `2>/dev/null` and get `Working...` in the pipe. If `bash` is not in `--tools` the model cannot run the tests and will guess; that is the teaching moment for "tool pinning changes the answer". The lab's `main` is green; only `LAB_ISSUE=all` (or `=<n>`) makes the seeded `tests/test_issues.py` tests run and fail — a prompt without the variable yields an empty list.
+Grading: `bash notes/failing.sh 2>&1 >/dev/null | wc -c` must be `0` — students often forget `2>/dev/null` and get `Working...` in the pipe. Count ids with `grep -c '^tests\.test_issues\.'` rather than `wc -l`: on the 18.3.5 dry run the model prepended `16 of 20 tests failed:` before the ids until the prompt said "No header, no other text". If `bash` is not in `--tools` the model cannot run the tests and will guess; that is the teaching moment for "tool pinning changes the answer". The lab's `main` is green; only `LAB_ISSUE=all` (or `=<n>`) makes the seeded `tests/test_issues.py` tests run and fail — a prompt without the variable yields an empty list.
 
 ## E2 — ci/review.sh
 
-Use `ci-review.sh` verbatim as the reference. Observed evidence (demo 13.5, 18.3.1): planted P0 → `EXIT=1` with two `P0` rows; clean diff → `EXIT=0`; `--max-time 1` → "failing closed", `EXIT=1`. Audit run (18.3.5, lab with the planted P0 in `cli/__init__.py`): the reviewer answered with prose *and* a fenced JSON block listing the lab's seeded issues as `P1` with `verdict: "fail"` and did not name the planted line — the script now extracts the JSON object from prose/fences and exits `1` on `verdict: "fail"` as well as on a `P0` row, so the pipeline still went red.
+Use `ci-review.sh` verbatim as the reference. Observed evidence (demo 13.5, 18.3.1, scratch repo): planted P0 → `EXIT=1` with two `P0` rows; clean diff → `EXIT=0`; `--max-time 1` → "failing closed", `EXIT=1`. Audit run (18.3.5, lab with the planted P0 in `cli/__init__.py`): the reviewer answered with prose *and* a fenced JSON block listing the lab's seeded issues as `P1` with `verdict: "fail"` and did not name the planted line — the script now extracts the JSON object from prose/fences and exits `1` on `verdict: "fail"` as well as on a `P0` row, so the pipeline still went red. Dry run (18.3.5, lab at `module-13-start`): with the original prompt a **clean** tree also came back `8 finding(s), 0 P0, verdict=fail` (the seeded issues again) → `EXIT=1`, so the prompt now says "Review ONLY the lines changed in the working diff … If the diff is empty, answer pass"; with that, clean → `0 finding(s), 0 P0, verdict=pass`/`EXIT=0`, planted P0 → `P0 cli/__init__.py:4 …`/`EXIT=1` in two of three runs (one run answered `pass`). Grade checkpoint 2 on a rerun if the first attempt misses.
 
 Common student mistakes:
 - Putting `--yolo` on the command line "to be safe": runtime flags beat `--config`, so the overlay's `always-ask` is overridden (verified: `--config ask.yml --yolo` created the file).

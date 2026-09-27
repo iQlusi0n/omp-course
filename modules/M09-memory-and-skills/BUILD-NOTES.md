@@ -24,7 +24,7 @@ Built against `omp/18.3.1` on 2026-09-25. Build machine: Python 3 only, no model
 
 ## Claims dropped as unverifiable
 - Exact rendering of `/memory stats` / `/memory view` / `/memory diagnose` output (docs describe them as backend-specific; no wording given). Demos use `<…>` placeholders.
-- Exact file names of Mnemopi per-project bank databases ("sibling database paths under that Mnemopi directory"). Exercises check for the directory and `mnemopi.db` only.
+- Exact file names of Mnemopi per-project bank databases. Dry run on 18.3.5 (per-project scoping): `~/.omp/agent/memories/mnemopi/banks/<cwd-basename>-<hash>/mnemopi.db` (+ `-wal`/`-shm`); no top-level `mnemopi/mnemopi.db` was created. W1 step 7, README 9.1 step 6 and the cheat sheet now say so. The same run showed `memory://<id>` frontmatter without the documented `memory_type` key (`id`, `bank`, `store`, `source`, `timestamp`, `created_at`, `importance`, `veracity`, `session_id`, `metadata`); expectations were relaxed accordingly.
 - Whether the injected `<system-warning>` (checkpoint guard) is rendered in the TUI transcript. Lesson says it may not be visible; the observable is that the turn ends only after `rewind`.
 - Whether the local embedding model (`BAAI/bge-base-en-v1.5`) is downloaded automatically on first use vs. must be pre-fetched. Exercises give `mnemopi.noEmbeddings: true` as the fallback, which the docs describe as FTS-only.
 - Which secret patterns `learned.md` redaction matches (docs say "common secret/token patterns" only). Solutions tell instructors not to grade on the course's `labtok_…` value.

@@ -93,7 +93,7 @@ Hints:
 
 Checkpoints:
 1. `omp config get secrets.enabled` in the repo root → `true`; startup shows no `secrets.yml` warning.
-2. Prompt: `Read .env. Tell me the exact length of the LAB_TOKEN value, whether it starts with "labtok_", and whether it contains "$$".` → the model reports a `$$…$$` placeholder (contains `LABTOKEN` if you set `friendlyName`), not a 23-character `labtok_…` value, and says it is redacted.
+2. Prompt: `Read .env. Tell me the exact length of the LAB_TOKEN value, whether it starts with "labtok_", and whether it contains "$$".` → the model reports a `$$…$$` placeholder, not a 23-character `labtok_…` value, and says it is redacted. On 18.3.5 the `friendlyName` label only appears for a `type: plain` entry (`$$LABTOKEN_…:L$$`); the regex entry from `secrets.yml` yields an unlabeled `$$CP768UQ1WNK4:L$$`-style placeholder even though the docs say regex entries are labelled too — do not grade on the label.
 3. Prompt: `Run: set -a; . ./.env; set +a; printf '%s' "$LAB_TOKEN" | wc -c; printf '%s' "$LAB_TOKEN" | cut -c1-7` → bash card prints `23` and `labtok_` (the shell reads the file itself; nothing to restore).
 4. Prompt: `Take the LAB_TOKEN value exactly as you saw it and run: printf '%s' "<value>" | cut -c1-7` → the model writes the placeholder into the command; the card prints `labtok_` — omp restored the real value before execution.
 

@@ -12,14 +12,14 @@ Solutions and instructor checks: `solutions/`.
 
 1. Run the tests once so you know the truth: `LAB_ISSUE=all python3 -m unittest tests.test_issues 2>&1 | tail -3`.
    Expected: `FAILED (failures=N …)` — `main` is green on its own; the eight seeded issue tests only run (and fail) when `LAB_ISSUE=<n>` or `LAB_ISSUE=all` is set (`docs/ISSUES.md`).
-2. `omp -p --no-session --mode json --tools read,grep,glob,bash "Run LAB_ISSUE=all python3 -m unittest tests.test_issues and list only the failing test ids, one per line." 2>/dev/null > notes/e1.jsonl`
+2. `omp -p --no-session --mode json --tools read,grep,glob,bash "Run LAB_ISSUE=all python3 -m unittest tests.test_issues and list only the failing test ids, one per line. No header, no other text." 2>/dev/null > notes/e1.jsonl`
    Expected: `notes/e1.jsonl` has one JSON object per line; `jq -r .type notes/e1.jsonl | sort | uniq -c` shows `tool_execution_start` ≥ 1 (bash ran).
 3. `jq -rs '[.[] | select(.type=="message_end" and .message.role=="assistant")] | last | .message.content[] | select(.type=="text") | .text' notes/e1.jsonl`
    Expected: only the failing test ids.
 4. Fold 2+3 into `notes/failing.sh` (script body: the omp command piped into the jq filter). `bash notes/failing.sh`
    Expected: only the test ids on stdout, nothing on stderr (add `2>/dev/null`).
 
-**Pass:** `bash notes/failing.sh | wc -l` equals the number of failing tests from step 1 and `bash notes/failing.sh 2>&1 >/dev/null | wc -c` is `0`.
+**Pass:** `bash notes/failing.sh | grep -c '^tests\.test_issues\.'` equals the number of failing tests from step 1 (models occasionally prepend a summary line such as `16 of 20 tests failed:` — the `grep -c` ignores it; if you see one, tighten the prompt) and `bash notes/failing.sh 2>&1 >/dev/null | wc -c` is `0`.
 
 ---
 
@@ -28,14 +28,14 @@ Solutions and instructor checks: `solutions/`.
 **Goal:** `ci/review.sh` reviews the working diff with a read-only omp, using `--config ci/ci.yml` for approval and tool pinning, and exits non-zero on a P0 finding.
 
 Hints:
-- Start from `solutions/ci-review.sh` and `solutions/ci.yml` if stuck, but write your own first: the pieces are `omp -p --mode json --no-session --config ci/ci.yml --tools read,grep,glob --max-time 5m "/review <ask for JSON>"`, then a parser for the last assistant `message_end`.
+- Start from `solutions/ci-review.sh` and `solutions/ci.yml` if stuck, but write your own first: the pieces are `omp -p --mode json --no-session --config ci/ci.yml --tools read,grep,glob --max-time 5m "/review <ask for JSON>"`, then a parser for the last assistant `message_end`. Tell the reviewer to judge **only the working diff** and to answer `pass` when the diff is empty — otherwise it roams the whole lab and rates the seeded issues (#1–#8) as `P1`/`verdict=fail` even on a clean tree (observed on 18.3.5).
 - `ci.yml` needs `tools.approvalMode: always-ask` and a `tools.approval` deny list — keys in `omp://settings.md`.
 - Models sometimes fence JSON in ```` ``` ```` even when told not to; strip it.
 - omp exits `0` when it refuses a tool; your exit code must come from the parsed verdict (any `P0`, or `"verdict":"fail"`). Fail closed on unparseable output — and expect the model to wrap the JSON in prose sometimes, so extract the `{…}` rather than parsing the whole reply.
 
 Checkpoints:
-1. Clean tree → `bash ci/review.sh; echo $?` → `0` and a line saying 0 P0.
-2. Plant a P0 (e.g. `os.system("rm -rf " + input())` in `cli/__init__.py`) → exit `1` with the finding row (or a `verdict=fail` line if the model rates it lower than P0).
+1. Clean tree → `bash ci/review.sh; echo $?` → `0` and `review: 0 finding(s), 0 P0, verdict=pass` (only with a diff-scoped prompt; an unscoped `/review` returns the lab's seeded bugs as `P1` rows and `verdict=fail`, exit `1`).
+2. Plant a P0 (e.g. `os.system("rm -rf " + input())` in `cli/__init__.py`) → exit `1` with the finding row (or a `verdict=fail` line if the model rates it lower than P0). The reviewer has no `bash`, so it reconstructs the diff by reading the tree; on the 18.3.5 dry run it named the planted line in 2 of 3 runs and answered `pass` once — rerun if it misses, and note that in `notes/`.
 3. `jq -r 'select(.type=="tool_execution_start") | .toolName'` over the raw stream shows only `read`/`grep`/`glob`.
 4. `bash ci/review.sh --max-time 1` (or hard-code it) → exit `1`, "failing closed" message, no tree changes.
 5. `git status --porcelain` is empty after every run except your planted P0.
