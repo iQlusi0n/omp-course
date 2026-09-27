@@ -186,8 +186,8 @@ Lessons:
 - **4.1 Approval modes.** `tools.approvalMode`: `always-ask` / `write` / `yolo` (**yolo is the default** — teach this explicitly). `--approval-mode`, `--auto-approve`/`--yolo`. Per-tool `tools.approval.<tool>: allow|deny|prompt`. What the prompt card looks like.
 - **4.2 Bash patterns.** `bash.patterns: [{match, approval}]`, first-match-wins, `bash.allowCompoundCommands`. Approval ≠ sandbox (say so).
 - **4.3 Plan mode.** `Alt+Shift+P` toggle; read-only exploration; the Plan Review overlay (`/plan-review`, `a`/`e`/`u` annotate sections); accept → implement. `--plan-yolo` / `--plan-yolo-into`. Plan model role preview (M7).
-- **4.4 Reviewing changes.** `/review` (reviewer subagents, P0–P3 verdict); `/annotate code-review [focus]`, `/annotate last`, `/annotate path`, overlay keys, "Continue with LLM review". `read pr://owner/repo/N` as a preview of GitHub-as-filesystem.
-- **4.5 Committing.** `omp commit` (atomic split, dependency-ordered, lock files excluded), `omp git`. Conflicts: `conflict://N` with `@ours`/`@theirs`/`@base`, `read file:conflicts`.
+- **4.4 Reviewing changes.** `/review` (single-target LLM review; bundled `reviewer`/`security-reviewer` agents); `/annotate code-review [focus]`, `/annotate last`, `/annotate path`, overlay keys, "Continue with LLM review". `read pr://owner/repo/N` as a preview of GitHub-as-filesystem.
+- **4.5 Committing.** `omp commit` (model-generated commit per `omp commit --help`; commit→smol role), `omp git`. Conflicts: `conflict://N` with `@ours`/`@theirs`/`@base`, `read file:conflicts`.
 - **4.6 Undo strategies.** git as the safety net; `/fork` before risky work (full treatment in M5).
 
 Coursework:
@@ -393,7 +393,7 @@ Lessons:
 - **13.2 RPC.** `omp --mode rpc [--no-ui|rpc-ui]`: NDJSON `prompt`/`abort`/`set_model`…, `prompt_result`/`session_settled`; TS `RpcClient` and Python `omp-rpc`; host tools (`set_host_tools` → `host_tool_call`), host URI schemes, subagent subscriptions.
 - **13.3 SDK.** `@oh-my-pi/pi-coding-agent`: `createAgentSession`, `SessionManager.inMemory()`, `discoverAuthStorage`, `ModelRegistry`, `session.subscribe`, `toolNames`+`restrictToolNames`, `settings` overrides.
 - **13.4 ACP / editors.** `omp acp` with Zed (and any ACP client); permission routing (`session/request_permission`), `omp acp --yolo`/`--config` for unattended.
-- **13.5 CI patterns.** Read-only review bot on PRs (`read pr://…`, `--tools read,grep,glob`), fail-on-P0 from `/review` JSON, `robomp` mention; secrets via env; cost caps with `--max-time`.
+- **13.5 CI patterns.** Read-only review bot on PRs (`read pr://…`, `--tools read,grep,glob`), fail on a prompt-defined JSON verdict parsed from `--mode json` output, `robomp` mention; secrets via env; cost caps with `--max-time`.
 
 Coursework:
 - W: `omp -p --mode json "list failing tests" | jq` to extract the final text. Pass: script prints only the answer.
@@ -439,7 +439,7 @@ Required evidence (checklist the learner submits; instructor rubric in appendix)
 3. Batch `task` fan-out with `outputSchema`; ≥ 1 custom agent definition; Agent Hub screenshot (M10).
 4. LSP rename or `ast_edit` codemod used and accepted (M8).
 5. DAP session used on the seeded regression (M8).
-6. `/review` verdict with P0–P3; `/annotate` notes; `omp commit` producing ≥ 3 atomic commits (M4).
+6. `/review` verdict; `/annotate` notes; `omp commit` producing ≥ 3 focused commits (M4).
 7. Browser-verified web form (M14).
 8. One extension or MCP server used in the flow (M12).
 9. `ci/review.sh` headless review passing (M13).
@@ -509,7 +509,7 @@ Use this to verify "majority of features" before sign-off. Every row MUST appear
 | TUI cards, `Ctrl+O`, `Ctrl+Shift+O`, `Ctrl+T`, `Esc`, `/hotkeys` | 2 | — |
 | `read`/`grep`/`glob`/`edit`/`write`/`bash`/`todo`/`ask`/`web_search` | 2, 8 | on |
 | Hashline edits, stale-anchor rejection | 2 | on |
-| `bash` services, `proc://`, PTY, `!cmd`, interceptor, patterns | 2, 4 | on |
+| `bash` services, `proc://`, PTY, `!cmd`, interceptor, patterns | 2, 4 | on (bashInterceptor off) |
 | `artifact://` spill | 2 | on |
 | Composer: `Ctrl+R/G/Q`, queue/dequeue, draft recall, paste image, Vim mode | 2 | vimMode off |
 | Thinking level, `ultrathink`, magic-keyword toggles | 3 | on |
@@ -529,7 +529,7 @@ Use this to verify "majority of features" before sign-off. Every row MUST appear
 | `.omp/rules` (alwaysApply / rulebook / `rule://`) | 6 | — |
 | Discovery precedence, `/extensions`, `disabledProviders/Extensions` | 6, 12 | — |
 | Custom slash commands (`$ARGUMENTS`) | 6 | — |
-| Skills, `skill://`, `/skill:` | 6, 9 | enableSkillCommands opt-in |
+| Skills, `skill://`, `/skill:` | 6, 9 | on (enableSkillCommands true in 18.3.1) |
 | Settings layering, `omp config`, `/settings`, `--config`, profiles | 6 | — |
 | `SYSTEM.md` / `APPEND_SYSTEM.md` / `PERSONALITY.md` / template | 6 | — |
 | Secrets obfuscation | 6 | off |
@@ -553,7 +553,7 @@ Use this to verify "majority of features" before sign-off. Every row MUST appear
 | `task` single/batch/schema/async/effort | 10 | on |
 | Bundled agents, custom agents, model overrides | 10 | — |
 | Agent Hub, pinned agents, `agent://`, `history://`, steering, IRC | 10 | — |
-| Isolation/worktrees | 10 | off |
+| Isolation/worktrees | 10 | on in 18.3.1 (`task.isolation.enabled`) |
 | eval `agent()`, `workpool()`, `@tool` | 10 | on |
 | `orchestrate`, `workflowz`, `jevify` | 10 | on |
 | Vibe mode | 10 | — |
@@ -566,7 +566,7 @@ Use this to verify "majority of features" before sign-off. Every row MUST appear
 | MCP config, `/mcp`, `mcp__` tools, `mcp://`, OAuth | 12 | — |
 | Marketplaces, `omp plugin`, foreign-config inheritance | 12 | — |
 | `-p`, `--mode json`, RPC, host tools, SDK, ACP | 13 | — |
-| Browser prelude, browser-relay | 14 | off |
+| Browser prelude, browser-relay | 14 | browser on; relay off |
 | Computer use | 14 | off |
 | `/collab`, `/join`, `omp collab`, `omp stream`, `/live` voice | 14 | off |
 
