@@ -29,10 +29,12 @@ graph LR
 
 ## Lesson 4.1 — Approval modes              (~25 min)
 **You will be able to:** name the three approval tiers and three modes; switch mode for one session or permanently; add a per-tool `allow|deny|prompt` override; read an approval prompt card.
-**Why this exists:** An autonomous agent that runs `bash` and rewrites files is only useful if you decide *in advance* how much it may do without you. omp resolves every tool call against a small, deterministic policy — the tool's declared tier, the tool's own safety policy, your per-tool override, and the active mode — so that "will this prompt me?" has one answer you can predict. The default answer is **no, it will not prompt** (`yolo`), which is right for a scratch repo and wrong for production checkouts; this lesson makes that choice deliberate.
+**Why this exists:** An autonomous agent that runs `bash` and rewrites files is only useful if you decide *in advance* how much it may do without you.
+omp resolves every tool call against a small, deterministic policy — the tool's declared tier, the tool's own safety policy, your per-tool override, and the active mode — so that "will this prompt me?" has one answer you can predict.
+The default answer is **no, it will not prompt** (`yolo`). That is right for a scratch repo and wrong for production checkouts; this lesson makes the choice deliberate.
 **Demo:** `demos/4.1-approval-prompt.md`
 **Concepts:**
-- Every tool declares an **approval tier**: `read` (reads data / UI-only session metadata), `write` (mutates workspace or session state, no arbitrary code), `exec` (runs code, shells out, drives a browser, spawns agents). Tools without a declaration are treated as `exec`. MCP server tools declare `write`.
+- Every tool declares an **approval tier**: `read` (reads data / UI-only session metadata), `write` (mutates workspace or session state, no arbitrary code), `exec` (runs code, shells out, drives a browser, spawns agents). Tools without a declaration are treated as `exec`. MCP server tools (MCP = Model Context Protocol servers that add external tools; Module 12) declare `write`.
 - **Modes** (`tools.approvalMode`):
 
   | Mode | Auto-approves | Prompts for |
@@ -61,7 +63,8 @@ graph LR
   4. In `always-ask`/`write`: a safety `override: true` allows only with an accompanying tool `policy: allow`; every other non-denied case prompts.
   5. Otherwise explicit tool `allow`/`prompt` wins, then your user policy.
   6. With no explicit policy, the mode auto-approves or prompts by tier.
-- **The prompt card** shows `Allow tool: <name>`, `Origin: MCP server tool` for unannotated `mcp__…` tools, `Reason: <reason>` when the tool supplies one (e.g. `bash`'s "Critical pattern detected"), and tool-specific detail lines (command, path, code, browser action, subagent assignment). Choose the allow or deny option to continue; a denied call returns an error to the model, which then decides what to do next.
+- **The prompt card** shows `Allow tool: <name>`, `Origin: MCP server tool` for unannotated `mcp__…` tools, `Reason: <reason>` when the tool supplies one (e.g. `bash`'s "Critical pattern detected"), and tool-specific detail lines (command, path, code, browser action, subagent assignment).
+  Choose the allow or deny option to continue; a denied call returns an error to the model, which then decides what to do next.
 - **Subagents** (Module 10) run headless in `yolo`; the parent `task` approval is the boundary. Your `tools.approval.<tool>` still applies: `deny` blocks, `allow` permits, `prompt` cannot be satisfied headless and rejects the call.
 - Approval is **not a sandbox**: an approved command keeps the shell's full filesystem, network and subprocess access (details in 4.2).
 
@@ -112,7 +115,9 @@ graph LR
 
 ## Lesson 4.2 — Bash patterns              (~20 min)
 **You will be able to:** write ordered `bash.patterns` rules that allow, prompt or deny shell commands; predict what happens with compound commands; explain why a pattern is not a sandbox.
-**Why this exists:** Mode-level approval is coarse: `write` mode prompts for *every* `bash` call, including the test run you want to see fifty times a day. `bash.patterns` lets you say "the test command is always fine, `curl` always asks, `rm -rf` is never allowed" — as a first-match-wins list that is honored even in `yolo` for `deny`. It governs *whether a command may execute*; it does not change what an approved command can touch, and it does not cover other tools (`eval`) that can also spawn a shell.
+**Why this exists:** Mode-level approval is coarse: `write` mode prompts for *every* `bash` call, including the test run you want to see fifty times a day.
+`bash.patterns` lets you say "the test command is always fine, `curl` always asks, `rm -rf` is never allowed" — as a first-match-wins list that is honored even in `yolo` for `deny`.
+It governs *whether a command may execute*. It does not change what an approved command can touch, and it does not cover other tools (`eval`) that can also spawn a shell.
 **Demo:** `demos/4.2-bash-patterns.md`
 **Concepts:**
 - Rule shape: ordered list of `{match, approval}`; `match` is literal text plus `*` wildcards (no regex); `approval` is `allow` | `prompt` | `deny`. **First matching rule wins.**
@@ -128,7 +133,8 @@ graph LR
   ```
 - `deny` stops the call before it runs — **including in `yolo`**. `prompt` displays an approval request (only an accepted one runs). `allow` lowers a matching *simple* command to the `write` tier, so it is auto-approved in `write` mode; by default an `allow` must match the entire command and **cannot approve a compound line** (`git *` does not approve `git status && rm -rf build`).
 - `deny` and `prompt` are checked against the complete command *and* each shell command segment, so `match: "rm -rf *"` catches `cd /tmp && rm -rf build`.
-- **`bash.allowCompoundCommands`** (default `false`): when `true`, flat chains of literal commands joined only by `&&` are evaluated per segment; the chain is auto-allowed only if *every* segment resolves to `allow`; any `deny` wins, otherwise any `prompt` wins; an unmatched segment falls back to `tools.approval.bash` and the active mode. Expansions, assignments, redirections, globs, `cd`/`source`/`eval` and non-POSIX shells (cmd, PowerShell, fish) keep the default behavior. Put narrow `deny` rules *before* overlapping `allow` rules.
+- **`bash.allowCompoundCommands`** (default `false`): when `true`, flat chains of literal commands joined only by `&&` are evaluated per segment. The chain is auto-allowed only if *every* segment resolves to `allow`; any `deny` wins, otherwise any `prompt` wins; an unmatched segment falls back to `tools.approval.bash` and the active mode.
+  Expansions, assignments, redirections, globs, `cd`/`source`/`eval` and non-POSIX shells (cmd, PowerShell, fish) keep the default behavior. Put narrow `deny` rules *before* overlapping `allow` rules.
 - Built-in critical patterns (`rm -rf /`, fork bombs, remote-fetch-then-execute, writes to `/etc/passwd`, host shutdown) force a prompt in non-yolo modes; their reason text appears on the card.
 - **Approval ≠ sandbox.** An allowed program keeps ambient filesystem, network and subprocess access. The rules govern the `bash` tool only. `eval` (Module 8) can run `subprocess.run(["bash","-c",...])` and a `bash.patterns` `deny` does nothing there; pair patterns with `tools.approval.eval: prompt` (or `deny`) if you need that gate.
 - Do not confuse with `bashInterceptor.patterns` (Module 2): that redirects `cat`/`grep`-style commands to dedicated tools; it never decides whether execution is permitted. A matching `deny` never reaches the interceptor; a `prompt` reaches it only after you accept.
@@ -156,7 +162,7 @@ graph LR
 - Checkpoints: three prompts (test, `git log`, `curl https://example.com`) produce: no prompt, no prompt, prompt.
 - Pass condition: `omp config get bash.patterns` shows ≥ 4 rules; a transcript with a `python3 -m unittest…` `bash` card and **no** approval card precedes it.
 
-**Stretch:** Demonstrate the `eval` bypass: with `rm -rf *` denied, ask omp to remove a scratch directory "using Python's subprocess in eval". Pass condition: it runs (or prompts, if you also set `tools.approval.eval: prompt`); write one sentence in `notes/m4-approvals.md` on which setting closed the hole.
+**Stretch:** Show that a denied `bash` pattern can be bypassed through another tool: with `rm -rf *` denied, get omp to remove a scratch directory without the `bash` tool. Pass condition: it runs (or prompts, if you also set `tools.approval.eval: prompt`); write one sentence in `notes/m4-approvals.md` on which setting closed the hole.
 
 **Troubleshooting:**
 
@@ -184,7 +190,9 @@ graph LR
 
 ## Lesson 4.3 — Plan mode              (~25 min)
 **You will be able to:** toggle plan mode, get a read-only plan, annotate and trim it in the Plan Review overlay, approve it, and know when `--plan-yolo` is the right shortcut.
-**Why this exists:** For anything bigger than a one-file fix, the cheapest correction is to the plan, not the code. Plan mode makes omp explore *read-only* — writes, edits and mutating subagents are refused — until it proposes a plan you can read, annotate section by section, and approve. Only then does it implement. This replaces "watch it go and hit Esc" with "read three paragraphs and say no to one of them".
+**Why this exists:** For anything bigger than a one-file fix, the cheapest correction is to the plan, not the code.
+Plan mode makes omp explore *read-only* — writes, edits and mutating subagents are refused — until it proposes a plan you can read, annotate section by section, and approve. Only then does it implement.
+It replaces "watch it go and hit Esc" with "read three paragraphs and say no to one of them".
 **Demo:** `demos/4.3-plan-mode.md`
 **Concepts:**
 - Toggle: **`Alt+Shift+P`** (action `app.plan.toggle`; remap in `~/.omp/agent/keybindings.yml`). `plan.enabled` is `true` by default; `plan.defaultOnStartup: false` (set `true` to start every interactive session in plan mode).
@@ -194,7 +202,8 @@ graph LR
   - Contents sidebar: `a` annotates the selected **section**; in the plan body `a` annotates the top visible line.
   - `e` edits the annotation(s) at that section/line (chooser when several apply); `u` undoes the latest section deletion or annotation change.
   - Note editor: `Enter` saves, `Shift+Enter` newline, `Escape` discards, the external-editor key (`Ctrl+G` by default, Module 2) replaces the draft; saving an empty edit deletes the annotation.
-  - Approval choices dispatch execution into a fresh, preserved, or compacted session ("Approve and compact context" distills the exploration); cancelling the approval-time compaction keeps you in plan mode with the plan preserved. An unnamed session is auto-named from the plan title (e.g. `fix_session_naming` → `Fix session naming`).
+  - Approval choices dispatch execution into a fresh, preserved, or compacted session ("Approve and compact context" distills the exploration; compaction = summarising older conversation to free context, Module 5).
+    Cancelling the approval-time compaction keeps you in plan mode with the plan preserved. An unnamed session is auto-named from the plan title (e.g. `fix_session_naming` → `Fix session naming`).
 - **Headless / unattended:** `--plan-yolo` forces read-only plan mode at start, auto-approves the plan on the model's first resolve call, then switches to `--plan-yolo-into <model>` (default: the `smol` role) to implement. `plan.defaultOnStartup` is ignored under `--print`; use `--plan-yolo` for a headless plan flow.
 - **Plan model role:** `--plan <id>` / `PI_PLAN_MODEL` / `modelRoles.plan` picks the model used while plan mode is active; assigning the role does not itself enter plan mode. Full role treatment is Module 7.
 
@@ -219,7 +228,7 @@ graph LR
 - Checkpoints: the overlay shows ≥ 3 sections; after approval `git diff --stat` touches one area.
 - Pass condition: the implemented diff corresponds to exactly the kept section; `notes/m4-plan.md` records the section titles you removed.
 
-**Stretch:** `omp --plan-yolo -p "Implement issue #5; skip sub-item (c) — it is out of scope"`. Pass condition: print-mode output shows the plan then implementation; `git diff --stat` shows no email-related change.
+**Stretch:** Run a headless plan-then-implement pass on issue #5 that leaves out sub-item (c). Pass condition: print-mode output shows the plan then implementation; `git diff --stat` shows no email-related change.
 
 **Troubleshooting:**
 
@@ -248,7 +257,9 @@ graph LR
 
 ## Lesson 4.4 — Reviewing changes              (~25 min)
 **You will be able to:** annotate a diff line-by-line before omp acts on it; run the LLM review with your notes as focus; annotate omp's last reply or any file; preview a GitHub PR with `read pr://`.
-**Why this exists:** A chat model's "done" is a claim. `/annotate` lets you put *your* observations on the exact lines of the working diff — "this branch is unreachable", "wrong table" — and hand them to the reviewer or back to the agent as structured, line-anchored feedback instead of a paragraph of prose. `/review` runs the bundled review prompt over the same frozen diff snapshot, so what you annotated is what gets reviewed.
+**Why this exists:** A chat model's "done" is a claim.
+`/annotate` lets you put *your* observations on the exact lines of the working diff — "this branch is unreachable", "wrong table" — and hand them to the reviewer or back to the agent as structured, line-anchored feedback instead of a paragraph of prose.
+`/review` runs the bundled review prompt over the same frozen diff snapshot, so what you annotated is what gets reviewed.
 **Demo:** `demos/4.4-annotate-review.md`
 **Concepts:**
 - `/annotate` sources (with no argument, a source menu opens):
@@ -262,7 +273,8 @@ graph LR
   | `/annotate "text"` | Literal text |
 
   The remainder after `/annotate` is one source spec: quoted → literal; unquoted `last`/`session`/`code-review …` → modes; anything else → one file path (spaces allowed). To annotate a file literally named `code-review`, prefix `./`.
-- **Code review flow:** the menu lists up to three GitHub PRs referenced in the conversation, then local diff kinds. `/annotate code-review pr://owner/repo/N [focus]` skips the menu. The diff is resolved once in the session cwd and **frozen**; overlay and reviewer read the same snapshot, filtered by the same exclusion rules as `/review`. The overlay offers **Continue with LLM review** (submits the `/review` prompt with your notes as operator focus) and **Paste annotations into prompt**. Nothing is posted to GitHub.
+- **Code review flow:** the menu lists up to three GitHub PRs referenced in the conversation, then local diff kinds. `/annotate code-review pr://owner/repo/N [focus]` skips the menu. The diff is resolved once in the session cwd and **frozen**; overlay and reviewer read the same snapshot, filtered by the same exclusion rules as `/review`.
+  The overlay offers **Continue with LLM review** (submits the `/review` prompt with your notes as operator focus) and **Paste annotations into prompt**. Nothing is posted to GitHub.
 - **Text sources** (`last`, `session`, file, literal): feedback is pasted into the composer, never auto-submitted. The latest reply is referenced as "your last reply" and only annotated lines are quoted.
 - **Overlay keys:** `a` line note · `A` whole-file/whole-text note · `e` edit note(s) at cursor · `u` undo last add/edit/delete. Editor: `Enter` save, `Shift+Enter` newline, `Escape` discard, external-editor key replaces the draft. Empty new notes are ignored; saving an empty edit deletes.
 - **`/review`** is the bundled review command the overlay submits to; it reviews the same frozen diff (same exclusion rules) with your notes as operator focus. Treat its output as a reviewer's report you still verify: expand its `read`/`grep` cards, then ask for fixes in a fresh prompt. (Bundled `reviewer` and `security-reviewer` task agents exist separately — Module 10.)
@@ -315,7 +327,9 @@ graph LR
 
 ## Lesson 4.5 — Committing              (~20 min)
 **You will be able to:** generate commits with `omp commit`, inspect and stage with `omp git`, and resolve merge conflicts through `conflict://` instead of hand-editing markers.
-**Why this exists:** The model's diff is only useful once it is a reviewable commit. `omp commit` uses a model to write the message (and changelog entries) from the staged changes; `omp git` is a fullscreen diff/staging UI for when you want to look before you commit. When a merge produces conflict markers, `read <file>:conflicts` turns each marker block into a numbered, session-stable id that you (or omp) resolve with `@ours`/`@theirs`/`@base` tokens — no risk of leaving a stray `>>>>>>>` behind.
+**Why this exists:** The model's diff is only useful once it is a reviewable commit.
+`omp commit` uses a model to write the message (and changelog entries) from the staged changes; `omp git` is a fullscreen diff/staging UI for when you want to look before you commit.
+When a merge produces conflict markers, `read <file>:conflicts` turns each marker block into a numbered, session-stable id that you (or omp) resolve with `@ours`/`@theirs`/`@base` tokens. There is no risk of leaving a stray `>>>>>>>` behind.
 **Demo:** `demos/4.5-commit-and-conflicts.md`
 **Concepts:**
 - **`omp commit [FLAGS]`** — "Generate a commit message and update changelogs".
@@ -356,7 +370,8 @@ graph LR
    **Expected:** one `write conflict://*` card with `1: @ours` + `2: @theirs` lines, a re-read showing no conflicts, a passing test card, and `git grep -c '<<<<<<<' -- api cli` returns nothing.
 
 **Guided task:** Conclude the merge with a message that explains each resolution.
-- Hints: draft the message with `omp commit --dry-run -c "merge conflict-lab into scratch; #1 kept ours because …"`, then conclude with `git commit -m "<that message>"`. Observed on this build: `omp commit` does **not** conclude an in-progress merge — it creates a single-parent commit and leaves `MERGE_HEAD` in place, so `git status` still says "you are still merging". Use `omp commit` for ordinary commits, `git commit` for merges.
+- Hints: draft the message with `omp commit --dry-run -c "merge conflict-lab into scratch; #1 kept ours because …"`, then conclude with `git commit -m "<that message>"`.
+  Observed on this build: `omp commit` does **not** conclude an in-progress merge — it creates a single-parent commit and leaves `MERGE_HEAD` in place, so `git status` still says "you are still merging". Use `omp commit` for ordinary commits, `git commit` for merges.
 - Checkpoints: `git status` clean; `git log -1 --format=%P` shows two parents.
 - Pass condition: `git log -1 --format=%B` mentions both files and the reason for each side choice.
 

@@ -11,7 +11,9 @@
 Off-by-default settings you will meet in this module (each is called out where it matters):
 `modelRoleStorage: project`, `contextPromotion.enabled`, `retry.usageAwareFallback`, `statusLine.preset: custom`, and every `retry.fallbackChains.*` entry (empty by default).
 
-Lessons: [7.1 Roles](#lesson-71--roles-one-model-per-job-15-min) · [7.2 Switching in-session](#lesson-72--switching-models-in-session-15-min) · [7.3 Providers & credentials](#lesson-73--providers-credentials-and-env-15-min) · [7.4 Custom & local providers](#lesson-74--custom-and-local-providers-20-min) · [7.5 Resilience](#lesson-75--resilience-retry-fallback-chains-scoping-15-min) · [7.6 Cost visibility](#lesson-76--cost-visibility-10-min)
+Lessons:
+- [7.1 Roles](#lesson-71--roles-one-model-per-job-15-min) · [7.2 Switching in-session](#lesson-72--switching-models-in-session-15-min) · [7.3 Providers & credentials](#lesson-73--providers-credentials-and-env-15-min)
+- [7.4 Custom & local providers](#lesson-74--custom-and-local-providers-20-min) · [7.5 Resilience](#lesson-75--resilience-retry-fallback-chains-scoping-15-min) · [7.6 Cost visibility](#lesson-76--cost-visibility-10-min)
 
 Coursework for the whole module is in [`exercises.md`](exercises.md); the one-page reference is [`cheatsheet.md`](cheatsheet.md).
 
@@ -19,13 +21,17 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
 
 ## Lesson 7.1 — Roles: one model per job              (~15 min)
 **You will be able to:** name the built-in model roles and what each drives; assign a role from `/model` or `config.yml`; override a role for one run from the CLI or environment.
-**Why this exists:** A coding session is not one workload. Session titles, commit messages, planning, subagent fan-out, image questions and web grounding all have different cost/quality needs. Instead of switching the active model by hand before each job, omp routes each workload through a named **role**. Roles live in `config.yml` under `modelRoles` (never in `models.yml`, which only defines providers and model metadata). Pick a good default once, a cheap `smol`, a strong `slow`, and everything else inherits sensibly.
+**Why this exists:** A coding session is not one workload. Session titles, commit messages, planning, subagent fan-out (handing sub-tasks to child agents — Module 10), image questions and web grounding all have different cost/quality needs.
+Instead of switching the active model by hand before each job, omp routes each workload through a named **role**. Roles live in `config.yml` under `modelRoles` (never in `models.yml`, which only defines providers and model metadata).
+Pick a good default once, a cheap `smol`, a strong `slow`, and everything else inherits sensibly.
 **Demo:** [`demos/7.1-roles-picker.md`](demos/7.1-roles-picker.md) — the `/model` picker with the Roles column and the role-assignment bar, then `omp config get modelRoles`.
 **Concepts:**
 - **Chat roles** (accept ordinary chat models): `default`, `smol`, `slow`, `vision`, `plan`, `commit`, `tiny`, `memory`, `task`, `advisor`. `tiny` and `memory` also accept `tiny`-kind catalog models.
 - **Model-kind roles** (select a runner of a different catalog kind): `image` (generate_image), `web` (search / grounded chat), `speech` (TTS), `dictation` (STT), `judge` (typed judgments, auto-thinking, unexpected-stop detection, AI-assisted staging). `judge` also accepts tiny and chat models.
 - **Inheritance when unset:** `tiny` resolves through `@smol`; `memory` resolves through `@tiny`. Model-kind roles use their own built-in priority lists.
-- **Selector syntax:** exact `provider/modelId` (unambiguous), bare id (provider inferred by `modelProviderOrder`, then catalog priority, then recent use), fuzzy substring. Chat roles may append a thinking suffix: `anthropic/claude-opus-4-5:high`; allowed levels `minimal|low|medium|high|xhigh|max`. Model-kind roles take no suffix. Role aliases (`"@slow"`) must be quoted in YAML; `*` means `@default`.
+- **Selector syntax:** exact `provider/modelId` (unambiguous), bare id (provider inferred by `modelProviderOrder`, then catalog priority, then recent use), or fuzzy substring.
+  - Chat roles may append a thinking suffix: `anthropic/claude-opus-4-5:high`; allowed levels `minimal|low|medium|high|xhigh|max`. Model-kind roles take no suffix.
+  - Role aliases (`"@slow"`) must be quoted in YAML; `*` means `@default`.
 - **`vision` ≠ `image`:** `vision` is the chat model used for `read screenshot.png?q=...`; `image` is the `generate_image` model. Assigning `vision` does not give a model image input — the model must also be able to send images to its provider.
 - **Where assignments land:** `/model` → Roles view writes `modelRoles.<role>` to the global `~/.omp/agent/config.yml`. With `modelRoleStorage: project` (**default `global`**) role assignments from the picker go to `<cwd>/.omp/config.yml` instead; missing project roles still fall back to global ones. This is the *only* settings write that ever targets the project file.
 - **Assigning vs switching:** assigning a non-`default` role in the picker saves the selector but does **not** switch the active conversation model; assigning `plan` does not enter plan mode. Assigning `default` also switches the live model (unless a higher-precedence layer overrides it). The session-only picker (`Alt+P`, lesson 7.2) changes the active model without touching roles.
@@ -46,8 +52,15 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
 5. Launch with a one-run override: `PI_SLOW_MODEL=<other-model> omp -p "which model role is slow?"` — then `omp config get modelRoles` again.
    Expected: the persisted `slow` value is unchanged; env/CLI overrides are runtime-only.
 
-**Guided task:** Give `plan` a thinking suffix. Goal: `modelRoles.plan` = your `slow` model with `:high`. Hints: edit `~/.omp/agent/config.yml` by hand or use `omp config set modelRoles '<full JSON record>'` (it replaces the record, so include `smol`/`slow` again). Checkpoint: `omp config get modelRoles` shows `"plan":"<provider>/<id>:high"`. Pass condition: `omp --plan @slow -p "say ok"` runs without a "model not found" error and `omp config get modelRoles` still shows the `:high` suffix.
-**Stretch:** Make role assignments repo-local. Goal: set `modelRoleStorage: project` globally, assign `smol` from `/model` inside `omp-course-lab`, and prove the write landed in `omp-course-lab/.omp/config.yml` (only `modelRoles` appears there) while `omp config get modelRoles` from `~` still shows the global value. Pass condition: `git -C omp-course-lab diff --stat -- .omp/config.yml` lists the file and it contains only a `modelRoles:` block.
+**Guided task:** Give `plan` a thinking suffix.
+- Goal: `modelRoles.plan` = your `slow` model with `:high`.
+- Hints: edit `~/.omp/agent/config.yml` by hand or use `omp config set modelRoles '<full JSON record>'` (it replaces the record, so include `smol`/`slow` again).
+- Checkpoint: `omp config get modelRoles` shows `"plan":"<provider>/<id>:high"`.
+- Pass condition: `omp --plan @slow -p "say ok"` runs without a "model not found" error and `omp config get modelRoles` still shows the `:high` suffix.
+
+**Stretch:** Make role assignments repo-local.
+- Goal: set `modelRoleStorage: project` globally, assign `smol` from `/model` inside `omp-course-lab`, and prove the write landed in `omp-course-lab/.omp/config.yml` (only `modelRoles` appears there) while `omp config get modelRoles` from `~` still shows the global value.
+- Pass condition: `git -C omp-course-lab diff --stat -- .omp/config.yml` lists the file and it contains only a `modelRoles:` block.
 
 **Troubleshooting:**
 | Symptom | Cause | Fix |
@@ -80,9 +93,20 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
 - **Scope the cycle for one run:** `--models a,b,c` — comma-separated patterns (exact `provider/id`, bare ids, globs such as `openai/*` or `*sonnet*`, optional `:thinking` suffix). The first scoped model becomes the initial model on a fresh session. `enabledModels` in config does the same persistently (7.5 shows path scoping).
 - **Temporary pick:** `Alt+P` opens a session-only picker — changes the live model, does **not** rewrite any role.
 - **Roles picker:** `Alt+M` (same panel as `/model`). Inside it: `↑/↓` providers, `→` models, type to search, `Alt+←/→` to change **Kind** (`all`, `chat`, `tiny`, `image`, `tts`, `stt`, `search`, `judge`, `embedding`, `rerank`, …), Enter to assign, Esc to close. Each provider row is its own view; `All models` is the merged view.
-- **Composer chip `^`:** type `^` in the composer to pick a model from the same scope as `Alt+P`; accepting inserts an atomic chip showing its display name (`Have ^<pick> review this change`). On submit each first-mentioned model gets a session-local pseudonym `m1`, `m2`, …, and the message carries `<model agent="m1" name="…"/>`. `task`, eval `agent()` and `workpool()` accept that pseudonym as their `agent` — Module 10 uses this. Pseudonyms survive `/resume`; repeating a selector reuses its number.
+- **Composer chip `^`:** type `^` in the composer to pick a model from the same scope as `Alt+P`; accepting inserts an atomic chip showing its display name (`Have ^<pick> review this change`).
+  - On submit each first-mentioned model gets a session-local pseudonym `m1`, `m2`, …, and the message carries `<model agent="m1" name="…"/>`.
+  - `task`, eval `agent()` and `workpool()` accept that pseudonym as their `agent` — Module 10 uses this. Pseudonyms survive `/resume`; repeating a selector reuses its number.
 - **Rebind the keys** in `~/.omp/agent/keybindings.yml`: `app.model.cycleForward`, `app.model.cycleBackward`, `app.model.selectTemporary`, `app.model.select` (chord names like `Ctrl+P`, `Alt+Shift+P`).
-- **Shell catalog:** `omp models` (default action `ls`) prints provider-grouped tables with `model`, `context`, `max-out`, `thinking`, `images` columns for every *available* model; `omp models <provider>` filters to one provider; `omp models find <substring>` matches provider, id or name; `omp models refresh` forces an online catalog re-fetch (ignores the cache TTL); `--kind <chat|tiny|image|tts|stt|search|judge|embedding|rerank|video|all>`; `--json` for scripts (`{"models":[{provider,id,selector,name,contextWindow,maxTokens,cost,kind,…}]}`); `--config <overlay>` to preview a settings overlay; `-e <ext>` / `--no-extensions`.
+- **Shell catalog:** `omp models` (default action `ls`) prints provider-grouped tables with `model`, `context`, `max-out`, `thinking`, `images` columns for every *available* model.
+  | Form | Effect |
+  |---|---|
+  | `omp models <provider>` | filters to one provider |
+  | `omp models find <substring>` | matches provider, id or name |
+  | `omp models refresh` | forces an online catalog re-fetch (ignores the cache TTL) |
+  | `--kind <chat|tiny|image|tts|stt|search|judge|embedding|rerank|video|all>` | filters by catalog kind |
+  | `--json` | for scripts: `{"models":[{provider,id,selector,name,contextWindow,maxTokens,cost,kind,…}]}` |
+  | `--config <overlay>` | previews a settings overlay |
+  | `-e <ext>` / `--no-extensions` | load / skip extensions |
 - The `images` column reports what the transport will actually send; `--json` keeps the declared `input`.
 - `includeModelInPrompt` (**default `true`**) tells the model its own name in the system prompt — useful when you ask "which model are you?" during this lesson.
 
@@ -98,8 +122,15 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
 5. Restart with a scoped cycle: `omp --models '<smol-selector>,<slow-selector>'` and press `Ctrl+P` twice.
    Expected: only those two models alternate; the first listed one is the initial model.
 
-**Guided task:** Tag a model inline. Goal: send one message that mentions a model with `^` and observe the pseudonym. Hints: type `Have ^`, pick a model from the completion, finish with `summarize api/__init__.py`; after submit, `/dump` (M5) or scroll the transcript to see `<model agent="m1" name="…"/>` in your user message. Checkpoint: the chip renders as the model's display name before submit. Pass condition: the transcript's user message contains `agent="m1"`.
-**Stretch:** Rebind cycling. Goal: `keybindings.yml` maps `app.model.cycleForward` to `Alt+N` and disables `app.model.cycleBackward` (`[]`). Pass condition: `/hotkeys` (M2) lists `Alt+N` for "Cycle role models forward" and `Ctrl+P` no longer cycles.
+**Guided task:** Tag a model inline.
+- Goal: send one message that mentions a model with `^` and observe the pseudonym.
+- Hints: the `^` completion opens at a whitespace boundary in the composer; pick any model, then finish the sentence with any short request about a lab file (the exact wording does not matter). After submit, `/dump` (M5) or scroll the transcript to find `<model agent="m1" name="…"/>` in your user message.
+- Checkpoint: the chip renders as the model's display name before submit.
+- Pass condition: the transcript's user message contains `agent="m1"`.
+
+**Stretch:** Rebind cycling.
+- Goal: `keybindings.yml` maps `app.model.cycleForward` to `Alt+N` and disables `app.model.cycleBackward` (`[]`).
+- Pass condition: `/hotkeys` (M2) lists `Alt+N` for "Cycle role models forward" and `Ctrl+P` no longer cycles.
 
 **Troubleshooting:**
 | Symptom | Cause | Fix |
@@ -142,8 +173,17 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
   5. provider env var (including `.env` values)
   6. other stored API key (e.g. broker-migrated)
   7. `models.yml` fallback resolver for custom providers
-- **Core env vars:** `ANTHROPIC_OAUTH_TOKEN` then `ANTHROPIC_API_KEY`; `OPENAI_API_KEY`; `OPENAI_CODEX_OAUTH_TOKEN`; `GEMINI_API_KEY`; `GROQ_API_KEY`; `OPENROUTER_API_KEY`; `MISTRAL_API_KEY`; `XAI_API_KEY`; `COPILOT_GITHUB_TOKEN`; `AZURE_OPENAI_API_KEY`; `AWS_PROFILE` or `AWS_ACCESS_KEY_ID`+`AWS_SECRET_ACCESS_KEY` for `amazon-bedrock`; local engines are keyless (`OLLAMA_API_KEY`, `LM_STUDIO_API_KEY`, `LLAMA_CPP_API_KEY` only for authenticated hosts).
-- **`.env` order** (first definition wins; already-set process variables are never overwritten): process env → `<cwd>/.env` → `~/.omp/agent/.env` → `~/.omp/.env` → `~/.env`. Parsing: `#` comments, `KEY=value` with optional quotes, keys must be shell identifiers, and each `OMP_*` key is mirrored to `PI_*`. A project `.env` is the simplest way to give one repo its own gateway key or local endpoint (`OLLAMA_BASE_URL=…`).
+- **Core env vars:**
+  | Variable(s) | Notes |
+  |---|---|
+  | `ANTHROPIC_OAUTH_TOKEN` then `ANTHROPIC_API_KEY` | token checked first |
+  | `OPENAI_API_KEY`; `OPENAI_CODEX_OAUTH_TOKEN` | |
+  | `GEMINI_API_KEY`; `GROQ_API_KEY`; `OPENROUTER_API_KEY`; `MISTRAL_API_KEY`; `XAI_API_KEY`; `COPILOT_GITHUB_TOKEN`; `AZURE_OPENAI_API_KEY` | one key per provider |
+  | `AWS_PROFILE` or `AWS_ACCESS_KEY_ID`+`AWS_SECRET_ACCESS_KEY` | for `amazon-bedrock` |
+  | `OLLAMA_API_KEY`, `LM_STUDIO_API_KEY`, `LLAMA_CPP_API_KEY` | local engines are keyless; set these only for authenticated hosts |
+- **`.env` order** (first definition wins; already-set process variables are never overwritten): process env → `<cwd>/.env` → `~/.omp/agent/.env` → `~/.omp/.env` → `~/.env`.
+  - Parsing: `#` comments, `KEY=value` with optional quotes, keys must be shell identifiers, and each `OMP_*` key is mirrored to `PI_*`.
+  - A project `.env` is the simplest way to give one repo its own gateway key or local endpoint (`OLLAMA_BASE_URL=…`).
 - **`disabledProviders`** (`~/.omp/agent/config.yml` or `<repo>/.omp/config.yml`): exact ids; arrays are **replaced** by the higher layer, not merged — a project list must repeat the global ids it wants to keep. Works uniformly on bundled, custom, discovered, extension and implicit local providers. Does not delete stored credentials.
 - **Shared id namespace gotcha:** `disabledProviders` also gates *discovery sources* (`claude`, `codex`, `gemini`, `native`, `agents`, `github`…). `google` is the Gemini API model provider; `gemini` is the `GEMINI.md` discovery source.
 - **`enabledProviders` is not a model allow-list.** It opts *foreign user-level config sources* (Cursor, Codex, Claude, Gemini, OpenCode, Windsurf, GitHub) into discovery (**default empty**). To narrow models use `enabledModels` (7.5).
@@ -173,8 +213,15 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
 5. `omp config get disabledProviders` from both directories.
    Expected: `["<id>"]` inside the lab, `[]` from `~`.
 
-**Guided task:** Prove precedence between `.env` layers. Goal: with the mock running on port 8765 and a second copy on 8766, put `LM_STUDIO_BASE_URL=http://127.0.0.1:8766/v1` in `~/.omp/agent/.env` and `LM_STUDIO_BASE_URL=http://127.0.0.1:8765/v1` in `omp-course-lab/.env`; predict, then observe, which server is discovered from each directory. Hints: `rm "$(omp config path)/models.db"*` before each `omp models lm-studio` so the cache does not mask the change; the mock's stderr shows which instance received `GET /v1/models`. Checkpoint: inside the lab the 8765 instance logs the request. Pass condition: from `~` the 8766 instance logs it, and after `export LM_STUDIO_BASE_URL=http://127.0.0.1:1` neither does and `omp models lm-studio` prints `No models matching "lm-studio"` from both directories. Clean up both files.
-**Stretch:** Pin a key for a gateway without leaking it into the shell. Goal: a custom provider whose `apiKey` is `"!cat ~/.omp/lab-gateway.key"` (command-resolved secret). Pass condition: `omp models <provider>` lists the model, `env | grep -i lab-gateway` is empty, and the key file is never referenced in `config.yml`. (Build the provider block in 7.4.)
+**Guided task:** Prove precedence between `.env` layers.
+- Goal: with the mock running on port 8765 and a second copy on 8766, put `LM_STUDIO_BASE_URL=http://127.0.0.1:8766/v1` in `~/.omp/agent/.env` and `LM_STUDIO_BASE_URL=http://127.0.0.1:8765/v1` in `omp-course-lab/.env`; predict, then observe, which server is discovered from each directory.
+- Hints: `rm "$(omp config path)/models.db"*` before each `omp models lm-studio` so the cache does not mask the change; the mock's stderr shows which instance received `GET /v1/models`.
+- Checkpoint: inside the lab the 8765 instance logs the request.
+- Pass condition: from `~` the 8766 instance logs it, and after `export LM_STUDIO_BASE_URL=http://127.0.0.1:1` neither does and `omp models lm-studio` prints `No models matching "lm-studio"` from both directories. Clean up both files.
+
+**Stretch:** Pin a key for a gateway without leaking it into the shell.
+- Goal: a custom provider whose `apiKey` is `"!cat ~/.omp/lab-gateway.key"` (command-resolved secret). (Build the provider block in 7.4.)
+- Pass condition: `omp models <provider>` lists the model, `env | grep -i lab-gateway` is empty, and the key file is never referenced in `config.yml`.
 
 **Troubleshooting:**
 | Symptom | Cause | Fix |
@@ -200,14 +247,29 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
 
 ## Lesson 7.4 — Custom and local providers              (~20 min)
 **You will be able to:** write a valid `models.yml` provider, verify it with `omp models <provider>`, get a local engine auto-discovered, and download an on-device tiny model for background roles.
-**Why this exists:** Teams front models with gateways, run local engines for privacy or cost, and want zero-cost on-device models for chores like session titles. All three are the same mechanism: a **provider** entry that omp merges into its catalog. `models.yml` declares the endpoint, wire API and (optionally) the models; local engines are discovered without any file; tiny models ship in the `local` catalog and download on first use.
+**Why this exists:** Teams front models with gateways, run local engines for privacy or cost, and want zero-cost on-device models for chores like session titles. All three are the same mechanism: a **provider** entry that omp merges into its catalog.
+`models.yml` declares the endpoint, wire API and (optionally) the models; local engines are discovered without any file; tiny models ship in the `local` catalog and download on first use.
 **Demo:** [`demos/7.4-custom-provider.md`](demos/7.4-custom-provider.md) — starting `tools/mock-provider.py`, `omp models mock`, a broken file's warning, and `LM_STUDIO_BASE_URL` discovery of the same server.
 **Concepts:**
 - **File:** `~/.omp/agent/models.yml` (or `.yaml`; an old `models.json` is migrated once). Root key is `providers:` only.
-- **Provider fields:** `baseUrl`, `api` (provider-level or per model), `apiKey` (env-var-name-or-literal; `!command` runs a shell command and uses trimmed stdout, 10 s timeout, resolved lazily), `auth: apiKey|none|oauth`, `authHeader: true` (inject `Authorization: Bearer <key>`), `headers`, `disableStrictTools` (Anthropic-fronted proxies), `discovery: {type, timeoutMs}`, `modelOverrides`, `models[]`.
+- **Provider fields:**
+  | Field | Meaning |
+  |---|---|
+  | `baseUrl` | endpoint root |
+  | `api` | wire API, provider-level or per model |
+  | `apiKey` | env-var-name-or-literal; `!command` runs a shell command and uses trimmed stdout (10 s timeout, resolved lazily) |
+  | `auth: apiKey|none|oauth` | credential mode |
+  | `authHeader: true` | inject `Authorization: Bearer <key>` |
+  | `headers` | extra request headers |
+  | `disableStrictTools` | for Anthropic-fronted proxies |
+  | `discovery: {type, timeoutMs}` | runtime model discovery |
+  | `modelOverrides`, `models[]` | per-model overrides / declared models |
 - **Model fields:** `id` (required), `name`, `api`, `reasoning`, `input: [text, image]`, `contextWindow`, `maxContextWindow`, `maxTokens`, `cost: {input, output, cacheRead, cacheWrite}` (per-million; an explicit `cost` is a flat override; omit it to inherit catalog pricing by id), `headers`, `compat`, `thinking`, `contextPromotionTarget` (7.5), `compactionModel`.
 - **Allowed `api`:** `openai-completions` (`/v1/chat/completions`), `openai-responses` (`/v1/responses`), `openai-codex-responses`, `azure-openai-responses`, `anthropic-messages`, `bedrock-converse-stream`, `google-generative-ai`, `google-gemini-cli`, `google-vertex`, plus judgment APIs `typesafe`, `openrouter-decisions`.
-- **Validation:** with `models` present you need `baseUrl`, `apiKey` (unless `auth: none`), and `api` at provider or every model. A provider without `models` is an *override* of a built-in and needs at least one of `baseUrl`, `apiKey`, `auth: none`, `headers`, `compat`, `disableStrictTools`, `modelOverrides`, `discovery`, `remoteCompaction`. `discovery` needs provider-level `api` except `type: proxy`. On any error omp prints `Warning: models.yml validation failed — custom providers disabled` + the reason, and keeps built-ins.
+- **Validation:** with `models` present you need `baseUrl`, `apiKey` (unless `auth: none`), and `api` at provider or every model.
+  - A provider without `models` is an *override* of a built-in and needs at least one of `baseUrl`, `apiKey`, `auth: none`, `headers`, `compat`, `disableStrictTools`, `modelOverrides`, `discovery`, `remoteCompaction`.
+  - `discovery` needs provider-level `api` except `type: proxy`.
+  - On any error omp prints `Warning: models.yml validation failed — custom providers disabled` + the reason, and keeps built-ins.
 - **Discovery types:** `ollama`, `llama.cpp`, `lm-studio`, `openai-models-list` (generic `GET {baseUrl}/models`; `injectV1: false` for gateways rooted elsewhere), `proxy` (per-model wire from `supported_endpoint_types`), `litellm`.
 - **Merge order:** bundled → custom config → provider overrides applied to built-ins → `modelOverrides` → custom `models` (same `provider+id` replaces) → cached/discovered models. Same-id models under two providers stay distinct — select `provider/id`.
 - **Implicit local engines** (no file needed; skipped if you define the same id in `models.yml` or disable it):
@@ -218,7 +280,10 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
   | `lm-studio` | `LM_STUDIO_BASE_URL` → `http://127.0.0.1:1234/v1` | `openai-completions`; `GET /models` — works for *any* OpenAI-compatible local server |
   All three are keyless; their models are selectable as soon as the engine answers. `OLLAMA_CONTEXT_LENGTH` only changes omp's budget, not Ollama's `num_ctx`.
 - **Discovered proxy/gateway models are priced at zero** ("local-unknown") — see 7.6.
-- **The lab's mock provider:** `python3 tools/mock-provider.py --port 8765` serves `GET /v1/models` (one model, `mock-1`) and `POST /v1/chat/completions` (streaming and non-streaming; reply `Hello from mock-1. You said: <last user message>` — the echo is cut at 80 characters, and because omp prepends a `<system-reminder>` block with the date and cwd to your message, what you see is `Hello from mock-1. You said: <system-reminder> Today: …` rather than your own words), prints one banner line to stdout, logs every request to stderr as `[mock-provider] POST /v1/chat/completions -> "POST /v1/chat/completions HTTP/1.1" 200 -`, needs no key. `--fail` turns every chat request into HTTP `429` with `Retry-After: 1` (7.5). `--model <id>` renames the model; `--host` rebinds it.
+- **The lab's mock provider:** `python3 tools/mock-provider.py --port 8765` serves `GET /v1/models` (one model, `mock-1`) and `POST /v1/chat/completions` (streaming and non-streaming). It needs no key.
+  - Reply: `Hello from mock-1. You said: <last user message>` — the mock strips omp's injected `<system-reminder>` block before echoing, and the echo is cut at 80 characters, so `say hi` comes back as `Hello from mock-1. You said: say hi`.
+  - Logs: one banner line to stdout; every request to stderr as `[mock-provider] POST /v1/chat/completions -> "POST /v1/chat/completions HTTP/1.1" 200 -`.
+  - Flags: `--fail` turns every chat request into HTTP `429` with `Retry-After: 1` (7.5); `--model <id>` renames the model; `--host` rebinds it.
 - **Exact block for the mock** — append to `~/.omp/agent/models.yml`:
   ```yaml
   providers:
@@ -239,8 +304,11 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
             cacheRead: 0
             cacheWrite: 0
   ```
-- **Verify:** `omp models mock` → a `mock (1)` table with `mock-1 │ 33K │ 4.1K │ - │ no`; `omp -p --model mock/mock-1 "say hi"` → a line starting `Hello from mock-1. You said: <system-reminder> Today:`.
-- **Tiny on-device models** (catalog provider `local`, kind `tiny`): `omp models --kind tiny`; `omp tiny-models list`; `omp tiny-models download <id>` / `download all` (default download `lfm2.5-230m`, ~214 MB). Assign with `modelRoles.tiny: local/lfm2.5-230m` (titles) and `modelRoles.memory: local/lfm2-1.2b` (Module 9 memory); `judge: local/lfm2-1.2b` for on-device judgments. Weights download only when a local candidate is used or prefetched; inference runs in a per-model worker (`~/.omp/run/tiny/<model>-<backend>.sock`) that exits after 15 min idle. CPU by default; `providers.tinyModelDevice` / `PI_TINY_DEVICE` (`gpu`, `cuda`, `mlx`, …) and `providers.tinyModelDtype` / `PI_TINY_DTYPE` (setting default `default` = each model's shipped dtype, currently `q4`) are opt-outs.
+- **Verify:** `omp models mock` → a `mock (1)` table with `mock-1 │ 33K │ 4.1K │ - │ no`; `omp -p --model mock/mock-1 "say hi"` → `Hello from mock-1. You said: say hi`.
+- **Tiny on-device models** (catalog provider `local`, kind `tiny`): `omp models --kind tiny`; `omp tiny-models list`; `omp tiny-models download <id>` / `download all` (default download `lfm2.5-230m`, ~214 MB).
+  - Assign with `modelRoles.tiny: local/lfm2.5-230m` (titles) and `modelRoles.memory: local/lfm2-1.2b` (Module 9 memory); `judge: local/lfm2-1.2b` for on-device judgments.
+  - Weights download only when a local candidate is used or prefetched; inference runs in a per-model worker (`~/.omp/run/tiny/<model>-<backend>.sock`) that exits after 15 min idle.
+  - CPU by default; `providers.tinyModelDevice` / `PI_TINY_DEVICE` (`gpu`, `cuda`, `mlx`, …) and `providers.tinyModelDtype` / `PI_TINY_DTYPE` (setting default `default` = each model's shipped dtype, currently `q4`) are opt-outs.
 - **Speech:** `omp setup speech` picks, persists and downloads `modelRoles.speech` (`local/kokoro`, ~100 MB) and `modelRoles.dictation` (`local/parakeet-tdt-0.6b-v3` default, or `local/whisper-*`); `omp models --kind tts|stt` lists them. Keep chains empty (`retry.fallbackChains.speech: []`) to stay local.
 - **Cache:** discovered rows persist in `<agent dir>/models.db`; `omp models refresh` forces a re-fetch (the help text calls it the replacement for `rm -rf ~/.omp/models.db`).
 
@@ -258,7 +326,7 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
    └────────┴─────────┴─────────┴──────────┴────────┘
    ```
 3. `omp -p --model mock/mock-1 "say hi"`.
-   Expected: `Working...` then a line starting `Hello from mock-1. You said: <system-reminder> Today:` (the 80-character echo is filled by the block omp prepends, so `say hi` itself is cut off); the mock's stderr shows `"POST /v1/chat/completions HTTP/1.1" 200`.
+   Expected: `Working...` then `Hello from mock-1. You said: say hi`; the mock's stderr shows `"POST /v1/chat/completions HTTP/1.1" 200`.
 4. Break it on purpose: delete the `baseUrl:` line and run `omp models`.
    Expected: `Warning: models.yml validation failed — custom providers disabled` followed by `Provider mock: "baseUrl" is required when defining custom models.`; built-in providers still list. Restore the line.
 5. Discovery without a file: comment out the whole `mock:` block, then `LM_STUDIO_BASE_URL=http://127.0.0.1:8765/v1 omp models lm-studio`.
@@ -266,8 +334,15 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
 6. `omp tiny-models list` then `omp models --kind tiny`.
    Expected: the eight tiny models with descriptions plus `smollm` (the word-completion model, not a chat/tiny role candidate); the second command shows the eight under `local (8)` (`qwen3-1.7b` is the only one listing thinking levels).
 
-**Guided task:** Local engine as `commit` model. Goal: assign a local model to `modelRoles.commit` and prove `omp commit` resolves it. Hints: with Ollama running, `omp models ollama` must list a pulled model (`ollama pull <name>` first); without Ollama, use `LM_STUDIO_BASE_URL=http://127.0.0.1:8765/v1` so `lm-studio/mock-1` is discovered. Set the role (`/model` → the model → `commit`), stage a change in the lab (`echo "# note" >> README.md && git add README.md`), run `omp commit --dry-run`. Checkpoint: the first card reads `● Resolving model...` / `└─ <your local model name>`. Pass condition: that line names the local model (the mock will fail to produce a proposal and omp prints `Commit generated using fallback due to agent failure` — that is expected for the mock; a real Ollama model produces a message). `git restore --staged README.md && git checkout README.md`.
-**Stretch:** Tiny titles. Goal: `omp tiny-models download lfm2.5-230m`, set `modelRoles.tiny: local/lfm2.5-230m`, start a session with a real chat model and a descriptive first message. Pass condition: `omp models --kind tiny` lists the model; the session gets a title (M5 `/resume` list or `/rename` view) and `ls ~/.omp/run/tiny/` shows a `lfm2.5-230m-*.sock` worker socket while the session is alive.
+**Guided task:** Local engine as `commit` model.
+- Goal: assign a local model to `modelRoles.commit` and prove `omp commit` resolves it.
+- Hints: with Ollama running, `omp models ollama` must list a pulled model (`ollama pull <name>` first); without Ollama, use `LM_STUDIO_BASE_URL=http://127.0.0.1:8765/v1` so `lm-studio/mock-1` is discovered. Set the role (`/model` → the model → `commit`), stage a change in the lab (`echo "# note" >> README.md && git add README.md`), run `omp commit --dry-run`.
+- Checkpoint: the first card reads `● Resolving model...` / `└─ <your local model name>`.
+- Pass condition: that line names the local model. The mock will fail to produce a proposal and omp prints `Commit generated using fallback due to agent failure` — that is expected for the mock; a real Ollama model produces a message. Afterwards `git restore --staged README.md && git checkout README.md`.
+
+**Stretch:** Tiny titles.
+- Goal: session titles for a session run on a real chat model are generated by the on-device tiny model `local/lfm2.5-230m`.
+- Pass condition: `omp models --kind tiny` lists the model; the session gets a title (M5 `/resume` list or `/rename` view) and `ls ~/.omp/run/tiny/` shows a `lfm2.5-230m-*.sock` worker socket while the session is alive.
 
 **Troubleshooting:**
 | Symptom | Cause | Fix |
@@ -298,18 +373,32 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
 **Why this exists:** Providers rate-limit, overload and go down. omp already retries transient errors with capped exponential backoff and rotates between logged-in accounts; what you configure is *where to go next* when the current model keeps failing — and, for regulated or client-specific repos, which models may never be used there at all.
 **Demo:** [`demos/7.5-fallback.md`](demos/7.5-fallback.md) — a primary on `mock-provider.py --fail` and the JSON events `retry_fallback_applied` → `retry_fallback_succeeded`.
 **Concepts:**
-- **Retry settings (defaults):** `retry.enabled: true`, `retry.maxRetries: 10`, `retry.baseDelayMs: 500`, `retry.maxDelayMs: 300000` (5 min; `0` disables the fail-fast cap), `retry.modelFallback: true`, `retry.fallbackRevertPolicy: cooldown-expiry` (`never` stays on the fallback), `retry.fallbackChains: {}`. Opt-in: `retry.usageAwareFallback: false` (preflight on coding-plan quota reports; `retry.usageReservePct: 10`, `retry.usageReservePolicy: confirm|auto|fail-closed`).
+- **Retry settings (defaults):**
+  | Setting | Default | Meaning |
+  |---|---|---|
+  | `retry.enabled` | `true` | retry transient errors |
+  | `retry.maxRetries` | `10` | attempts per request |
+  | `retry.baseDelayMs` | `500` | first backoff step |
+  | `retry.maxDelayMs` | `300000` | 5 min; `0` disables the fail-fast cap |
+  | `retry.modelFallback` | `true` | allow switching model via chains |
+  | `retry.fallbackRevertPolicy` | `cooldown-expiry` | `never` stays on the fallback |
+  | `retry.fallbackChains` | `{}` | see below |
+  | `retry.usageAwareFallback` | `false` (opt-in) | preflight on coding-plan quota reports; `retry.usageReservePct: 10`, `retry.usageReservePolicy: confirm|auto|fail-closed` |
 - **What is retried:** 429 / 500 / 502 / 503 / 504, overloaded, rate/usage limits, network/socket/timeouts, provider "retry your request" wording, classifier refusals. **Not** context overflow — that goes to compaction / context promotion instead.
 - **Backoff:** `min(baseDelayMs·2^(attempt−1), 8000 ms)` × 75–100 % jitter → 500, 1000, 2000, 4000, 8000… Provider `retry-after` / `x-ratelimit-reset` headers can lengthen it; a delay above `maxDelayMs` with no credential/model switch fails immediately.
 - **In the TUI:** loader `Retrying (attempt/maxAttempts) in Ns… (esc to cancel)`; `Esc` cancels the retry; final failure prints `Retry failed after N attempts: <error>`. Recovered error entries are shown dimmed and are excluded from the model's context.
 - **Credential rotation first:** on a usage limit omp first tries another stored account for the same provider (accounts are ranked and rotated); only then the model chain.
-- **`retry.fallbackChains`** — keys are a **role** (`default`, `smol`, `judge`, …), an exact **`provider/model-id`** (applies whenever that model is live, whatever role it plays), or a **`provider/*`** wildcard (every model of that provider). Entries are selectors with optional `:thinking`; a `provider/*` *entry* keeps the failing id and swaps the provider. `[]` disables fallback for that key. Chat roles without a chain inherit `default`; model-kind roles (`web`, `speech`, `dictation`, `judge`, `image`) never use `default` — unset means their built-in list. Role aliases like `"@tiny"` are valid entries.
+- **`retry.fallbackChains`** — keys are a **role** (`default`, `smol`, `judge`, …), an exact **`provider/model-id`** (applies whenever that model is live, whatever role it plays), or a **`provider/*`** wildcard (every model of that provider).
+  - Entries are selectors with optional `:thinking`; a `provider/*` *entry* keeps the failing id and swaps the provider. `[]` disables fallback for that key. Role aliases like `"@tiny"` are valid entries.
+  - Chat roles without a chain inherit `default`; model-kind roles (`web`, `speech`, `dictation`, `judge`, `image`) never use `default` — unset means their built-in list.
 - **Which chain wins** for a failing model: exact `provider/model-id` key → `provider/*` key → the current role's chain → `default` (which also owns a live model belonging to no role). Candidates still cooling down are skipped; the switch applies for the rest of the turn and appends a temporary `model_change`; the primary returns when its cooldown expires (`cooldown-expiry`).
 - **Events** (visible with `--mode json`, RPC, extensions): `auto_retry_start {attempt, maxAttempts, delayMs, errorMessage}`, `retry_fallback_applied {from, to, role, reason}`, `retry_fallback_succeeded {model, role}`, `auto_retry_end {success, attempt, finalError?}`. The TUI shows a bounded preview of `reason` under the source→target warning.
 - **Startup validation:** unknown models/providers in a chain print `Warning: Fallback chain for role '<role>' references unknown model: <selector>` when the TUI starts.
-- **Path-scoped `enabledModels` / `disabledProviders`** (also `enabledProviders`): mix bare strings (apply everywhere) with `{path|paths|pathPrefix|pathPrefixes: …, models|providers|values|items: […]}` entries that apply when the cwd *is* or is *under* the path (`~` expands). Scoping is resolved after the layer merge, so a project array that replaces the global one drops global scoped entries. `omp config get enabledModels` prints the value resolved for the current directory.
+- **Path-scoped `enabledModels` / `disabledProviders`** (also `enabledProviders`): mix bare strings (apply everywhere) with `{path|paths|pathPrefix|pathPrefixes: …, models|providers|values|items: […]}` entries that apply when the cwd *is* or is *under* the path (`~` expands).
+  - Scoping is resolved after the layer merge, so a project array that replaces the global one drops global scoped entries. `omp config get enabledModels` prints the value resolved for the current directory.
 - **Effect of a scoped `enabledModels`:** inside the path, the first scoped model becomes the initial model of a fresh session even if `modelRoles.default` points elsewhere; `Ctrl+P` cycling and pickers are limited to the scope. A scoped `disabledProviders` removes the provider's tables from `omp models` inside the path.
-- **Context promotion:** `contextPromotion.enabled` (**default `false`**). When on and a request fails with a context-length error, omp switches temporarily to `contextPromotionTarget` configured on the model (`models.yml` → `providers.<p>.modelOverrides.<id>.contextPromotionTarget: provider/bigger-model`) before falling back to compaction. Only the configured target is considered, and only if its credentials resolve.
+- **Context promotion:** `contextPromotion.enabled` (**default `false`**). When on and a request fails with a context-length error, omp switches temporarily to `contextPromotionTarget` configured on the model (`models.yml` → `providers.<p>.modelOverrides.<id>.contextPromotionTarget: provider/bigger-model`) before falling back to compaction.
+  - Only the configured target is considered, and only if its credentials resolve.
 
 **Try it (Walkthrough):**
 1. Start a second mock as the backup: `python3 tools/mock-provider.py --port 8766`, and add a second provider to `models.yml`:
@@ -339,20 +428,27 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
    ```
    Expected: `omp config get retry.fallbackChains` → `{"default":["mock-backup/mock-1","…"]}`.
 4. In the lab: `omp` then `say hi`.
-   Expected: the request fails on `mock/mock-1`, omp shows a fallback warning from `mock/mock-1` to `mock-backup/mock-1` with the `429 rate limited (mock --fail)` reason, and the answer `Hello from mock-1. You said: <system-reminder> Today: …` arrives from the backup (~10–15 s; the mock's `Retry-After: 1` is honoured first). The status line chip now reads `Mock 1 (backup)`.
+   Expected: the request fails on `mock/mock-1`, omp shows a fallback warning from `mock/mock-1` to `mock-backup/mock-1` with the `429 rate limited (mock --fail)` reason, and the answer `Hello from mock-1. You said: say hi` arrives from the backup (~10–15 s; the mock's `Retry-After: 1` is honoured first). The status line chip now reads `Mock 1 (backup)`.
 5. Same thing headless, as proof you can grep: `omp -p --mode json --no-session "say hi" | grep -E 'retry_fallback_(applied|succeeded)'`.
    Expected: two JSON lines — `{"type":"retry_fallback_applied","from":"mock/mock-1","to":"mock-backup/mock-1","role":"default","reason":"Request failed: 429 rate limited (mock --fail) …"}` and `{"type":"retry_fallback_succeeded","model":"mock-backup/mock-1","role":"default"}`.
 6. Restore `modelRoles.default` to your real model and stop the `--fail` mock.
 
-**Guided task:** Scope the mock to the lab. Goal: `mock/mock-1` is selectable only inside `omp-course-lab`. Hints: global `config.yml`:
-```yaml
-enabledModels:
-  - path: ~/path/to/omp-course-lab
-    models:
-      - mock/mock-1
-```
-(no bare entries, so other directories keep every model). Checkpoints: `omp config get enabledModels` prints `["mock/mock-1"]` inside the lab and `[]` from a sibling directory; inside the lab a fresh `omp -p "say hi"` answers from the mock even though `modelRoles.default` is your real model. Pass condition: `omp -p --mode json --no-session "say hi" | grep -o '"provider":"mock"' | head -1` prints a match inside the lab and nothing from the sibling directory.
-**Stretch:** Per-provider wildcard. Goal: a `retry.fallbackChains` key `mock/*` with entry `mock-backup/*` (keep the failing id, swap provider) and *no* `default` chain; prove the swap with `--fail` on the primary. Pass condition: `retry_fallback_applied` shows `"from":"mock/mock-1","to":"mock-backup/mock-1"` with `"role":"default"` and `omp config get retry.fallbackChains` contains only the `mock/*` key.
+**Guided task:** Scope the mock to the lab.
+- Goal: `mock/mock-1` is selectable only inside `omp-course-lab`.
+- Hints: global `config.yml`:
+  ```yaml
+  enabledModels:
+    - path: ~/path/to/omp-course-lab
+      models:
+        - mock/mock-1
+  ```
+  (no bare entries, so other directories keep every model).
+- Checkpoints: `omp config get enabledModels` prints `["mock/mock-1"]` inside the lab and `[]` from a sibling directory; inside the lab a fresh `omp -p "say hi"` answers from the mock even though `modelRoles.default` is your real model.
+- Pass condition: `omp -p --mode json --no-session "say hi" | grep -o '"provider":"mock"' | head -1` prints a match inside the lab and nothing from the sibling directory.
+
+**Stretch:** Per-provider wildcard.
+- Goal: a `retry.fallbackChains` key `mock/*` with entry `mock-backup/*` (keep the failing id, swap provider) and *no* `default` chain; prove the swap with `--fail` on the primary.
+- Pass condition: `retry_fallback_applied` shows `"from":"mock/mock-1","to":"mock-backup/mock-1"` with `"role":"default"` and `omp config get retry.fallbackChains` contains only the `mock/*` key.
 
 **Troubleshooting:**
 | Symptom | Cause | Fix |
@@ -384,9 +480,19 @@ enabledModels:
 **Why this exists:** Routing decisions are only as good as your feedback loop. omp records token usage and estimated (or server-reported) cost for every assistant message in the session log; `omp stats` aggregates those logs locally, and `omp usage` asks each provider how much of your plan is left. None of this leaves your machine.
 **Demo:** [`demos/7.6-stats.md`](demos/7.6-stats.md) — `omp stats --summary`, the dashboard URL, and the JSON shape.
 **Concepts:**
-- **Status line:** the `cost` segment shows the recorded session cost; the model chip shows the live model. With scheduled pricing (first-party `deepseek`) it appends `↑` during peak / `↓` off-peak for the *active* model, refreshing at tariff boundaries — the arrow is about the current tariff, not past spend. `statusLine.preset` (`default`, `minimal`, `compact`, `full`, `nerd`, `ascii`, `custom`); with `custom`, put `cost` in `statusLine.leftSegments` / `rightSegments`.
-- **How cost is estimated:** from the selected provider/model's catalog pricing, preferring server-reported cost when the provider streams one. Completed messages keep their recorded cost — switching models, crossing a tariff boundary or reopening a session never reprices history. An explicit `cost` in `models.yml` is a flat override; discovered proxy/gateway models stay at zero ("local-unknown"), so a `$0.00` session on a gateway is *unpriced*, not free.
-- **`omp stats`:** syncs `~/.omp/agent/sessions/` into `~/.omp/stats.db`, then serves the dashboard at `http://localhost:3847` (`Dashboard available at: http://127.0.0.1:3847`, stop with `Ctrl+C`). `--port <n>`, `--host <h>`. `--summary` prints the console report (Requests, Error Rate, Total/Input/Output Tokens, Cache Rate, Cache Savings, Total Cost, Premium Requests, Avg Duration/TTFT/Tokens-per-second, then **By Model** and **By Folder**). `--json` prints `{overall, byModel, byFolder, byAgentType, timeSeries, modelSeries, modelPerformanceSeries, costSeries}` after a sync line; `byModel` is a **list** of objects (`model`, `provider`, `totalRequests`, `totalInputTokens`, `totalOutputTokens`, `totalCost`, `unpricedRequests`, …), not a map keyed by id. Dashboard API: `/api/stats`, `/api/stats/models`, `/api/stats/folders`, `/api/stats/timeseries`, `/api/sync`.
+- **Status line:** the `cost` segment shows the recorded session cost; the model chip shows the live model.
+  - With scheduled pricing (first-party `deepseek`) it appends `↑` during peak / `↓` off-peak for the *active* model, refreshing at tariff boundaries — the arrow is about the current tariff, not past spend.
+  - `statusLine.preset` (`default`, `minimal`, `compact`, `full`, `nerd`, `ascii`, `custom`); with `custom`, put `cost` in `statusLine.leftSegments` / `rightSegments`.
+- **How cost is estimated:** from the selected provider/model's catalog pricing, preferring server-reported cost when the provider streams one.
+  - Completed messages keep their recorded cost — switching models, crossing a tariff boundary or reopening a session never reprices history.
+  - An explicit `cost` in `models.yml` is a flat override; discovered proxy/gateway models stay at zero ("local-unknown"), so a `$0.00` session on a gateway is *unpriced*, not free.
+- **`omp stats`:** syncs `~/.omp/agent/sessions/` into `~/.omp/stats.db`, then serves the dashboard at `http://localhost:3847` (`Dashboard available at: http://127.0.0.1:3847`, stop with `Ctrl+C`).
+  | Flag | Output |
+  |---|---|
+  | `--port <n>`, `--host <h>` | dashboard bind address |
+  | `--summary` | console report: Requests, Error Rate, Total/Input/Output Tokens, Cache Rate, Cache Savings, Total Cost, Premium Requests, Avg Duration/TTFT/Tokens-per-second, then **By Model** and **By Folder** |
+  | `--json` | `{overall, byModel, byFolder, byAgentType, timeSeries, modelSeries, modelPerformanceSeries, costSeries}` after a sync line; `byModel` is a **list** of objects (`model`, `provider`, `totalRequests`, `totalInputTokens`, `totalOutputTokens`, `totalCost`, `unpricedRequests`, …), not a map keyed by id |
+  | Dashboard API | `/api/stats`, `/api/stats/models`, `/api/stats/folders`, `/api/stats/timeseries`, `/api/sync` |
 - **`omp usage`:** per-account limit windows for every authenticated account (OAuth and coding-plan providers); `--provider <id>`, `--json`, `--redact` (for screenshots), `--history --days N` (hourly snapshots), `omp usage clients --days N` (token burn per machine/app), `omp usage invalidate [--provider id]` (drop cached reports). Env-key-only setups print `No credentials found`.
 - **Picker hints:** `/model` rows show price per million (`free` for zero-cost entries), observed tokens/s and TTFT.
 - **Subagents:** Agent Hub (`Alt+A`, Module 10) lists each task agent's model and usage, so fan-out cost is attributable per agent.
@@ -404,8 +510,15 @@ enabledModels:
 5. In a live session, look at the status line after one answer.
    Expected: a `cost` value; if you are on a discovered/mock model it stays `$0.00` (unpriced).
 
-**Guided task:** Compare two roles by cost. Goal: run the same prompt (`Explain what api/__init__.py re-exports and why`) once with `--model @smol` and once with `--model @slow`, then attribute cost per model. Hints: `omp stats --json` → `byModel` (list of objects); `omp stats --summary` → `By Model:`. Checkpoint: both models appear under `By Model:`. Pass condition: you can state the per-model cost for each and which one had more output tokens (`totalCost` and `totalOutputTokens` on the matching `byModel` entries).
-**Stretch:** Put `cost` on the left. Goal: `statusLine.preset: custom` with `cost` in `statusLine.leftSegments` and the model chip on the right. Pass condition: after restart the cost value renders on the left of the status line; `omp config get statusLine.leftSegments` includes `cost`.
+**Guided task:** Compare two roles by cost.
+- Goal: run one identical prompt (a short explanation request about a lab file) once with `--model @smol` and once with `--model @slow`, then attribute cost per model.
+- Hints: `omp stats --json` → `byModel` (list of objects); `omp stats --summary` → `By Model:`.
+- Checkpoint: both models appear under `By Model:`.
+- Pass condition: you can state the per-model cost for each and which one had more output tokens (`totalCost` and `totalOutputTokens` on the matching `byModel` entries).
+
+**Stretch:** Put `cost` on the left.
+- Goal: `statusLine.preset: custom` with `cost` in `statusLine.leftSegments` and the model chip on the right.
+- Pass condition: after restart the cost value renders on the left of the status line; `omp config get statusLine.leftSegments` includes `cost`.
 
 **Troubleshooting:**
 | Symptom | Cause | Fix |

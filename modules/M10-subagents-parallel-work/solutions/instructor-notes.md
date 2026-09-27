@@ -83,6 +83,46 @@ Pass: `notes/m10.md` has the table with both rows filled and every file's "lint 
 
 `/vibe` → `vibe_spawn {cli:"fast", name:"Fixer", prompt:"…"}` and `{cli:"good", name:"Judge", prompt:"…"}` → `vibe_wait {timeout: 60}` → `/vibe` exits and kills both. Evidence: `Alt+A` shows both workers `aborted` after exit and `read history://Fixer` still renders. If the learner had plan mode paused, `/vibe` is refused — exit plan mode first.
 
+## README Guided/Stretch — exact text moved out of the lesson pages
+
+**10.1 Guided** — `outputSchema` for the `scout` item:
+
+```json
+{ "type": "object", "required": ["callsites"], "properties": { "callsites": { "type": "array", "items": { "type": "string" } } } }
+```
+
+**10.2 Guided** — instruction to embed in each child's `task`:
+
+```text
+Before editing, `write agent://<other name>` with the list of symbols you intend to rename; after editing, `write agent://all` with 'done'.
+```
+
+**10.3 Stretch** — task text for `lead`:
+
+```text
+delegate: one test-writer per package (api/, cli/), then summarise their results
+```
+
+**10.4 Stretch** — the setup is Walkthrough step 2 (two isolated `sonic` items, IsoA/IsoB, one appended comment line each in `api/__init__.py` / `cli/__init__.py`), run once per backend.
+
+**10.5 Guided** — phase-1 `scout` schema:
+
+```json
+{ "type": "object", "required": ["files"], "properties": { "files": { "type": "array", "items": { "type": "string" } } } }
+```
+
+**10.7 Guided** — `Sec` item task and the follow-up prompt to the parent:
+
+```text
+Sweep api/ for input-handling and SQL-construction risks; cite file:line.
+```
+
+```text
+combine the four results into `notes/m10-review.md`: one table sorted by priority, columns target | priority | title | file:line | confidence
+```
+
+**10.7 Stretch** — the setup is Walkthrough step 2 (RevWorking / RevCommit / RevBranch), re-dispatched with the project `reviewer.md` override in place.
+
 ## 10.3 Guided / Stretch
 
 Project override of `scout`: file must be exactly `.omp/agents/scout.md` (case-sensitive name inside frontmatter, first-wins). The `lead` agent stretch: `spawns: test-writer, scout` auto-adds `task`; children are dot-qualified (`Lead.TwApi`) in `agent://`. Depth: `Lead` is depth 1, its children depth 2 — the default `task.maxRecursionDepth` (2) means the grandchildren get no `task` tool.

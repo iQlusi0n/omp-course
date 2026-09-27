@@ -17,11 +17,16 @@ Every file referenced as `solutions/...` is in this module directory and was exe
 
 ## Lesson 12.1 — Extension anatomy              (~45 min)
 **You will be able to:** write a one-file extension that adds a slash command, an LLM-callable tool, and an event handler; load it three different ways; find out why it did not load.
-**Why this exists:** Everything you taught omp in Module 6 was *text* — context, rules, skills, prompt templates. An extension is *code* that runs inside omp's process: it can register tools the model calls, slash commands you type, and handlers that fire on session and tool lifecycle events (including vetoing a tool call before it runs). One TypeScript file, one default export, no build step — omp imports it with its embedded Bun runtime. Hooks (12.2) and custom tools (12.2) are older, narrower surfaces; extensions are the superset and the recommended target for new work.
+**Why this exists:** Everything you taught omp in Module 6 was *text* — context, rules, skills, prompt templates. An extension is *code* that runs inside omp's process.
+It can register tools the model calls, slash commands you type, and handlers that fire on session and tool lifecycle events (including vetoing a tool call before it runs).
+One TypeScript file, one default export, no build step — omp imports it with its embedded Bun runtime.
+Hooks (12.2) and custom tools (12.2) are older, narrower surfaces; extensions are the superset and the recommended target for new work.
 **Demo:** `demos/12-1-hello-extension.md` — `/hello Ada`, then a `word_count` card.
 
 **Concepts:**
-- **Shape.** A module whose default export is a factory: `export default function (pi: ExtensionAPI) { ... }`. The factory may return a promise. During the factory ("load phase") only *registration* is legal — `pi.on`, `pi.registerTool`, `pi.registerCommand`, `pi.registerShortcut`, `pi.registerFlag`, `pi.setLabel`, renderers. Calling a runtime action such as `pi.sendMessage()` or `ctx.ui.*` at load throws `ExtensionRuntimeNotInitializedError`. Do runtime work from handlers, commands, and tools.
+- **Shape.** A module whose default export is a factory: `export default function (pi: ExtensionAPI) { ... }`. The factory may return a promise.
+  - During the factory ("load phase") only *registration* is legal — `pi.on`, `pi.registerTool`, `pi.registerCommand`, `pi.registerShortcut`, `pi.registerFlag`, `pi.setLabel`, renderers.
+  - Calling a runtime action such as `pi.sendMessage()` or `ctx.ui.*` at load throws `ExtensionRuntimeNotInitializedError`. Do runtime work from handlers, commands, and tools.
 - **Where omp looks (modules are imported at startup; the import carries an `?mtime` cache-buster so an edited file is re-imported on the next start rather than served stale — see Troubleshooting):**
   1. `<cwd>/.omp/extensions/` — project. **cwd only, no ancestor walk.** Direct `*.ts`/`*.js`, plus one-level subdirectories with `index.ts`/`index.js` or a `package.json` whose `omp.extensions` array names the entry files.
   2. `~/.omp/agent/extensions/` — user (with `omp --profile <name>`: `~/.omp/profiles/<name>/agent/extensions/`).
@@ -29,7 +34,9 @@ Every file referenced as `solutions/...` is in this module directory and was exe
   4. Explicit paths: `omp -e ./ext.ts` / `--extension` (repeatable; `--hook` is an alias) and the `extensions:` array in `~/.omp/agent/config.yml` or `.omp/config.yml`.
   De-duplicated by absolute path, first seen wins. `--no-extensions` drops 1–3 and the `extensions:` setting; explicit `-e` still loads.
 - **Turning one off without deleting it:** `disabledExtensions: [extension-module:<name>]` where `<name>` is the file stem (`guard.ts` → `guard`) or the directory name for `index.ts` entries.
-- **`pi.registerCommand(name, { description, handler(args, ctx) })`.** `args` is everything after `/name`. `ctx` is an `ExtensionCommandContext`: everything a handler gets (`ctx.ui.notify/confirm/select/input/editor`, `ctx.cwd`, `ctx.hasUI`, `ctx.compact(...)`) plus session controls (`waitForIdle`, `newSession`, `switchSession`, `branch`, `navigateTree`, `reload`) that only commands get. Names that clash with built-ins are skipped with a log line.
+- **`pi.registerCommand(name, { description, handler(args, ctx) })`.** `args` is everything after `/name`. Names that clash with built-ins are skipped with a log line.
+  - `ctx` is an `ExtensionCommandContext`: everything a handler gets (`ctx.ui.notify/confirm/select/input/editor`, `ctx.cwd`, `ctx.hasUI`, `ctx.compact(...)`).
+  - Plus session controls that only commands get: `waitForIdle`, `newSession`, `switchSession`, `branch`, `navigateTree`, `reload`.
 - **`pi.registerTool({...})`.** Required: `name` (snake_case, globally unique), `label`, `description`, `parameters` (a schema built with `pi.zod`, `pi.arktype`, or the legacy `pi.typebox` shim), `execute(toolCallId, params, signal, onUpdate, ctx)` returning `{ content: [{type:"text", text}], details? }`. Optional and worth knowing:
   - `approval: "read" | "write" | "exec"` — default `"exec"`, the tier that prompts in `always-ask` and `write` modes (M4). Declare `"read"` for pure functions.
   - `loadMode: "discoverable" | "essential"` — **default `"discoverable"`**: the tool is *not* in the top-level tool list; it is advertised as an `xd://<name>` device the model dispatches by writing JSON to that URI (M8). `"essential"` puts it in the tool inventory so you get a plain `word_count` card. The solution uses `"essential"`.
@@ -79,7 +86,7 @@ Every file referenced as `solutions/...` is in this module directory and was exe
 - Checkpoints: (a) the handler registers without touching `ctx.ui` at load; (b) the segment appears after the first turn; (c) it survives `/clear`.
 - Pass: status line shows a `ctx≈` segment that changes between turns.
 
-**Stretch:** Persist state across restarts. Goal: the extension counts `/hello` invocations and reports the total on `session_start`, surviving `/resume`. Pass: `pi.appendEntry("course.hello.count", {n})` entries visible in the session `.jsonl` and the count restored by scanning `ctx.sessionManager.getBranch()` for `entry.type === "custom"` with your `customType`.
+**Stretch:** Persist state across restarts. Goal: the extension counts `/hello` invocations and reports the total on `session_start`, surviving `/resume`. Pass: the count entries are visible in the session `.jsonl`, and after `/resume` the `session_start` notification reports the total from before the restart.
 
 **Troubleshooting:**
 | Symptom | Cause | Fix |
@@ -111,7 +118,10 @@ Every file referenced as `solutions/...` is in this module directory and was exe
 
 ## Lesson 12.2 — Hooks (legacy) and standalone custom tools              (~30 min)
 **You will be able to:** block a dangerous tool call and make the model see why; choose between an extension, a hook module, and a custom-tool module; place each where omp actually discovers it.
-**Why this exists:** Before the unified extension API, omp had two narrower plug-in shapes that still work and that you will meet in other people's repos: **hooks** (`HookAPI` — event interception only, discovered under `hooks/pre|post/`, mirroring Claude Code's layout) and **custom tools** (`CustomToolFactory` — one model-callable tool per module, discovered under `tools/`). Both are loaded through the same runner as extensions, so the `tool_call` / `tool_result` contracts are identical. Knowing them lets you drop a policy file into a repo that already uses `.claude/hooks/` and lets you ship a tool without writing a command or UI.
+**Why this exists:** Before the unified extension API, omp had two narrower plug-in shapes that still work and that you will meet in other people's repos.
+**Hooks** (`HookAPI`) do event interception only and are discovered under `hooks/pre|post/`, mirroring Claude Code's layout; **custom tools** (`CustomToolFactory`) provide one model-callable tool per module and are discovered under `tools/`.
+Both are loaded through the same runner as extensions, so the `tool_call` / `tool_result` contracts are identical.
+Knowing them lets you drop a policy file into a repo that already uses `.claude/hooks/` and lets you ship a tool without writing a command or UI.
 **Demo:** `demos/12-2-tool-call-guard.md` — the model tries `git push --force`, the card goes red with your reason, the model changes course.
 
 **Concepts:**
@@ -120,11 +130,17 @@ Every file referenced as `solutions/...` is in this module directory and was exe
   - `{ input: {...} }` — replace the raw arguments (last handler wins; handlers do not see each other's revisions).
   - `{ additionalContext }` — trusted instructions delivered after the batch's tool results, only if the call ran and succeeded.
   - throw — also blocks (fail-closed). Return nothing to allow.
-  - First `block` short-circuits. Eval-prelude calls (`browser.open`, `tab.run`, `computer.*`) are host bridge calls and do **not** fire `tool_call`.
+  - First `block` short-circuits. Eval-prelude calls (`browser.open`, `tab.run`, `computer.*` — the browser and desktop bridges of Module 14) are host bridge calls and do **not** fire `tool_call`.
 - **`tool_result`** runs after execution: `{ content, details, isError }` patch what the model sees (redaction, truncation). Handlers run in order and each sees prior edits.
-- **Interactive vs headless.** `ctx.hasUI` is `false` in `-p`, RPC `--no-ui`, and subagents; `ctx.ui.confirm` returns `false` there. Pattern: confirm when there is a UI, hard-block when there is not.
-- **Hook module.** `import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks"` — not re-exported from the package root. Default export `(pi: HookAPI) => void`. Discovery is **only** `<cwd>/.omp/hooks/pre/*.{ts,js}` and `<cwd>/.omp/hooks/post/*.{ts,js}` (user: `~/.omp/agent/hooks/pre|post/`). A file placed directly in `.omp/hooks/` loads nothing and reports nothing (verified). The `pre`/`post` split is layout inherited from `.claude/hooks/`; what a module does is decided by the events it subscribes to.
-- **Custom tool module.** `import type { CustomToolFactory } from "@oh-my-pi/pi-coding-agent"`; the factory receives `CustomToolAPI` (`pi.cwd`, `pi.exec(cmd, args, {signal, cwd})`, `pi.zod`, `pi.arktype`, `pi.typebox`, `pi.ui`, `pi.hasUI`, `pi.logger`) and returns one tool, an array, or a promise of either. **Argument order differs from extension tools:** `execute(toolCallId, params, onUpdate, ctx, signal)`. Discovery: `~/.omp/agent/tools/`, `<cwd>/.omp/tools/` (also `~/.claude/tools`, `.claude/tools`, `~/.codex/tools`, `.codex/tools`); `.ts`/`.js` plus one-level `index.ts`; `.md`/`.json` there are metadata, not tools. Name conflicts with built-ins or other custom tools are rejected. Same `loadMode` default (`discoverable`) unless the name is an essential built-in.
+- **Interactive vs headless.** `ctx.hasUI` is `false` in `-p` and RPC `--no-ui` (omp's print and machine-driven modes, Module 13) and in subagents; `ctx.ui.confirm` returns `false` there. Pattern: confirm when there is a UI, hard-block when there is not.
+- **Hook module.** `import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks"` — not re-exported from the package root. Default export `(pi: HookAPI) => void`.
+  - Discovery is **only** `<cwd>/.omp/hooks/pre/*.{ts,js}` and `<cwd>/.omp/hooks/post/*.{ts,js}` (user: `~/.omp/agent/hooks/pre|post/`). A file placed directly in `.omp/hooks/` loads nothing and reports nothing (verified).
+  - The `pre`/`post` split is layout inherited from `.claude/hooks/`; what a module does is decided by the events it subscribes to.
+- **Custom tool module.** `import type { CustomToolFactory } from "@oh-my-pi/pi-coding-agent"`. The factory returns one tool, an array, or a promise of either.
+  - It receives `CustomToolAPI`: `pi.cwd`, `pi.exec(cmd, args, {signal, cwd})`, `pi.zod`, `pi.arktype`, `pi.typebox`, `pi.ui`, `pi.hasUI`, `pi.logger`.
+  - **Argument order differs from extension tools:** `execute(toolCallId, params, onUpdate, ctx, signal)`.
+  - Discovery: `~/.omp/agent/tools/`, `<cwd>/.omp/tools/` (also `~/.claude/tools`, `.claude/tools`, `~/.codex/tools`, `.codex/tools`); `.ts`/`.js` plus one-level `index.ts`; `.md`/`.json` there are metadata, not tools.
+  - Name conflicts with built-ins or other custom tools are rejected. Same `loadMode` default (`discoverable`) unless the name is an essential built-in.
 - **Approval interaction.** A block from `tool_call` happens *before* the approval gate; a `bash.patterns` `deny` rule (M4) is a second, independent layer inside the `bash` tool's own approval decision.
 - **Decision table.**
   | You need | Use |
@@ -186,7 +202,9 @@ Every file referenced as `solutions/...` is in this module directory and was exe
 
 ## Lesson 12.3 — MCP servers              (~40 min)
 **You will be able to:** connect a stdio MCP server from `.omp/mcp.json`, test and reload it without restarting, call its tools as `mcp__<server>_<tool>`, read its resources as `mcp://<uri>`, keep secrets out of the file, and write a server that behaves well under omp.
-**Why this exists:** The Model Context Protocol is the interoperable way to hand an agent an external capability — a database, an issue tracker, a vendor API — as a process (stdio) or an endpoint (HTTP). omp discovers server definitions from its own files *and* from Claude Code, Codex, Gemini CLI, Cursor, Windsurf, VS Code and OpenCode configs, connects in the background so startup stays fast, and exposes each server tool under a namespaced name. You write JSON, not code.
+**Why this exists:** The Model Context Protocol is the interoperable way to hand an agent an external capability — a database, an issue tracker, a vendor API — as a process (stdio) or an endpoint (HTTP).
+omp discovers server definitions from its own files *and* from Claude Code, Codex, Gemini CLI, Cursor, Windsurf, VS Code and OpenCode configs, connects in the background so startup stays fast, and exposes each server tool under a namespaced name.
+You write JSON, not code.
 **Demo:** `demos/12-3-mcp-filesystem.md` — `/mcp test filesystem`, a `mcp__filesystem_list_directory` card, `read mcp://lab-fs://listing`.
 
 **Concepts:**
@@ -202,17 +220,34 @@ Every file referenced as `solutions/...` is in this module directory and was exe
     "disabledServers": [], "enabledServers": []
   }
   ```
-  `type` omitted means `stdio`; `stdio` needs `command` (+ `args`, `env`, `cwd`); `http`/`sse` need `url` (+ `headers`); both `command` and `url` is rejected. Shared: `enabled`, `timeout` (ms; `0` disables), `instructions` (include the server's system-prompt instructions, default `true`), `requestIdFormat`, `auth`, `oauth`. `disabledServers` / `enabledServers` are honored from the **active profile's user file** (`~/.omp/agent/mcp.json`), not from a project file. Relative `args` resolve against omp's cwd (verified).
-- **Secrets.** Discovery-time `${VAR}` / `${VAR:-default}` expansion in `command`, `args`, `env`, `cwd`, `url`, `headers` (verified). Pre-connect, each `env`/`headers` value is resolved: `!cmd` runs a shell command (10 s timeout, cached, omitted if empty); otherwise, if the whole value names a set environment variable, that value is used; else the literal. So `"GITHUB_PERSONAL_ACCESS_TOKEN": "GITHUB_PERSONAL_ACCESS_TOKEN"` copies from your shell.
+  Field rules:
+  | Field | Rule |
+  |---|---|
+  | `type` | omitted means `stdio`; `stdio` needs `command` (+ `args`, `env`, `cwd`); `http`/`sse` need `url` (+ `headers`); both `command` and `url` is rejected |
+  | shared | `enabled`, `timeout` (ms; `0` disables), `instructions` (include the server's system-prompt instructions, default `true`), `requestIdFormat`, `auth`, `oauth` |
+  | `disabledServers` / `enabledServers` | honored from the **active profile's user file** (`~/.omp/agent/mcp.json`), not from a project file |
+  | relative `args` | resolve against omp's cwd (verified) |
+- **Secrets.** Discovery-time `${VAR}` / `${VAR:-default}` expansion in `command`, `args`, `env`, `cwd`, `url`, `headers` (verified).
+  - Pre-connect, each `env`/`headers` value is resolved: `!cmd` runs a shell command (10 s timeout, cached, omitted if empty); otherwise, if the whole value names a set environment variable, that value is used; else the literal.
+  - So `"GITHUB_PERSONAL_ACCESS_TOKEN": "GITHUB_PERSONAL_ACCESS_TOKEN"` copies from your shell.
 - **`/mcp` commands** (interactive): `add` (wizard or quick-add), `remove`/`rm`, `enable`/`disable`, `test <name>`, `reconnect <name>`, `reload` (rediscover all files, rebind tools live — no restart), `reauth`/`unauth <name>`, `resources`, `prompts`, `notifications`, `list` (shows which file each server came from). Writes are atomic and add `$schema` for you.
 - **Tool names.** `mcp__<server>_<tool>`, lowercased, non-`[a-z0-9_]` → `_`, runs collapsed, a redundant `<server>_` prefix stripped, >64 chars hashed. `lab-fs` + `read_file` → `mcp__lab_fs_read_file` (verified). MCP tools declare the `write` approval tier, so they prompt in `write`/`always-ask` modes.
 - **Resources.** `read mcp://<resource-uri>` reads a server-advertised resource (`mcp://lab-fs://listing`); `/mcp resources` lists them; `omp read mcp://<uri>` works from the shell and prints the available URIs on a miss (verified).
-- **Startup timing.** Discovery returns after a 250 ms window (`mcp.startupTimeoutMs`, env `OMP_MCP_STARTUP_TIMEOUT_MS`); slow servers keep connecting in the background and their tools appear late (cached definitions become *deferred* tools immediately). Request timeout: `OMP_MCP_TIMEOUT_MS` > per-server `timeout` > 30 s. **Print mode** additionally waits for every configured server before the first turn; on timeout it warns `MCP server "<name>" not ready after <ms>; its tools are unavailable for this run` (verified) — set `OMP_MCP_REQUIRE_READY=1` to exit 1 instead.
+- **Startup timing.** Discovery returns after a 250 ms window (`mcp.startupTimeoutMs`, env `OMP_MCP_STARTUP_TIMEOUT_MS`); slow servers keep connecting in the background and their tools appear late (cached definitions become *deferred* tools immediately).
+  - Request timeout: `OMP_MCP_TIMEOUT_MS` > per-server `timeout` > 30 s.
+  - **Print mode** (`-p`, Module 13) additionally waits for every configured server before the first turn; on timeout it warns `MCP server "<name>" not ready after <ms>; its tools are unavailable for this run` (verified) — set `OMP_MCP_REQUIRE_READY=1` to exit 1 instead.
 - **Reconnect.** Dropped transports reconnect with backoff 0.5/1/2/4 s; more than 5 attempts in 30 s trips a breaker until you `/mcp reconnect`. Tool calls retry once after a reconnect.
-- **OAuth, per profile.** For `http`/`sse` servers, completing `/mcp reauth <name>` stores the credential under `mcp_oauth:profile:<profile>:<url>`; a committed, definition-only entry in a shared `.omp/mcp.json` resolves each profile's own credential automatically. Committed `stdio` entries run arbitrary commands — review a repo's `mcp.json` before opening it with a profile that holds credentials.
-- **Silent drops.** Servers named `playwright`, `puppeteer`, `browserbase`, `browser-tools`, `browser-use` or `browser`, or whose command/args reference a browser MCP package (e.g. `@playwright/mcp`) or whose URL points at browserbase.com / browser-use.com, are dropped at config load when `browser.enabled` is true (default) — they never reach `/mcp list`, no warning. `omp read` does not apply this filter. Exa servers are filtered out too; their API keys are handed to omp's native Exa integration.
+- **OAuth, per profile.** For `http`/`sse` servers, completing `/mcp reauth <name>` stores the credential under `mcp_oauth:profile:<profile>:<url>`; a committed, definition-only entry in a shared `.omp/mcp.json` resolves each profile's own credential automatically.
+  Committed `stdio` entries run arbitrary commands — review a repo's `mcp.json` before opening it with a profile that holds credentials.
+- **Silent drops.** Browser MCP servers are dropped at config load when `browser.enabled` is true (default; omp's native browser integration, Module 14) — they never reach `/mcp list`, no warning.
+  - Matched by name (`playwright`, `puppeteer`, `browserbase`, `browser-tools`, `browser-use` or `browser`), by a command/args reference to a browser MCP package (e.g. `@playwright/mcp`), or by a URL pointing at browserbase.com / browser-use.com.
+  - `omp read` does not apply this filter. Exa servers are filtered out too; their API keys are handed to omp's native Exa integration.
 - **Settings.** `mcp.enableProjectConfig` (default `true`), `mcp.startupTimeoutMs` (`250`), `mcp.notifications` (`false`), `mcp.renderMarkdownResults` (`true`).
-- **Authoring a server that plays well** (`solutions/mcp/lab_mcp_server.py`, stdlib Python, ~200 lines): newline-delimited JSON-RPC on stdio; answer `initialize` (omp speaks protocol `2025-11-25` and advertises `roots`), ignore `notifications/initialized`, answer `ping`, `tools/list`, `tools/call`, optionally `resources/list`/`resources/read`; reply `-32601` to unknown methods; report tool failures in-band with `isError: true`. Keep server and tool names unique *after sanitization* (`my-server` and `my.server` collide). Optional properties sent as `""`/`{}` are dropped before your server sees them — validate the normalized payload. The harness intent field `i` is **not** delivered (omp strips it and shows it as the card's intent line) — do not depend on it.
+- **Authoring a server that plays well** (`solutions/mcp/lab_mcp_server.py`, stdlib Python, ~200 lines): newline-delimited JSON-RPC on stdio.
+  - Answer `initialize` (omp speaks protocol `2025-11-25` and advertises `roots`), ignore `notifications/initialized`, answer `ping`, `tools/list`, `tools/call`, optionally `resources/list`/`resources/read`; reply `-32601` to unknown methods.
+  - Report tool failures in-band with `isError: true`. Keep server and tool names unique *after sanitization* (`my-server` and `my.server` collide).
+  - Optional properties sent as `""`/`{}` are dropped before your server sees them — validate the normalized payload.
+  - The harness intent field `i` is **not** delivered (omp strips it and shows it as the card's intent line) — do not depend on it.
 
 **Try it (Walkthrough):**
 Prerequisite for steps 1–4: Node.js with `npx` on your machine. If you do not have it, start at step 5 (Python only).
@@ -271,11 +306,16 @@ Prerequisite for steps 1–4: Node.js with `npx` on your machine. If you do not 
 
 ## Lesson 12.4 — Marketplaces & plugins              (~30 min)
 **You will be able to:** package a skill, a command, and (optionally) an extension as a plugin; publish it through a two-file local marketplace; install, disable, upgrade and remove it at user or project scope; understand the Gemini manifest interop.
-**Why this exists:** A team should not copy `.omp/` directories between repos by hand. A **marketplace** is a directory or Git repo with one catalog file; a **plugin** is a directory laid out by convention (`skills/`, `commands/`, `agents/`, `hooks/pre|post/`, `tools/`, `.mcp.json`, `package.json#omp.extensions`). omp's format is the Claude Code plugin registry format, so one repository can serve both tools. Installing symlinks the cached plugin into a `node_modules` tree that omp's discovery already scans, so everything from 12.1–12.3 works unchanged inside a plugin.
+**Why this exists:** A team should not copy `.omp/` directories between repos by hand. A **marketplace** is a directory or Git repo with one catalog file.
+A **plugin** is a directory laid out by convention (`skills/`, `commands/`, `agents/`, `hooks/pre|post/`, `tools/`, `.mcp.json`, `package.json#omp.extensions`).
+omp's format is the Claude Code plugin registry format, so one repository can serve both tools.
+Installing symlinks the cached plugin into a `node_modules` tree that omp's discovery already scans, so everything from 12.1–12.3 works unchanged inside a plugin.
 **Demo:** `demos/12-4-marketplace.md` — `omp plugin marketplace add`, install at project scope, `/lab-tools:standup`, `read skill://lab-conventions`.
 
 **Concepts:**
-- **Catalog.** `.omp-plugin/marketplace.json` (preferred) or `.claude-plugin/marketplace.json` (fallback, Claude-compatible); ship both to serve both tools. Required: `name`, `owner.name`, `plugins[]`. Each plugin: `name`, `source`, optional `description`, `version`, `category`, `tags`, `homepage`, `lspServers`, `dapAdapters` (the last two are materialized into `.lsp.json`/`.dap.json` at install). Optional `metadata.pluginRoot` is prepended to relative sources.
+- **Catalog.** `.omp-plugin/marketplace.json` (preferred) or `.claude-plugin/marketplace.json` (fallback, Claude-compatible); ship both to serve both tools. Required: `name`, `owner.name`, `plugins[]`.
+  - Each plugin: `name`, `source`, optional `description`, `version`, `category`, `tags`, `homepage`, `lspServers`, `dapAdapters` (the last two are materialized into `.lsp.json`/`.dap.json` at install — language-server and debugger configs, Module 8).
+  - Optional `metadata.pluginRoot` is prepended to relative sources.
 - **Sources.** Relative `"./plugins/x"` (must start with `./`, no traversal), `{ "source": "github", "repo", "ref", "sha" }`, `{ "source": "url", "url", "sha" }`, `{ "source": "git-subdir", "url", "path" }`. `npm` sources parse but installation rejects them today.
 - **Naming.** Marketplace and plugin names: lowercase letters, digits, `-`, `.`; start/end alphanumeric; ≤ 64 chars; `name@marketplace` ≤ 128.
 - **Two-file minimum.** `marketplace.json` + one `skills/<name>/SKILL.md`. Add `commands/<name>.md` and you have `solutions/my-marketplace/`. **Plugin commands are namespaced**: `commands/standup.md` in plugin `lab-tools` becomes `/lab-tools:standup` (verified).
@@ -287,12 +327,20 @@ Prerequisite for steps 1–4: Node.js with `npx` on your machine. If you do not 
   | `/plugins list` · `enable` · `disable` (`--scope`) | `omp plugin enable|disable` |
   | `/marketplace` alone: interactive browser | `omp install <spec>` = `plugin install`/`plugin link` |
   Sources: `owner/repo`, `https://…json` (catalog only; relative sources not allowed), `https://…`/`git@…` repos, `./path`, `~/path`, `/path`.
-- **Scopes and disk.** `--scope user` (default): `~/.omp/plugins/installed_plugins.json`, `~/.omp/plugins/node_modules/<pkg>` → cache; registry `~/.omp/marketplaces.json` (with a profile: `~/.omp/profiles/<name>/marketplaces.json` — verified). `--scope project`: `<project>/.omp/plugins/{installed_plugins.json, omp-plugins.lock.json, node_modules/<pkg>}` (verified). An enabled project install shadows a user install of the same id.
+- **Scopes and disk.**
+  | Scope | Install record | Plugin files |
+  |---|---|---|
+  | `--scope user` (default) | `~/.omp/plugins/installed_plugins.json` | `~/.omp/plugins/node_modules/<pkg>` → cache |
+  | `--scope project` | `<project>/.omp/plugins/installed_plugins.json` + `omp-plugins.lock.json` (verified) | `<project>/.omp/plugins/node_modules/<pkg>` (verified) |
+  Marketplace registry: `~/.omp/marketplaces.json` (with a profile: `~/.omp/profiles/<name>/marketplaces.json` — verified). An enabled project install shadows a user install of the same id.
 - **After a change.** Marketplace mutations update disk but not the live session: `/reload-plugins` refreshes skills, slash commands and MCP servers; **restart** for tools, hooks, or extension modules. `marketplace.autoUpdate`: `off` | `notify` (default; writes to the debug log only) | `auto`.
 - **Upgrade semantics.** `update` refreshes catalogs only; `upgrade` reinstalls; all-plugin upgrade compares only entries that declare `version` (semver must be newer). `remove` of a marketplace does not uninstall its plugins.
-- **npm/link plugins** (`omp plugin install <pkg>[features]`, `omp plugin link ./dir`, `omp plugin doctor --fix`, `features`, `config --set k=v`): same runtime surfaces (`~/.omp/plugins/package.json`, `node_modules`, `omp-plugins.lock.json`); manifest is `package.json#omp` (legacy `pi`); declared `extensions` are validated at install and the install rolls back if one fails to import. Project overrides: `.omp/plugin-overrides.json`.
+- **npm/link plugins** (`omp plugin install <pkg>[features]`, `omp plugin link ./dir`, `omp plugin doctor --fix`, `features`, `config --set k=v`): same runtime surfaces (`~/.omp/plugins/package.json`, `node_modules`, `omp-plugins.lock.json`).
+  Manifest is `package.json#omp` (legacy `pi`); declared `extensions` are validated at install and the install rolls back if one fails to import. Project overrides: `.omp/plugin-overrides.json`.
 - **Extensions inside plugins.** `package.json` `{ "omp": { "extensions": ["./index.ts"] } }` is loaded from marketplace installs too. Manifest MCP: `.mcp.json` in the plugin root, or `mcpServers` in `.omp-plugin/plugin.json` / `.claude-plugin/plugin.json` (replaces `.mcp.json`).
-- **Gemini manifest interop.** `~/.gemini/extensions/<name>/gemini-extension.json` and `<cwd>/.gemini/extensions/<name>/gemini-extension.json` are discovered as *metadata* (`name`, `description`, `mcpServers`, …) into the `extensions` capability with provider `gemini` (priority 60; a native item of the same name shadows it; user beats project within Gemini). The manifest is **not executed**, and a neighbouring `.ts` is not auto-run either. Gemini CLI's MCP servers come from `.gemini/settings.json` (12.5).
+- **Gemini manifest interop.** `~/.gemini/extensions/<name>/gemini-extension.json` and `<cwd>/.gemini/extensions/<name>/gemini-extension.json` are discovered as *metadata* (`name`, `description`, `mcpServers`, …) into the `extensions` capability with provider `gemini`.
+  - Priority 60; a native item of the same name shadows it; user beats project within Gemini.
+  - The manifest is **not executed**, and a neighbouring `.ts` is not auto-run either. Gemini CLI's MCP servers come from `.gemini/settings.json` (12.5).
 
 **Try it (Walkthrough):**
 1. Copy `solutions/my-marketplace` next to the lab (`cp -r <module-dir>/solutions/my-marketplace ../my-marketplace`). Inspect: `.omp-plugin/marketplace.json`, `plugins/lab-tools/skills/lab-conventions/SKILL.md`, `plugins/lab-tools/commands/standup.md`.

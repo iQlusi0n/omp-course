@@ -11,7 +11,7 @@ Tiers: **W** exact steps · **G** goal + hints + checkpoints · **S** goal only 
 ## Exercise 1 (W, ~15 min) — One batch, three scouts, typed results
 
 1. In the lab session prompt, verbatim:
-   ```
+   ```text
    Use ONE task call with three scout items named ApiScout, CliScout, WebScout.
    context: "omp-course-lab: Python stdlib HTTP API in api/, argparse CLI in cli/, static signup form in web/. Report structure only; do not propose changes."
    Each task: map its directory (api/, cli/, web/) — every module, its purpose, public entry points.
@@ -77,7 +77,8 @@ Tiers: **W** exact steps · **G** goal + hints + checkpoints · **S** goal only 
 
 ## Exercise 4 (G, ~30 min) — `workpool()` lint-fix over 15 files vs. separate spawns
 
-**Goal:** from a Python eval cell, define a stdlib `@tool lint(path)` (unused imports, trailing whitespace, missing final newline), run a `workpool('sonic', name='lintfix', tools=['lint'])` over every `*.py` under `api/`, `cli/`, `tests/` (15 files at `module-10-start`: 4 + 5 + 6; **never** `generated/`), then repeat the job as one batch `task` call with 15 `sonic` items, and compare wall time and cost. Write the comparison to `notes/m10.md`.
+**Goal:** from a Python eval cell, define a stdlib `@tool lint(path)` (unused imports, trailing whitespace, missing final newline) and run a `workpool('sonic', name='lintfix', tools=['lint'])` over every `*.py` under `api/`, `cli/`, `tests/` (15 files at `module-10-start`: 4 + 5 + 6; **never** `generated/`).
+Then repeat the job as one batch `task` call with 15 `sonic` items, compare wall time and cost, and write the comparison to `notes/m10.md`.
 
 **Hints:**
 - `%load ../modules/M10-subagents-parallel-work/solutions/workpool-lint.py` (path relative to the lab root, where your session runs) gives you `lint`, `lab_files()`, `run_pool()`, `report()`.

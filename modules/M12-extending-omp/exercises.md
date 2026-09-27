@@ -1,6 +1,8 @@
 # Module 12 — Exercises
 
-All exercises run in `omp-course-lab` from `git checkout module-12-start`. `<module-dir>` is this directory — with the course checked out beside the lab and your cwd in `omp-course-lab`, that is `../modules/M12-extending-omp`. Record evidence in `notes/m12.md` (gitignored). Every exercise has three tiers: **W** (Walkthrough — exact keys), **G** (Guided — goal + hints + checkpoints), **S** (Stretch — goal only; instructor notes in `solutions/`).
+All exercises run in `omp-course-lab` from `git checkout module-12-start`. `<module-dir>` is this directory — with the course checked out beside the lab and your cwd in `omp-course-lab`, that is `../modules/M12-extending-omp`.
+Record evidence in `notes/m12.md` (gitignored).
+Every exercise has three tiers: **W** (Walkthrough — exact keys), **G** (Guided — goal + hints + checkpoints), **S** (Stretch — goal only; instructor notes in `solutions/`).
 
 Time budget: W 25 min · G1 15 · G2 20 · G3 20 · S 20.
 
@@ -45,8 +47,8 @@ Time budget: W 25 min · G1 15 · G2 20 · G3 20 · S 20.
 **Hints**
 - Start from `<module-dir>/solutions/force-push-guard/index.ts` — or write your own from `omp://skills/authoring-hooks.md` § "Pre-tool blocking contract": `pi.on("tool_call", ...)`, check `event.toolName === "bash"`, inspect `event.input.command`, return `{ block: true, reason }`.
 - Put it in `.omp/extensions/force-push-guard/index.ts`; restart.
-- Prompt: `Run exactly this with bash and show me the output: git push --force origin main`.
-- To see the raw message the model receives, run once headless with the JSON event stream: `omp -p --mode json --no-session "Run with bash: git push -f origin main" | grep tool_execution_end`.
+- Provoke a force push from the model: phrase a prompt that makes it run a `git push --force …` command through `bash` (a wording that worked is in `solutions/README.md`).
+- To see the raw message the model receives, run once headless with the JSON event stream (`omp -p --mode json --no-session "<prompt>"`, Module 13) and filter for `tool_execution_end`.
 
 **Checkpoints**
 1. Interactive: a confirm dialog **Force push blocked** appears (the `ctx.hasUI` branch); answer No.
@@ -67,7 +69,7 @@ Time budget: W 25 min · G1 15 · G2 20 · G3 20 · S 20.
 **Hints**
 - Copy `<module-dir>/solutions/mcp/mcp.json` to `.omp/mcp.json`; replace `/ABSOLUTE/PATH/TO/omp-course-lab/data` with `$(pwd)/data`.
 - `/mcp list` → source column; `/mcp test filesystem`; `/mcp reload` after editing the file (no restart).
-- Tool names are `mcp__filesystem_<tool>` — ask for them by name: `Use mcp__filesystem_list_directory on data/ and report sizes.`
+- Tool names are `mcp__filesystem_<tool>` — ask for an MCP tool by that name in your prompt (the tool that lists a directory is a good first choice).
 - `tools.approvalMode: write` (M4) will prompt: MCP tools are `write` tier.
 - Resource read: `omp read mcp://lab-fs://listing` (Python server only).
 
@@ -88,7 +90,7 @@ Time budget: W 25 min · G1 15 · G2 20 · G3 20 · S 20.
 **Hints**
 - Minimum: `my-marketplace/.omp-plugin/marketplace.json` + `my-marketplace/plugins/lab-tools/skills/lab-conventions/SKILL.md`. Add `commands/standup.md` for the command. Reference: `<module-dir>/solutions/my-marketplace/`.
 - Catalog fields: `name`, `owner.name`, `plugins[{name, source: "./lab-tools"}]`, optional `metadata.pluginRoot: "./plugins"`.
-- `/marketplace add ../my-marketplace` → `/marketplace install --scope project lab-tools@course-marketplace` → `/reload-plugins`.
+- Three commands, in the right order: register the marketplace directory with `/marketplace add`, install the plugin at project scope with `/marketplace install`, then refresh the live session. The exact invocations are in `solutions/README.md`.
 - Plugin commands are namespaced: `/lab-tools:standup`.
 - Clean up with `/marketplace uninstall --scope project …` and `/marketplace remove course-marketplace`.
 
@@ -107,7 +109,8 @@ Time budget: W 25 min · G1 15 · G2 20 · G3 20 · S 20.
 
 **Goal:** every `scout` subagent runs on the model behind your `smol` role, and Agent Hub shows the routing reason.
 
-**Pass condition:** with `<module-dir>/solutions/scout-router` installed and `modelRoles.smol` set to a cheap model you are logged in to, a batch `task` with `agent: "scout"` (M10) shows the scout's resolved model equal to the `smol` model in Agent Hub (`Alt+A`), and the task result's expanded details show `resolvedModelRoute: "scout-router: scouts run on <provider>/<id>"`. A `task` agent in the same batch is **not** rerouted.
+**Pass condition:** with `<module-dir>/solutions/scout-router` installed and `modelRoles.smol` set to a cheap model you are logged in to, a batch `task` with `agent: "scout"` (M10) shows the scout's resolved model equal to the `smol` model in Agent Hub (`Alt+A`).
+The task result's expanded details show `resolvedModelRoute: "scout-router: scouts run on <provider>/<id>"`. A `task` agent in the same batch is **not** rerouted.
 
 Instructor notes: `solutions/scout-router/index.ts` and `BUILD-NOTES.md` (verified on 18.3.1 through `task` details: `modelOverride`, `resolvedModel`, `resolvedModelRoute`).
 

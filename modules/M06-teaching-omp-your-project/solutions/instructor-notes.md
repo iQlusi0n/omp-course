@@ -59,6 +59,13 @@ ls ~/.omp/profiles/course/agent/          # agent.db  config.yml  (sessions/ aft
 ```
 Isolation proof: the default profile's `~/.omp/agent/config.yml` is unchanged (`cmp` against a copy taken before). Keybindings are the documented exception (profile inherits them).
 
+## README Stretch hints (kept out of the learner text)
+
+- **6.3 Stretch (agents: sub):** Module 10 covers `task`; a one-line prompt such as "spawn a scout that reports which always-apply rules it has" is enough, then `read agent://<id>` to see the subagent's transcript.
+- **6.6 Stretch (user-level skill copy):** native project and native user are the same provider, so first scanned wins — check `/extensions` and the model's skill list rather than reasoning from priorities.
+- **6.9 Stretch (env-var collection):** remove the regex entry from `secrets.yml`, `export LAB_TOKEN=labtok_0123456789abcdef` in the shell before launching, and repeat Walkthrough step 3 — still a placeholder. Then `export LAB_THING=labtok_0123456789abcdef` (name matches no keyword) and repeat: the value leaks, which is why the project regex exists.
+- **6-S (profile):** the step list is the fenced block above; the pass condition asks learners to change `theme.dark` in the profile only (`omp-course config set theme.dark <other>`) and compare against `omp config get theme.dark`.
+
 ## Grading rubric (suggested)
 
 | Item | Points |

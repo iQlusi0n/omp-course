@@ -16,7 +16,13 @@ Prerequisites per exercise are stated up front; nothing here needs Node, a C too
    **Expected:** bash card with `name: "lab-api"`, `ready: {port: 8080}`; result `lab-api: ready pid=<n>`.
 2. Prompt: *"eval JS: open `http://127.0.0.1:8080/` in a browser tab named `signup` (wait_until load) and `console.log(JSON.stringify(await tab.observe()))`."*
    **Expected:** `Opened tab "signup" on headless browser (hidden, shared)` · `Title: omp-course-lab signup` · elements `[{id:1, role:"textbox", name:"Name "}, {id:2, role:"textbox", name:"Email "}, {id:3, role:"button", name:"Sign up"}]` (ids may differ — that is the point of observing).
-3. Prompt: *"In one eval cell: reopen the same tab, `observe()`, fill Name and a fresh unique Email (e.g. `m14-${Date.now()}@example.com` — `ada@example.com` and the other seeded users already exist and a duplicate makes `POST /signup` return 500, lab issue #8) via `tab.id(...)`, click the Sign up button, then `tab.run` a function that `waitForSelector('#banner', {visible:true, timeout:5000})`, reads its text with `tab.evaluate`, throws unless it is exactly `Welcome aboard!`, and returns it. Print the text, then `tab.screenshot({silent:true})` and print the path, then `tab.close()`."*
+3. Ask for the full check in one cell:
+
+   ```text
+   In one eval cell: reopen the same tab, observe(), fill Name and a fresh unique Email via tab.id(...), click the Sign up button, then tab.run a function that waitForSelector('#banner', {visible:true, timeout:5000}), reads its text with tab.evaluate, throws unless it is exactly "Welcome aboard!", and returns it. Print the text, then tab.screenshot({silent:true}) and print the path, then tab.close().
+   ```
+
+   A fresh email means e.g. `m14-${Date.now()}@example.com` — `ada@example.com` and the other seeded users already exist, and a duplicate makes `POST /signup` return 500 (lab issue #8).
    **Expected:** `banner: Welcome aboard!` · `screenshot: /tmp/omp-sshots-<hex>.webp` (or under `browser.screenshotDir`) · `Released managed tab "signup"`.
 4. Prompt: *"read <that path>"*. **Expected:** the image renders; the banner text is visible.
 5. Prompt: *"Copy the screenshot to `notes/14-1-signup.webp`."* **Expected:** file exists (`ls notes/`).
@@ -32,8 +38,8 @@ Deliberate failures (do each once): rerun step 3 with `timeout: 5` in `waitForSe
 **Goal:** run the signup check as a background subagent from an eval cell while you keep working in the main session, and receive its result as a delivery.
 
 **Hints:**
-- `const h = await agent("Open http://127.0.0.1:8080/ in a browser tab named 'signup-bg'. Fill Name and Email (use a fresh email), click Sign up, wait for #banner, and reply with the exact banner text and the tab.screenshot() path. Close the tab.", { label: "ui-check" });` then `console.log(h.handle, h.status)` — **do not** `await h.wait()`.
-- Python: `h = await agent("...", label="ui-check"); print(h.handle, h.status)`.
+- Call `agent(prompt, { label: "ui-check" })` (Python: `agent(prompt, label="ui-check")`) and print `h.handle` and `h.status` — **do not** `await h.wait()`.
+- The prompt must tell the child to open the lab form in its own named tab, fill Name and a fresh Email, click Sign up, wait for `#banner`, reply with the exact banner text and the `tab.screenshot()` path, and close the tab.
 - The child has its own eval executor; use a **different tab name** than any tab the parent holds.
 - Meanwhile ask omp something unrelated (*"how many routes does `api/` define?"*).
 - Watch progress with `Alt+A` (Agent Hub); `read agent://<id>` after it finishes.
@@ -74,8 +80,8 @@ Deliberate failures (do each once): rerun step 3 with `timeout: 5` in `waitForSe
 **Hints:**
 - Host: `/collab` → paste the `omp join "…"` line to the partner (it is a secret).
 - Partner: `omp join "<link>"` (any directory) or `/join <link>` inside omp.
-- Host prompt: *"Use a `task` subagent to audit `api/` for unhandled exceptions; report a list."*
-- Partner: `Alt+A` → select the host's subagent → transcript viewer → type *"also audit `cli/`"* + Enter. Guests get the full-screen viewer, and the input line only when the agent is messageable.
+- Host: ask omp for an investigation of the lab that is long enough to steer mid-flight, run as a `task` subagent.
+- Partner: `Alt+A` → select the host's subagent → transcript viewer → type a steering message that widens the investigation + Enter. Guests get the full-screen viewer, and the input line only when the agent is messageable.
 - Third shell on the host machine: `omp collab list --json`.
 - Host `/collab status` also lists participants.
 
@@ -89,7 +95,10 @@ Deliberate failures (do each once): rerun step 3 with `timeout: 5` in `waitForSe
 
 **Prereqs:** stencil.so account (`/login` → Stencil), or `STENCIL_API_KEY`.
 
-**Goal:** (1) `omp stream --title "M14"` from the lab root and attach a new omp session; (2) prove redaction: `read .env.example` in the streamed session and confirm the viewer page shows `LAB_TOKEN=••••••` (a `NAME=value` row with a `*_TOKEN` name) while `DATABASE_URL=…` is untouched; (3) `/record` a short run of 14.1-W, stop it, `omp play` it, then `omp clip -t "Signup smoke" -d "M14"`.
+**Goal:**
+1. `omp stream --title "M14"` from the lab root and attach a new omp session.
+2. Prove redaction: `read .env.example` in the streamed session and confirm the viewer page shows `LAB_TOKEN=••••••` (a `NAME=value` row with a `*_TOKEN` name) while `DATABASE_URL=…` is untouched.
+3. `/record` a short run of 14.1-W, stop it, `omp play` it, then publish it with `omp clip`.
 
 **Pass:** the viewer page shows the session pane with the token masked, `omp play` replays the recording, and `omp clip` prints a `live.omp.sh/c/<id>` URL whose page plays it.
 
@@ -101,7 +110,7 @@ Deliberate failures (do each once): rerun step 3 with `timeout: 5` in `waitForSe
 
 **Goal:** dictate a prompt with the space bar.
 
-**Hints:** `omp setup speech` (choose the default dictation model; wait for download) → `omp config set stt.enabled true` → new session → hold **Space** on an empty composer, speak, release. `stt.submitTrigger` is `never` by default: press Enter to send.
+**Hints:** the setup command from Lesson 14.4 downloads the default dictation model; dictation is gated by `stt.enabled` (default `false`) and needs a new session; hold **Space** on an empty composer, speak, release. `stt.submitTrigger` is `never` by default: press Enter to send.
 
 **Checkpoints:** `omp setup speech --check` shows the STT model installed; transcription appears in the composer.
 

@@ -21,6 +21,7 @@ Check `grep -c reset_boundary` = 1 in the *original* file, and that the `/new` f
 - `/handoff` immediately after an auto-compaction reports `Nothing to hand off (already compacted)` — the learner must do a turn or two of work first. This is expected; it is in the hints.
 - `/tree` lists `compaction` entries on the active path (search `compact`; `Alt+A` shows all bookkeeping entries too).
 - Pass evidence: two `"type":"compaction"` lines in the JSONL (`grep -c '"type":"compaction"'`).
+- Exact read prompt used on the build run: `Read docs/spec.md in full, then read every file in api/ and cli/ in full. Do not summarize.`
 
 ## G2 — Export vs share
 
@@ -32,17 +33,34 @@ Check `grep -c reset_boundary` = 1 in the *original* file, and that the `/new` f
 
 Breadcrumb file names are TTY-derived (`pts-N`) or env-derived (`TMUX_PANE`, …). Two panes → two files. If the learner uses two *tabs* of a terminal that shares a TTY id (rare), fall back to tmux.
 
+Reference sequence: pane A prompt `Reply A.`; pane B `omp` → `Reply B.` → `/exit`; pane A `/exit` → `omp -c`. Pass = pane A shows the `Reply A.` transcript.
+
 ## S1 — Record
 
 Recording path is under `<tmpdir>/omp-recordings/`; on macOS `$TMPDIR` is per-user. `omp play` with no argument plays the newest. `omp clip` needs `/login` → Stencil; skip if unavailable.
+
+Reference sequence: `/record`, run one short prompt, `/record` again, `/exit`, then `omp play -s 2`.
 
 ## S2 — Worktree
 
 `/wt [<branch>]` takes an optional branch name and otherwise generates `wt/<YYYYMMDD-HHMMSS>` (handler read from the binary; not exercised on the build machine). The worktree lands under `worktree.base` / `~/.omp/wt`, so `omp worktree list` must show the entry; `omp worktree clear --dry-run` must list it without removing.
 
+Reference sequence: `/wt m5-s2` (or plain `/wt` for a generated `wt/<timestamp>` branch), then `omp worktree list`.
+
 ## S3 — Methods
 
 `["shake","soft"]`: shake replaces old tool results with `artifact://N` references — `Ctrl+O` on the divider shows those references; if savings are insufficient, `soft` runs and prose appears. `["snapcompact","soft"]`: requires `model.input` to include `image`; otherwise snapcompact is skipped and `soft` runs — learners on text-only models should report exactly that.
+
+Reference sequence: repeat G1's read turn after `omp config set compaction.methodOrder '["shake","soft"]'`, then again after `'["snapcompact","soft"]'`.
+
+## Lesson Stretches (README)
+
+- **5.1** (ephemeral session): start `omp --no-session`, run one turn, then try `/export x.html` and `/share`.
+- **5.2** (import): `/resume @claude` or `/resume @codex` in-session, or `omp --from-claude` / `omp --from-codex` from the shell.
+- **5.3** (restart): enable an extension or change a `.omp/config.yml` value that needs a restart, run `/restart`, and confirm the transcript is still there.
+- **5.4** (tree selector): set `doubleEscapeAction: tree`, press `Esc Esc` on an empty composer, and confirm `/branch` now opens the tree selector.
+- **5.5** (handoff on disk): set `compaction.handoffSaveToDisk: true`, put `handoff` first in `compaction.methodOrder`, trigger an automatic compaction.
+- **5.6** (clip): `omp clip -t "M5 stretch"` on the recording from Walkthrough step 5.
 
 ## Grading rubric (all tiers)
 

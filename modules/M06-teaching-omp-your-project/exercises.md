@@ -1,6 +1,10 @@
 # Module 6 — Coursework
 
-Built against `omp/18.3.1`. All work happens in `omp-course-lab`; start from `git checkout module-6-start`. Each lesson in `README.md` has its own Walkthrough / Guided / Stretch; the five exercises below are the module's graded set and reuse the files you create there. Record evidence in `notes/m6.md` (gitignored) unless a pass condition names another artefact. A finished `.omp/` tree is in `solutions/dot-omp/` — use it to unblock yourself, not to skip the typing.
+Built against `omp/18.3.1`. All work happens in `omp-course-lab`; start from `git checkout module-6-start`.
+
+Each lesson in `README.md` has its own Walkthrough / Guided / Stretch; the five exercises below are the module's graded set and reuse the files you create there.
+
+Record evidence in `notes/m6.md` (gitignored) unless a pass condition names another artefact. A finished `.omp/` tree is in `solutions/dot-omp/` — use it to unblock yourself, not to skip the typing.
 
 Prerequisites: a logged-in provider (Module 1); a terminal that delivers `Ctrl+Enter` (Module 1.3) for the skill follow-up variant; nothing else. All lab code is Python stdlib.
 
@@ -93,7 +97,8 @@ Hints:
 
 Checkpoints:
 1. `omp config get secrets.enabled` in the repo root → `true`; startup shows no `secrets.yml` warning.
-2. Prompt: `Read .env. Tell me the exact length of the LAB_TOKEN value, whether it starts with "labtok_", and whether it contains "$$".` → the model reports a `$$…$$` placeholder, not a 23-character `labtok_…` value, and says it is redacted. On 18.3.5 the `friendlyName` label only appears for a `type: plain` entry (`$$LABTOKEN_…:L$$`); the regex entry from `secrets.yml` yields an unlabeled `$$CP768UQ1WNK4:L$$`-style placeholder even though the docs say regex entries are labelled too — do not grade on the label.
+2. Prompt: `Read .env. Tell me the exact length of the LAB_TOKEN value, whether it starts with "labtok_", and whether it contains "$$".` → the model reports a `$$…$$` placeholder, not a 23-character `labtok_…` value, and says it is redacted.
+   Label caveat: on 18.3.5 the `friendlyName` label only appears for a `type: plain` entry (`$$LABTOKEN_…:L$$`); the regex entry from `secrets.yml` yields an unlabeled `$$CP768UQ1WNK4:L$$`-style placeholder even though the docs say regex entries are labelled too — do not grade on the label.
 3. Prompt: `Run: set -a; . ./.env; set +a; printf '%s' "$LAB_TOKEN" | wc -c; printf '%s' "$LAB_TOKEN" | cut -c1-7` → bash card prints `23` and `labtok_` (the shell reads the file itself; nothing to restore).
 4. Prompt: `Take the LAB_TOKEN value exactly as you saw it and run: printf '%s' "<value>" | cut -c1-7` → the model writes the placeholder into the command; the card prints `labtok_` — omp restored the real value before execution.
 
@@ -107,13 +112,13 @@ Stretch inside this exercise: add `- type: plain, content: sqlite:///data/lab.sq
 
 **Goal:** a `course` profile with its own login, settings and sessions, launchable as `omp-course`.
 
-Steps (goal only; see `solutions/instructor-notes.md` for a worked run):
-- `omp --profile course` → `/login` a provider inside it → `/exit`.
-- `omp --profile course config path` and `omp config path` must differ.
-- `omp --profile course --alias omp-course`, then `. ~/.bashrc` (or your shell's rc) and `omp-course --version`.
-- Prove isolation: `omp-course config get theme.dark` vs `omp config get theme.dark` after `omp-course config set theme.dark <other>`.
+**Pass condition (all four):**
+- `ls ~/.omp/profiles/course/agent/` lists `agent.db` and `config.yml`.
+- `type omp-course` in your shell prints a function that runs `command omp --profile=course "$@"`.
+- `omp-course config get theme.dark` and `omp config get theme.dark` differ after you change it in the profile only.
+- The default profile's `config.yml` is byte-identical to before (copy it first and `cmp`).
 
-**Pass condition:** `ls ~/.omp/profiles/course/agent/` lists `agent.db` and `config.yml`; `type omp-course` in your shell prints a function that runs `command omp --profile=course "$@"`; the two `theme.dark` values differ; the default profile's `config.yml` is byte-identical to before (`git`-style check: copy it first and `cmp`).
+A worked run is in `solutions/instructor-notes.md`.
 
 Cleanup: `omp config reset theme.dark` is not needed in the default profile; remove the alias block from your rc file when done if you do not want to keep the profile.
 

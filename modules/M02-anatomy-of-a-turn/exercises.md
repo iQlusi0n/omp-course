@@ -34,7 +34,8 @@ Goal: run one read-only turn, expand every card, and identify one `read`, one `g
 
 **Guided variant (if the walkthrough felt easy):** add the *order* of every card in the turn and mark which ones the model called in parallel (they appear in the same assistant message, one after another with no prose between). Pass: the section lists every card in order.
 
-**Stretch:** run the same prompt headless with `omp -p --mode json "Explain how api/ handles a request. Read only." > notes/m2-turn.json` and confirm each card you listed corresponds to a `tool_execution_start` event in the JSON (Module 13 explains the format; here you only need `grep -c tool_execution_start notes/m2-turn.json` and compare the count with your list — `-p` has no UI, so `ask` never appears and no PTY is possible).
+**Stretch:** run the same prompt headless with `omp -p --mode json "Explain how api/ handles a request. Read only." > notes/m2-turn.json` and confirm each card you listed corresponds to a `tool_execution_start` event in the JSON.
+Module 13 explains the format; here you only need `grep -c tool_execution_start notes/m2-turn.json` and compare the count with your list. `-p` has no UI, so `ask` never appears and no PTY is possible.
 
 ---
 
@@ -44,11 +45,11 @@ Goal: fix lab issue #2 (`GET /orders` first page is missing orders — `docs/ISS
 
 Hints:
 - Read `docs/ISSUES.md` yourself first (`!cat docs/ISSUES.md` from the composer, or `omp read docs/ISSUES.md` outside) so you know the repro and the gated test: `LAB_ISSUE=2 python3 -m unittest tests.test_issues` fails on `main` and passes only when *both* halves are fixed.
-- A prompt shape that works: outcome + acceptance + verification — *"Fix issue #2 from docs/ISSUES.md. Smallest safe change in the two files it names; then run `LAB_ISSUE=2 python3 -m unittest tests.test_issues` and `python3 -m unittest discover -s tests` and show me both results. Ask before touching anything outside api/ and tests/."*
+- A prompt shape that works: outcome + acceptance + verification. Name the issue and its source file, ask for the smallest safe change in the two files it names, ask for both the gated test and the full suite to be run and shown, and set a boundary (ask before touching anything outside `api/` and `tests/`).
 - If the model plans, a `☑ Todo` card appears and the HUD above the composer tracks it; `/todo expand` to see all of it.
 - Expand the `bash` test card (`Ctrl+O`) before believing "tests pass"; a failing run has `| Exit: 1` in its footer.
-- To *force* a spill so you can practise recovery: after the fix, prompt `Run: python3 -c "for i in range(3000): print(i, 'x' * 40)"` — about 140 KB, well over the 50 KB threshold (the lab's own test output and DB are too small to spill). The card gets a truncation warning naming `artifact://<N>`.
-- Then: `Read artifact://<N>:1-30 and tell me the first and last line numbers you see.`
+- To *force* a spill so you can practise recovery: after the fix, ask omp to run a one-line Python command that prints well over 50 KB (the spill threshold) — the lab's own test output and DB are too small to spill. The card gets a truncation warning naming `artifact://<N>`.
+- Then ask omp to read the first 30 lines of that artifact and report the first and last line numbers it sees.
 
 Checkpoints:
 - [ ] a `• Read docs/ISSUES.md…` card
@@ -72,7 +73,7 @@ Checkpoints:
 Goal: start the lab API as a supervised service named `api`, prove readiness, inspect it through `proc://`, hit it, kill it, and prove the listing is empty.
 
 Hints:
-- The exact prompt from the outline works: `run the API as a service named api, ready on port 8080`. The model's call is `bash` with `{"command":"python3 -m api","name":"api","ready":{"port":8080}}`.
+- The exact prompt from the outline works: `run the API as a service named api, ready on port 8080`.
 - `read proc://` and `read proc://api` are `read` calls — type them as prompts, or say "read proc://api".
 - Stopping is a `write` to `proc://api/kill`; "stop the api service" is enough.
 - The service outlives the turn, and even the session: `omp ps` in another terminal shows it; `omp ps stop api` also works.
@@ -87,17 +88,14 @@ Checkpoints:
 
 **Pass condition:** the transcript contains the readiness card *and* a `read proc://` card after the kill that reports `0 services`; `omp ps --plain` in another terminal lists no `api`. Copy the readiness footer line into `notes/m2.md` under `## G2`.
 
-**Stretch:** start it again, then prompt `Send a blank line to the api service's stdin, then read its logs` — a `write proc://api` with empty content sends Enter; `read proc://api` shows nothing changed (the server ignores stdin). Then `write proc://api/mode` with `session` so the service dies with the session; restart omp and confirm `omp ps` no longer lists it. Pass: `notes/m2.md` names the mode you set and the observed lifetime.
+**Stretch:** start it again, then ask omp to send a blank line to the service's stdin and read its logs — a `write proc://api` with empty content sends Enter; `read proc://api` shows nothing changed (the server ignores stdin).
+Then `write proc://api/mode` with `session` so the service dies with the session; restart omp and confirm `omp ps` no longer lists it. Pass: `notes/m2.md` names the mode you set and the observed lifetime.
 
 ---
 
 ## S1 — Vim mode `ciw` (Stretch, ~10 min)
 
-Goal: enable Vim editing mode and change one word of a draft with `ciw`.
-
-Steps (no hints beyond these):
-1. `omp config set tui.vimMode true` (or `/settings` → Interaction → Input → Vim Editing Mode). Restart omp.
-2. Type a draft containing the word `users`; press `Esc`; navigate with `b`/`w`; `ciw`; type `orders`; `Esc`; `Enter`.
+Goal: enable Vim editing mode, then use `ciw` to change the word `users` to `orders` in a draft before submitting it.
 
 **Pass condition:** `omp config get tui.vimMode` prints `true`; the submitted prompt in the transcript contains `orders` where you typed `users`; and `notes/m2.md` under `## S1` notes what changed visually on `Esc` (border colour / mode text).
 

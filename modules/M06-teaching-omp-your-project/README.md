@@ -41,15 +41,28 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
 
 ## Lesson 6.1 — Context files              (~20 min)
 **You will be able to:** write a `.omp/AGENTS.md` that omp loads automatically; predict which of several `AGENTS.md`/`CLAUDE.md` files load; use `@path` imports.
-**Why this exists:** Every new session starts with a blank model. Without a context file you re-explain the test command, the directory layout and the review bar in every prompt — and forget half of it. omp discovers Markdown instruction files before the first turn and injects them into the opening project context (a `<repo-rules>` block containing one `<file path="…">` element per file), so the agent already knows the build, the conventions and the no-go zones. You never need to tell it to "read AGENTS.md".
+**Why this exists:** Every session starts with a blank model. Without a context file you re-explain the test command, layout and review bar in every prompt — and forget half of it. omp discovers Markdown instruction files before the first turn and injects them into the opening project context, so the agent already knows the build, conventions and no-go zones. No need to say "read AGENTS.md".
 **Demo:** `demos/01-context-files.md`
 **Concepts:**
-- Native files (recommended): `<repo>/.omp/AGENTS.md` (project) and `~/.omp/agent/AGENTS.md` (user). Project discovery walks from cwd toward the repo root and stops at the **nearest non-empty `.omp/`**; `AGENTS.md` is read from that directory only. A nearer `.omp/` without `AGENTS.md` blocks farther ones. Empty directories and empty files contribute nothing.
-- Foreign conventions still load (no migration needed): `.claude/CLAUDE.md` and `.gemini/GEMINI.md` (cwd only, no walk-up), `.github/copilot-instructions.md` (cwd only; plus user `~/.copilot/copilot-instructions.md`), `~/.codex/AGENTS.md` and `~/.config/opencode/AGENTS.md` (user only), `.agent/AGENTS.md` / `.agents/AGENTS.md` (walk-up), standalone `AGENTS.md` and `CLAUDE.md` (walk-up to repo root). Cursor `.cursor/rules/*.mdc`, Windsurf `.windsurf/rules/*.md`, Cline `.clinerules` and `.github/instructions/**/*.instructions.md` are discovered as **rules** (Lesson 6.3), not context files.
+- Native files (recommended): `<repo>/.omp/AGENTS.md` (project) and `~/.omp/agent/AGENTS.md` (user). Project discovery walks from cwd toward the repo root and stops at the **nearest non-empty `.omp/`**; `AGENTS.md` is read from that directory only.
+- Consequence of the nearest-non-empty rule: a nearer `.omp/` without `AGENTS.md` blocks farther ones. Empty directories and empty files contribute nothing.
+- Injection format: a `<repo-rules>` block containing one `<file path="…">` element per file.
+- Foreign conventions still load (no migration needed). Where each source is looked for:
+
+| Source | Files and scope |
+|---|---|
+| Claude, Gemini | `.claude/CLAUDE.md`, `.gemini/GEMINI.md` — cwd only, no walk-up |
+| Copilot | `.github/copilot-instructions.md` — cwd only; plus user `~/.copilot/copilot-instructions.md` |
+| Codex, OpenCode | `~/.codex/AGENTS.md`, `~/.config/opencode/AGENTS.md` — user only |
+| `.agent/`, `.agents/` | `.agent/AGENTS.md`, `.agents/AGENTS.md` — walk-up |
+| Standalone | `AGENTS.md`, `CLAUDE.md` — walk-up to repo root |
+
+- Cursor `.cursor/rules/*.mdc`, Windsurf `.windsurf/rules/*.md`, Cline `.clinerules` and `.github/instructions/**/*.instructions.md` are discovered as **rules** (Lesson 6.3), not context files.
 - `AGENTS.md` files *below* the cwd are not injected; they are listed in a `<dir-context>` block that tells the agent to read them before editing those directories.
-- `@path` imports expand inline before injection: **relative paths resolve from the importing file's directory** (so inside `.omp/AGENTS.md`, `@../docs/spec.md` reaches `<repo>/docs/spec.md`), `~/` is home, up to five hops, cycles skipped, missing targets left as literal text. A token only counts when `@` starts a line or follows a space/tab; tokens in code spans and fenced blocks are left alone; trailing `. , ; : ! ? ) ] } " '` is trimmed.
+- `@path` imports expand inline before injection: **relative paths resolve from the importing file's directory** (so inside `.omp/AGENTS.md`, `@../docs/spec.md` reaches `<repo>/docs/spec.md`), `~/` is home, up to five hops, cycles skipped, missing targets left as literal text.
+- Import tokenising: a token only counts when `@` starts a line or follows a space/tab; tokens in code spans and fenced blocks are left alone; trailing `. , ; : ! ? ) ] } " '` is trimmed.
 - What belongs in it: layout, build/test/lint commands, conventions, review expectations, pointers to deeper docs via `@`. What does not: secrets (Lesson 6.9), hard "never" rules that must survive long sessions (Lesson 6.2), per-task instructions (that is the prompt), long design docs (import them instead — the file costs context once per session).
-- Task subagents (Module 10) do **not** inherit `AGENTS.md`; rules (6.2, 6.3) do reach them.
+- Task subagents (background helper agents that omp spawns for delegated work — Module 10) do **not** inherit `AGENTS.md`; rules (6.2, 6.3) do reach them.
 **Try it (Walkthrough):**
 1. `cd omp-course-lab && git checkout module-6-start && mkdir -p .omp`.
    Expected: `.omp/` exists (it may already contain files from Module 4).
@@ -61,7 +74,11 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
    Expected: the reply names `python3 -m unittest discover -s tests` and `generated/` without any `read` card.
 5. Ask: `Quote the first heading of the architecture notes you were given.`
    Expected: the reply quotes `# omp-course-lab — Service Specification (v1)`, the first heading of `docs/spec.md` — proof that `@../docs/spec.md` expanded.
-**Guided task:** Goal: prove the nearest-non-empty rule. Hints: `mkdir -p api/.omp && echo "# api-local" > api/.omp/AGENTS.md`, then start omp in `api/` and ask the same question as step 4. Checkpoints: (a) `/extensions` from `api/` shows only the `api/.omp/AGENTS.md`; (b) the answer no longer knows the test command; (c) `rm -r api/.omp` restores it. Pass condition: the two `/extensions` listings differ exactly in which `AGENTS.md` is active.
+**Guided task:**
+- Goal: prove the nearest-non-empty rule.
+- Hints: `mkdir -p api/.omp && echo "# api-local" > api/.omp/AGENTS.md`, then start omp in `api/` and ask the same question as step 4.
+- Checkpoints: (a) `/extensions` from `api/` shows only the `api/.omp/AGENTS.md`; (b) the answer no longer knows the test command; (c) `rm -r api/.omp` restores it.
+- Pass condition: the two `/extensions` listings differ exactly in which `AGENTS.md` is active.
 **Stretch:** Goal: make a user-level `~/.omp/agent/AGENTS.md` with one personal preference (e.g. "reply in British English") and confirm it loads *in addition to* the project file (different scopes both survive). Pass: `/extensions` shows one `user` and one `project` context file.
 **Troubleshooting:**
 
@@ -104,7 +121,11 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
    Expected: a `read` card for `rule://RULES` followed by your three lines.
 4. Ask: `Add a comment line to the top of the first file you find under generated/ and commit it.`
    Expected: omp declines both parts (or asks) and cites the rule; `git status` shows no change under `generated/` and `git log -1` is unchanged.
-**Guided task:** Goal: demonstrate user-shadows-project. Hints: write `~/.omp/agent/RULES.md` containing only `Always start replies with the word RULE-USER.`; `/new`; ask anything; then ask omp to read `rule://RULES`. Checkpoint: replies begin with `RULE-USER` **and** `rule://RULES` no longer mentions `generated/`. Pass condition: after deleting the user file and `/new`, `rule://RULES` shows the project text again.
+**Guided task:**
+- Goal: demonstrate user-shadows-project.
+- Hints: write `~/.omp/agent/RULES.md` containing only `Always start replies with the word RULE-USER.`; `/new`; ask anything; then ask omp to read `rule://RULES`.
+- Checkpoint: replies begin with `RULE-USER` **and** `rule://RULES` no longer mentions `generated/`.
+- Pass condition: after deleting the user file and `/new`, `rule://RULES` shows the project text again.
 **Stretch:** Goal: find the length limit that matters to you. Put a 60-line essay in `RULES.md`, watch the context % in the status line across five short turns, then shrink it back to three lines and compare. Pass: you can state the per-turn context cost difference you observed.
 **Troubleshooting:**
 
@@ -128,11 +149,12 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
 
 ## Lesson 6.3 — The rules directory              (~15 min)
 **You will be able to:** write a rulebook rule (listed, read on demand) and an always-apply rule; scope a rule to specific agents; read a rule with `rule://`.
-**Why this exists:** Some guidance is only relevant sometimes — how to write a DB migration matters only when the schema changes. Putting it in `AGENTS.md` wastes context on every session; leaving it out means the agent guesses. A rule with a `description` is listed in the system prompt by name and description only (the **rulebook**), and the model reads the body with `rule://<name>` when the task matches. A rule with `alwaysApply: true` is injected in full, like `RULES.md` but as a separate, nameable, agent-scopable file.
+**Why this exists:** Some guidance only matters sometimes — a migration how-to only when the schema changes. In `AGENTS.md` it wastes context every session; left out, the agent guesses. A `description` rule is only *listed* in the system prompt (the **rulebook**) and read on demand via `rule://<name>`; an `alwaysApply: true` rule is injected in full — like `RULES.md`, but nameable and scopable.
 **Demo:** `demos/03-rules-dir.md`
 **Concepts:**
 - Locations: `<cwd>/.omp/rules/*.{md,mdc}` (only when the cwd's `.omp/` is non-empty — **no walk-up**) and `~/.omp/agent/rules/*.{md,mdc}`. Rule name = filename without extension.
-- Frontmatter fields that matter now: `description:` → rulebook entry; `alwaysApply: true` → full body in the system prompt; `globs:` → shown inline in the rulebook line as a hint (advisory — omp does not auto-select rules by path); `agents:` → restrict to agent names/globs (`main` = top-level session, `sub` = unnamed subagent, `[scout, "foreman-*"]`). `condition:`, `astCondition:`, `question:` make a rule a TTSR rule — Module 11.
+- Frontmatter fields that matter now: `description:` → rulebook entry; `alwaysApply: true` → full body in the system prompt; `globs:` → shown inline in the rulebook line as a hint (advisory — omp does not auto-select rules by path).
+- `agents:` → restrict to agent names/globs (`main` = top-level session, `sub` = unnamed subagent, `[scout, "foreman-*"]`). `condition:`, `astCondition:`, `question:` make a rule a TTSR rule (TTSR = Time-Traveling Stream Rules, rules that interrupt the model's stream when a condition matches — Module 11).
 - Bucketing order: TTSR fields win, then `alwaysApply`, then `description`. A rule with both `alwaysApply` and `description` is always-apply only. A rule with **neither** is invisible: not listed, not injected, not addressable.
 - `rule://<name>` resolves against rulebook + always-apply + TTSR rules of the **current session**. It is session state, so `omp read rule://x` from a plain shell reports `Unknown rule … Available: none` (verified) — ask omp to read it instead.
 - Rules are deduplicated by name across providers (native first). `--no-rules` disables rules discovery for a run.
@@ -149,7 +171,7 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
 5. Ask: `Add a debugging print() to api/__init__.py.`
    Expected: omp proposes `logging` instead, citing the always-apply rule.
 **Guided task:** Goal: make a rule invisible on purpose and then visible again. Hints: create `.omp/rules/ghost.md` with a body but no frontmatter; restart; ask omp to read `rule://ghost`. Checkpoint: "Unknown rule" with the list of available names. Then add `description: Ghost rule` and restart. Pass condition: `rule://ghost` returns the body.
-**Stretch:** Goal: scope `no-print-in-api` to subagents only (`agents: sub`) and show that the main session no longer sees it while a `task` subagent does (`read agent://<id>` after asking a subagent to list its rules — Module 10 covers `task`; a one-line "spawn a scout that reports which always-apply rules it has" is enough). Pass: main session does not cite the rule; the subagent's transcript does.
+**Stretch:** Goal: scope `no-print-in-api` to subagents only (`agents: sub`) and show that the main session no longer sees it while a `task` subagent does. Pass: main session does not cite the rule; the subagent's transcript does.
 **Troubleshooting:**
 
 | Symptom | Cause | Fix |
@@ -177,11 +199,30 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
 **Why this exists:** Real repos accumulate `CLAUDE.md`, `.cursor/rules`, `copilot-instructions.md` and an `AGENTS.md` from four tools. omp loads all of them by a fixed priority table and a per-scope dedup. If you do not know the table you will edit a file that is silently shadowed and conclude "omp ignores my instructions".
 **Demo:** `demos/04-precedence.md`
 **Concepts:**
-- Provider priorities: `native` 100 > `omp-plugins` 90 > `claude` 80 > `agent-plugins` 75 > `agents`/`claude-plugins`/`codex` 70 > `gemini` 60 > `opencode` 55 > `cursor`/`windsurf` 50 > `cline` 40 > `github` 30 > `vscode` 20 > `agents-md`/`claude-md` 10 > `mcp-json`/`ssh-json` 5 > `builtin-defaults` 1.
-- Dedup: **one user context file** overall (native wins → `~/.omp/agent/AGENTS.md` shadows `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, …). **One project file per directory depth** (cwd = depth 0; `.claude/`, `.github/` of an ancestor count as that ancestor's depth); at equal depth the higher priority wins; across depths all survive; byte-identical copies collapse. Injection order: farther ancestors → nearer → user file last (most prominent).
+- Provider priorities (higher wins at equal depth):
+
+| Priority | Providers |
+|---|---|
+| 100 | `native` |
+| 90 | `omp-plugins` |
+| 80 | `claude` |
+| 75 | `agent-plugins` |
+| 70 | `agents`, `claude-plugins`, `codex` |
+| 60 | `gemini` |
+| 55 | `opencode` |
+| 50 | `cursor`, `windsurf` |
+| 40 | `cline` |
+| 30 | `github` |
+| 20 | `vscode` |
+| 10 | `agents-md`, `claude-md` |
+| 5 | `mcp-json`, `ssh-json` |
+| 1 | `builtin-defaults` |
+
+- Dedup, user scope: **one user context file** overall (native wins → `~/.omp/agent/AGENTS.md` shadows `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, …).
+- Dedup, project scope: **one project file per directory depth** (cwd = depth 0; `.claude/`, `.github/` of an ancestor count as that ancestor's depth). At equal depth the higher priority wins; across depths all survive; byte-identical copies collapse. Injection order: farther ancestors → nearer → user file last (most prominent).
 - Worked example (from the docs): `repo/AGENTS.md` + `repo/packages/api/AGENTS.md` + `repo/packages/api/.github/copilot-instructions.md`, cwd `packages/api`: root file kept (depth 2); at depth 0 `github` (30) beats `agents-md` (10) so the Copilot file wins; add `packages/api/.omp/AGENTS.md` and native wins depth 0 outright.
 - `/extensions` shows every discovered context file with level, source and state (active / shadowed / disabled) and toggles `disabledExtensions`. It also shows active and shadowed slash commands and rules.
-- `disabledProviders: [claude, github]` removes the **whole source** (its MCP servers, commands, skills, hooks too). One shared id namespace with model providers: `gemini` = Gemini CLI files, `google` = the Google model backend. Supports path-scoped entries (`- path: ~/work/legacy` / `providers: [claude]`).
+- `disabledProviders: [claude, github]` removes the **whole source** (its MCP servers — MCP: external tool providers, Module 12 — commands, skills, hooks too). One shared id namespace with model providers: `gemini` = Gemini CLI files, `google` = the Google model backend. Supports path-scoped entries (`- path: ~/work/legacy` / `providers: [claude]`).
 - `disabledExtensions: [context-file:<level>:<basename>]` drops one file (`context-file:project:CLAUDE.md`; a project id applies at every depth). Disabling ≠ shadowing: the dropped file leaves before dedup, so whatever it shadowed loads instead. Also accepts `skill:<name>`.
 - `enabledProviders` (default `[]`): foreign **user-level** roots (`~/.claude`, `~/.codex`, `~/.cursor`, `~/.gemini`, `~/.config/opencode`, Windsurf, Copilot) do not load until listed (or `*`/`all`); project roots load regardless; native roots need no entry.
 - All three are arrays: a higher settings layer **replaces** the whole list (Lesson 6.7).
@@ -194,7 +235,11 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
    Expected: `.claude/CLAUDE.md` is now active; the next reply is in caps. Move `AGENTS.md` back.
 4. Add to `.omp/config.yml`: `disabledExtensions: [context-file:project:CLAUDE.md]`; restart.
    Expected: `/extensions` shows `CLAUDE.md` as disabled, `AGENTS.md` active. `rm -r .claude` when done.
-**Guided task:** Goal: disable a whole provider and observe the blast radius. Hints: put `disabledProviders: [claude]` in `.omp/config.yml` while a `.claude/commands/hello.md` and a `.claude/CLAUDE.md` exist. Checkpoints: (a) `/extensions` lists neither; (b) `/hello` is sent to the model as plain text (unknown slash input is not rejected). Pass condition: replacing `disabledProviders` with `disabledExtensions: [context-file:project:CLAUDE.md]` brings `/hello` back while `CLAUDE.md` stays off.
+**Guided task:**
+- Goal: disable a whole provider and observe the blast radius.
+- Hints: put `disabledProviders: [claude]` in `.omp/config.yml` while a `.claude/commands/hello.md` and a `.claude/CLAUDE.md` exist.
+- Checkpoints: (a) `/extensions` lists neither; (b) `/hello` is sent to the model as plain text (unknown slash input is not rejected).
+- Pass condition: replacing `disabledProviders` with `disabledExtensions: [context-file:project:CLAUDE.md]` brings `/hello` back while `CLAUDE.md` stays off.
 **Stretch:** Goal: reproduce the docs' depth example inside `omp-course-lab` (root `AGENTS.md`, `api/AGENTS.md`, `api/.github/copilot-instructions.md`, cwd `api/`) and write down, before starting omp, which two files will load and in what order. Pass: `/extensions` agrees with your prediction.
 **Troubleshooting:**
 
@@ -225,7 +270,7 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
 - Files: `<cwd>/.omp/commands/<name>.md` (project) and `~/.omp/agent/commands/<name>.md` (user). File name = command name. **Project beats user** on a collision. Non-recursive; hidden files skipped; the scan honours `.gitignore` — an ignored `.omp/` yields no commands.
 - Frontmatter `description:` is the completion text; without it the first non-empty body line (≤ 60 chars) is used. Body = prompt template.
 - Placeholders: `$1`, `$2`… positional; `$@[start]` / `$@[start:length]` 1-based slices; `$ARGUMENTS` or `$@` everything. Args are split quote-aware (`'…'`/`"…"`, no backslash escapes). If the template uses no placeholder, the arguments are appended.
-- Built-in names are reserved and dispatched first; then extension commands, custom/MCP prompt commands, then file commands. Unknown `/foo` is **not rejected** — it goes to the model as literal text.
+- Built-in names are reserved and dispatched first; then extension commands, custom/MCP prompt commands (MCP servers: Module 12), then file commands. Unknown `/foo` is **not rejected** — it goes to the model as literal text.
 - Discovered at start, after `/move`, and on `/reload-plugins`. There is no file watcher: after adding a file, `/reload-plugins` or restart.
 - Foreign sources: `.claude/commands/**/*.md` (recursive; `foo/bar.md` also as `foo:bar`), `.codex/commands/*.md`, `.opencode/commands/*.md`. `commands.enableClaudeProject` default `true`; `commands.enableClaudeUser` default `false`.
 **Try it (Walkthrough):**
@@ -237,7 +282,11 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
    Expected: omp runs the expanded template — the reply refers to version `1.2.0` (from `$1`), a `bash` card runs `git log …`, the answer is a fenced changelog block, and `git status` shows no `CHANGELOG.md` change.
 4. Run `/changelog 1.2.0 "since last week"`.
    Expected: the reply echoes the full argument string `1.2.0 since last week` (quotes stripped — `$ARGUMENTS`) while still treating `1.2.0` as the version (`$1`).
-**Guided task:** Goal: build `/failing-tests` that runs the suite and summarises only failures. Hints: template with no placeholder; instruct "run `python3 -m unittest discover -s tests`, then list each failing test with a one-line cause; if all pass say PASS". Checkpoint: `/failing-tests` after `git checkout module-6-start` produces a card with the unittest run (`Ran 48 tests … OK (skipped=20)` on a clean tree). Pass condition: the reply contains either `PASS` or a bullet per failing test, and `/extensions` lists the command as active.
+**Guided task:**
+- Goal: build `/failing-tests` that runs the suite and summarises only failures.
+- Hints: template with no placeholder; instruct "run `python3 -m unittest discover -s tests`, then list each failing test with a one-line cause; if all pass say PASS".
+- Checkpoint: `/failing-tests` after `git checkout module-6-start` produces a card with the unittest run (`Ran 48 tests … OK (skipped=20)` on a clean tree).
+- Pass condition: the reply contains either `PASS` or a bullet per failing test, and `/extensions` lists the command as active.
 **Stretch:** Goal: create the same `changelog.md` under `~/.omp/agent/commands/` with a different description and show that `/extensions` marks the user copy as shadowed. Pass: completion text is the project description.
 **Troubleshooting:**
 
@@ -262,13 +311,14 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
 
 ## Lesson 6.6 — Skills              (~15 min)
 **You will be able to:** author a `SKILL.md` with assets; reach it via `skill://` and `/skill:`; choose between skill, command, rule and context file.
-**Why this exists:** A command is something *you* trigger; a rule is something the agent must *obey*. A **skill** is knowledge the agent can *choose* to load — a workflow, a checklist, reference tables — advertised in the system prompt by name and description only, and read on demand with the `read` tool. It keeps long procedures out of every prompt while making them discoverable, and any helper files live next to it.
+**Why this exists:** A command is something *you* trigger; a rule is something the agent must *obey*. A **skill** is knowledge the agent can *choose* to load — a workflow, a checklist, reference tables — listed in the system prompt by name and description only, read on demand with the `read` tool. Long procedures stay out of every prompt yet remain discoverable; helper files sit beside it.
 **Demo:** `demos/06-skills.md`
 **Concepts:**
 - Layout: `<root>/skills/<name>/SKILL.md`, exactly one level deep (`skills/team/x/SKILL.md` is **not** found). Native roots: every ancestor's `.omp/skills/` from cwd to the repo root (walk-up, verified) plus `~/.omp/agent/skills/`. `skills.customDirectories: [path…]` adds roots (same one-level scan; a custom-dir skill overrides a same-named provider skill).
 - Frontmatter: `name` (defaults to the directory name), `description` (**required** for native skills — no description, no skill), `hide: true` / `disableModelInvocation: true` (omit from the system-prompt list; still reachable via `skill://` and `/skill:`), `globs`, `alwaysApply` accepted.
 - `skill://<name>` → the `SKILL.md`; `skill://<name>/<relative>` → an asset in the skill directory. Absolute paths, `..` and escapes are rejected; a missing asset is `File not found`. Works from the shell too: `omp read skill://<name>` (verified).
-- `/skill:<name> [args]` injects the body (frontmatter stripped, base dir appended, args as `User: …`). Enabled by `skills.enableSkillCommands` — **default `true` in 18.3.1** (check with `omp config get skills.enableSkillCommands`; set it to `true` if your config says otherwise). Delivery while streaming: `Enter` steers, `Ctrl+Enter` queues a follow-up; the token also works mid-sentence ("run /skill:release-checklist for 1.2.0").
+- `/skill:<name> [args]` injects the body (frontmatter stripped, base dir appended, args as `User: …`). Enabled by `skills.enableSkillCommands` — **default `true` in 18.3.1** (check with `omp config get skills.enableSkillCommands`; set it to `true` if your config says otherwise).
+- Delivery of `/skill:` while streaming: `Enter` steers, `Ctrl+Enter` queues a follow-up; the token also works mid-sentence ("run /skill:release-checklist for 1.2.0").
 - Filters: `skills.ignoredSkills` (glob, exclude), `skills.includeSkills` (glob allowlist; empty = all), `disabledExtensions: [skill:<name>]`, `--no-skills`, `--skills git-*,docker`, `skills.enabled`.
 - Precedence: `native` 100 > `omp-plugins` 90 > `claude` 80 > `claude-plugins`/`agents`/`codex` 70 > `opencode` 55 > `github` 30 (`.github/skills/`) > `omp-managed` 5 (auto-learned, Module 9). Dedup by name, first wins.
 - Decision table:
@@ -292,7 +342,7 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
 5. Ask: `read skill://release-checklist/report.md and fill it in for the run you just did`.
    Expected: the filled table.
 **Guided task:** Goal: add `hide: true` and prove "hidden ≠ disabled". Hints: restart, repeat step 2 (skill absent from the list), then step 4 and step 1's shell command. Checkpoint: `/skill:release-checklist` still works. Pass condition: the skill is missing from the model's list but `skill://release-checklist` still resolves.
-**Stretch:** Goal: put a second copy of the skill in `~/.omp/agent/skills/release-checklist/` with a different description and show which wins (native project vs native user are the same provider — first scanned wins; check `/extensions` and the model's list). Then exclude it with `skills.ignoredSkills: ["release-*"]` and confirm both copies disappear. Pass: `omp read skill://release-checklist` fails after the ignore.
+**Stretch:** Goal: put a second copy of the skill in `~/.omp/agent/skills/release-checklist/` with a different description and show which one wins; then exclude it with `skills.ignoredSkills: ["release-*"]` and confirm both copies disappear. Pass: `omp read skill://release-checklist` fails after the ignore.
 **Troubleshooting:**
 
 | Symptom | Cause | Fix |
@@ -325,7 +375,9 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
 - `omp config list [--json]` · `get <key> [--json]` · `set <key> <value>` · `reset <key>` · `path`. `set`/`reset` and `/settings` **always write the global file**; when another layer still wins, `set` tells you (`--json` → `"overriddenBy": "project"`, verified). To change a project value, edit `.omp/config.yml` by hand (exception: `modelRoleStorage: project` stores model-role picks there).
 - Value parsing for `set`: booleans `true/false/yes/no/on/off/1/0`; arrays and records as JSON strings (`'["anthropic"]'`, `'{"bash":"prompt"}'`); keys must be exact schema paths (`theme.dark`, not `theme`).
 - Overlays: `--config` is accepted by the launch command, `acp` and `models` — **not** by `omp config` (verified error). From a shell use `PI_CONFIG_FILES=./ci.yml omp config get …` (verified). A missing/invalid overlay is a hard error, never a silent fallback.
-- Profiles: `omp --profile <name>` or `OMP_PROFILE=<name>` (legacy `PI_PROFILE`) relocates the whole agent dir to `~/.omp/profiles/<name>/agent` — its own `config.yml`, `agent.db` (logins), sessions, skills, commands, `AGENTS.md`/`RULES.md`. Keybindings are the one thing inherited from the default profile. `omp --profile <name> --alias <cmd>` writes a shell function `<cmd>() { command omp --profile=<name> "$@"; }` into your rc file and exits (verified: bash → `~/.bashrc`; supported shells bash, zsh, fish, PowerShell). `PI_CODING_AGENT_DIR` relocates only the default profile.
+- Profiles: `omp --profile <name>` or `OMP_PROFILE=<name>` (legacy `PI_PROFILE`) relocates the whole agent dir to `~/.omp/profiles/<name>/agent` — its own `config.yml`, `agent.db` (logins), sessions, skills, commands, `AGENTS.md`/`RULES.md`. Keybindings are the one thing inherited from the default profile.
+- Profile alias: `omp --profile <name> --alias <cmd>` writes a shell function `<cmd>() { command omp --profile=<name> "$@"; }` into your rc file and exits (verified: bash → `~/.bashrc`; supported shells bash, zsh, fish, PowerShell).
+- `PI_CODING_AGENT_DIR` relocates only the default profile.
 - `/settings` inside a session edits the same global file, showing only keys with UI metadata; `omp config list` is the full schema.
 **Try it (Walkthrough):**
 1. Copy `solutions/dot-omp/config.yml` to `.omp/config.yml` (sets `tools.approvalMode: write`, `theme.dark: titanium`, `secrets.enabled: true`).
@@ -339,7 +391,11 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
    Expected: `always-ask` — overlay beats project.
 5. `omp --config /tmp/ci.yml` in the repo, ask for any file edit.
    Expected: an approval prompt card (always-ask), unlike a plain `omp` launch (write).
-**Guided task:** Goal: demonstrate array replacement. Hints: `omp config set disabledProviders '["ollama","groq"]'` (global), then add `disabledProviders: [groq]` to `.omp/config.yml`. Checkpoints: `omp config get disabledProviders --json` inside prints only `groq`; outside prints both. Pass condition: you can state which list is effective in each directory, then `omp config reset disabledProviders` and remove the project key.
+**Guided task:**
+- Goal: demonstrate array replacement.
+- Hints: `omp config set disabledProviders '["ollama","groq"]'` (global), then add `disabledProviders: [groq]` to `.omp/config.yml`.
+- Checkpoints: `omp config get disabledProviders --json` inside prints only `groq`; outside prints both.
+- Pass condition: you can state which list is effective in each directory, then `omp config reset disabledProviders` and remove the project key.
 **Stretch:** Goal: `omp --profile course` with its own login (`/login` inside it), confirm `~/.omp/profiles/course/agent/agent.db` and `config.yml` exist and `omp --profile course config path` prints that directory; create `omp-course` with `--alias` and run `omp-course --version`. Pass: `ls ~/.omp/profiles/course/agent/` lists `agent.db` and `config.yml`; the alias function is in your rc file.
 **Troubleshooting:**
 
@@ -392,7 +448,11 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
    Expected: one sentence; the flag replaced the file's text (flag wins over `APPEND_SYSTEM.md`).
 4. Ask in the same session: `What tools do you have? List names only.`
    Expected: the full tool list — the default instructions are intact under append.
-**Guided task:** Goal: see what `SYSTEM.md` removes. Hints: `printf 'You are a code reviewer. Never edit files. Cite paths in backticks.\n' > .omp/SYSTEM.md`; restart; ask step 4's question and then ask for the test command from context. Checkpoints: tools still exist (schemas are still sent) but the reply no longer follows the default workflow rules; `AGENTS.md` facts still answered (context files survive). Pass condition: after `rm .omp/SYSTEM.md` and restart, the default behaviour is back. Do not leave `SYSTEM.md` in the lab repo.
+**Guided task:**
+- Goal: see what `SYSTEM.md` removes.
+- Hints: `printf 'You are a code reviewer. Never edit files. Cite paths in backticks.\n' > .omp/SYSTEM.md`; restart; ask step 4's question and then ask for the test command from context.
+- Checkpoints: tools still exist (schemas are still sent) but the reply no longer follows the default workflow rules; `AGENTS.md` facts still answered (context files survive).
+- Pass condition: after `rm .omp/SYSTEM.md` and restart, the default behaviour is back. Do not leave `SYSTEM.md` in the lab repo.
 **Stretch:** Goal: `~/.omp/agent/PERSONALITY.md` with one sentence of style guidance, plus `omp config set personality pragmatic` to compare presets. Pass: two sessions with visibly different tone; `omp config reset personality` afterwards.
 **Troubleshooting:**
 
@@ -418,12 +478,22 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
 
 ## Lesson 6.9 — Secrets              (~15 min)
 **You will be able to:** turn on secret obfuscation; add a project pattern; explain what the provider sees versus what a tool executes.
-**Why this exists:** The agent reads `.env` files, config dumps and logs — and every byte it reads is sent to a model provider. Secret obfuscation swaps configured and credential-shaped values for deterministic placeholders **before** text leaves the process, then restores the real values inside model-authored tool arguments so `curl -H "Authorization: $TOKEN"` still works. The model reasons about `$$LABTOKEN_3P8W5JH1TK2Q:L$$`; your shell gets the token.
+**Why this exists:** The agent reads `.env` files, config dumps and logs — and every byte it reads is sent to a model provider. Secret obfuscation swaps configured and credential-shaped values for deterministic placeholders **before** text leaves the process, then restores the real values inside model-authored tool arguments so `curl -H "Authorization: $TOKEN"` still works.
 **Demo:** `demos/09-secrets.md`
 **Concepts:**
 - **Off by default.** Enable with `secrets.enabled: true` (in `.omp/config.yml` for the repo, `omp config set secrets.enabled true` globally, or `/settings`).
-- Sources collected at session start: (1) environment variables whose names contain `KEY`, `SECRET`, `TOKEN`, `PASSWORD`, `PASS`, `AUTH`, `CREDENTIAL`, `PRIVATE`, `OAUTH` with values ≥ 8 chars; (2) `secrets.yml` entries — global `~/.omp/agent/secrets.yml`, project `<cwd>/.omp/secrets.yml` (project overrides global on identical `content`); (3) built-in regexes for GitHub/GitLab/OpenAI/Anthropic tokens, AWS keys, Google API keys, Slack, npm, Stripe, Hugging Face, SendGrid, JWTs, `Bearer` headers, PEM blocks; (4) passwords inside `scheme://user:password@host` env values.
-- `secrets.yml` is a YAML **array** of `{type: plain|regex, content, mode?: obfuscate|replace, replacement?, flags?, friendlyName?}`. `obfuscate` (default) is reversible; matches shorter than 8 chars are ignored. `replace` is one-way (fixed `replacement` or a same-length value) and can handle short values. Regexes always run globally; `/pattern/flags` literal syntax is accepted. Invalid entries are skipped with a warning; a non-array file is ignored with a warning.
+- Split view: the model reasons about `$$LABTOKEN_3P8W5JH1TK2Q:L$$`; your shell gets the real token.
+- Sources collected at session start:
+
+| Source | What is collected |
+|---|---|
+| Environment variables | names containing `KEY`, `SECRET`, `TOKEN`, `PASSWORD`, `PASS`, `AUTH`, `CREDENTIAL`, `PRIVATE`, `OAUTH`, with values ≥ 8 chars |
+| `secrets.yml` entries | global `~/.omp/agent/secrets.yml`, project `<cwd>/.omp/secrets.yml` (project overrides global on identical `content`) |
+| Built-in regexes | GitHub/GitLab/OpenAI/Anthropic tokens, AWS keys, Google API keys, Slack, npm, Stripe, Hugging Face, SendGrid, JWTs, `Bearer` headers, PEM blocks |
+| URL credentials | passwords inside `scheme://user:password@host` env values |
+
+- `secrets.yml` is a YAML **array** of `{type: plain|regex, content, mode?: obfuscate|replace, replacement?, flags?, friendlyName?}`. `obfuscate` (default) is reversible; matches shorter than 8 chars are ignored. `replace` is one-way (fixed `replacement` or a same-length value) and can handle short values.
+- Regexes always run globally; `/pattern/flags` literal syntax is accepted. Invalid entries are skipped with a warning; a non-array file is ignored with a warning.
 - Placeholders: `$$<12-char HMAC>$$` with a case hint (`:U`, `:L`, `:C`, `:M`) and an optional `FRIENDLYNAME_` prefix. The HMAC key is per install (`~/.omp/agent/secret-placeholder.key`) and never sent, so a transcript reader cannot brute-force placeholders back.
 - What sees what: provider-visible text (your messages, tool results, replayed history) carries placeholders; model-authored tool arguments are deep-walked and **restored before execution**; the local TUI/session file restores placeholders for display and resume and re-obfuscates on replay. Replace-mode values are never restored.
 - The system prompt gains secret-redaction guidance when enabled, so the model knows a `$$…$$` token is a placeholder, not a value.
@@ -439,8 +509,12 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
    Expected: the bash card prints `23` and `labtok_` — the shell had the real value.
 5. Ask: `Echo the LAB_TOKEN value you read in step 3 into a bash command: printf '%s\n' "<that value>" | cut -c1-7`.
    Expected: the model writes the placeholder into the command, omp restores it before execution, and the card prints `labtok_`. This is the restore path in action.
-**Guided task:** Goal: compare `obfuscate` with `replace`. Hints: add a second entry `{type: plain, content: sqlite:///data/lab.sqlite, mode: replace, replacement: "<DB-URL>"}`; restart; ask omp to read `.env` and then to run `printf '%s' "$DATABASE_URL"` after sourcing `.env`. Checkpoints: the model reports `<DB-URL>` for the URL; the shell still prints the real URL (it never left the process); asking the model to *echo the URL it saw* prints `<DB-URL>` literally — replace mode is not restored. Pass condition: you can state which of the two entries is reversible and show one card for each.
-**Stretch:** Goal: rely on automatic env-var collection only. Hints: remove the regex entry, `export LAB_TOKEN=labtok_0123456789abcdef` in your shell before launching, repeat step 3. Pass: still a placeholder (name matches `TOKEN`, value ≥ 8 chars). Then rename the variable to `LAB_THING` and show it leaks — which is why the project regex exists.
+**Guided task:**
+- Goal: compare `obfuscate` with `replace`.
+- Hints: add a second entry `{type: plain, content: sqlite:///data/lab.sqlite, mode: replace, replacement: "<DB-URL>"}`; restart; ask omp to read `.env` and then to run `printf '%s' "$DATABASE_URL"` after sourcing `.env`.
+- Checkpoints: the model reports `<DB-URL>` for the URL; the shell still prints the real URL (it never left the process); asking the model to *echo the URL it saw* prints `<DB-URL>` literally — replace mode is not restored.
+- Pass condition: you can state which of the two entries is reversible and show one card for each.
+**Stretch:** Goal: rely on automatic env-var collection only (no regex entry) and show why the project regex still exists. Pass: an exported `LAB_TOKEN` is still a placeholder (name matches `TOKEN`, value ≥ 8 chars), while the same value under a name like `LAB_THING` leaks.
 **Troubleshooting:**
 
 | Symptom | Cause | Fix |
@@ -465,4 +539,10 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
 
 ## Module wrap-up
 
-You now have a `.omp/` tree that makes every session in `omp-course-lab` start informed, holds hard rules on every request, offers `/changelog` and a release skill, prompts before non-workspace actions in this repo only, and hides the lab token from the provider. `exercises.md` consolidates the graded coursework; `cheatsheet.md` is the one-page reference. Module 7 builds on `config.yml` (model roles, providers); Module 9 revisits skills as something the agent writes for itself; Module 11 adds `condition:` to the rules you wrote here; Module 12 uses the same discovery pipeline for extensions and MCP.
+You now have a `.omp/` tree that makes every session in `omp-course-lab` start informed, holds hard rules on every request, offers `/changelog` and a release skill, prompts before non-workspace actions in this repo only, and hides the lab token from the provider. `exercises.md` consolidates the graded coursework; `cheatsheet.md` is the one-page reference.
+
+Where this module leads:
+- Module 7 builds on `config.yml` (model roles, providers).
+- Module 9 revisits skills as something the agent writes for itself.
+- Module 11 adds `condition:` to the rules you wrote here.
+- Module 12 uses the same discovery pipeline for extensions and MCP.

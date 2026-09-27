@@ -26,15 +26,29 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 
 ## Lesson 2.1 — TUI layout              (~15 min)
 **You will be able to:** name the five regions of the omp screen; expand, hide, and re-show tool output; stop a turn; find any chord with `/hotkeys`.
-**Why this exists:** A terminal agent does most of its work *between* your prompts — reading, searching, editing, running. Chat UIs hide that; omp puts every step on screen as a *card* so you can audit it. If you can't read the cards you are trusting the model's summary of its own work, which is the one thing the course tells you never to do. Learn the layout once and every later module gets faster.
+**Why this exists:** A terminal agent does most of its work *between* your prompts — reading, searching, editing, running. Chat UIs hide that; omp puts every step on screen as a *card* so you can audit it.
+If you can't read the cards you are trusting the model's summary of its own work, which is the one thing the course tells you never to do. Learn the layout once and every later module gets faster.
 **Demo:** [`demos/2.1-tui-layout.md`](demos/2.1-tui-layout.md) — one prompt, the resulting transcript, and the status band, with each region labelled.
 **Concepts:**
-- **Transcript** (top, scrolls into terminal history): your prompts, assistant prose, thinking blocks, and tool cards in the order they happened. Tool cards come in two shapes: *inline one-liners* (`🔍 Grep: …`, `🔍 Glob: …`, `ⓘ Proc …`) and *boxed cards* (`╭─── • Read … ╮`, `✎ Edit`, `$ cmd` with an `Output` section, `☑ Todo`, `✔ Ask`, `⌕ Web Search`). Boxed cards are collapsed by default to a short preview (bash: 10 visual lines; write: 6 lines; todo: 8 items) and show `⟦Ctrl+O: Expand⟧` when there is more.
-- **Composer** (bottom): the editor you type into. Its border/band carries the status line. The default composer shape is `band` ("Status Band"); `composer.shape` selects others (`box`, `claude`, `pi`, `borderless`, `rule`, `field`, `rail` — preview them with `omp gallery --surface composer`).
-- **Status line** segments (`statusLine.preset`, default `default`; every segment below is rendered by `omp gallery --surface segment`): `π` idle / `⠹ 1m` spinner + elapsed while a turn runs; `⬢ <model> · ◒ <thinking level>`; a mode chip when active (`🗺 Plan`, `🏃 Prewalk`, `👥 Vibe`); `⑂ <branch> *3 +2 ?1` git state; `◫ 62.0%/200K ⟲` context usage over the window. Which segments your preset shows is not listed in the docs — read your own band.
-- **Context gauge icon**: the trailing `⟲` belongs to the context gauge and has its own `active compaction` / `armed compaction` render states — omp summarizes speculatively in the background before the threshold (`compaction.asyncEnabled: true`; Module 5 covers compaction). `statusLine.contextLine` (default `embedded`; `off|percentage|annotated|embedded`) is the gauge's setting.
+- **Transcript** (top, scrolls into terminal history): your prompts, assistant prose, thinking blocks, and tool cards in the order they happened.
+  - Tool cards come in two shapes: *inline one-liners* (`🔍 Grep: …`, `🔍 Glob: …`, `ⓘ Proc …`) and *boxed cards* (`╭─── • Read … ╮`, `✎ Edit`, `$ cmd` with an `Output` section, `☑ Todo`, `✔ Ask`, `⌕ Web Search`).
+  - Boxed cards are collapsed by default to a short preview (bash: 10 visual lines; write: 6 lines; todo: 8 items) and show `⟦Ctrl+O: Expand⟧` when there is more.
+- **Composer** (bottom): the editor you type into. Its border/band carries the status line.
+  - The default composer shape is `band` ("Status Band"); `composer.shape` selects others (`box`, `claude`, `pi`, `borderless`, `rule`, `field`, `rail` — preview them with `omp gallery --surface composer`).
+- **Status line** segments (`statusLine.preset`, default `default`; every segment below is rendered by `omp gallery --surface segment`). Which segments your preset shows is not listed in the docs — read your own band.
+
+  | Segment | Meaning |
+  |---|---|
+  | `π` / `⠹ 1m` | idle / spinner + elapsed while a turn runs |
+  | `⬢ <model> · ◒ <thinking level>` | current model and thinking level |
+  | `🗺 Plan`, `🏃 Prewalk`, `👥 Vibe` | a mode chip, shown only when that mode is active |
+  | `⑂ <branch> *3 +2 ?1` | git state |
+  | `◫ 62.0%/200K ⟲` | context usage over the window |
+
+- **Context gauge icon**: the trailing `⟲` belongs to the context gauge and has its own `active compaction` / `armed compaction` render states. Compaction is omp summarizing older conversation to free room in the context window (Module 5); omp does it speculatively in the background before the threshold (`compaction.asyncEnabled: true`).
+  - `statusLine.contextLine` (default `embedded`; `off|percentage|annotated|embedded`) is the gauge's setting.
 - **Todo HUD**: a sticky panel that appears above the composer once the model calls the `todo` tool. `/todo expand` shows every phase and task; `/todo collapse` restores the bounded preview. Closed items fade after `tasks.todoClearDelay` (default `60` s; display-only).
-- **Pinned `Subagents` block**: appears above the editor while subagents run (Module 10). `display.pinnedAgents` is `collapsed` by default (`full` lists all, `off` hides).
+- **Pinned `Subagents` block**: appears above the editor while subagents (background helper agents that omp spawns; Module 10) run. `display.pinnedAgents` is `collapsed` by default (`full` lists all, `off` hides).
 - **Keys you use every minute** (all default chords; action IDs in parentheses are what you remap in `~/.omp/agent/keybindings.yml`):
 
   | Key | Action | Notes |
@@ -62,8 +76,13 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 7. Ask a longer question (`Walk every file in cli/ and summarize each function`), then press `Esc` mid-turn.
    Expected: the streaming stops; the partial assistant message stays in the transcript; the status line returns to `π`.
 
-**Guided task:** Goal — capture the anatomy of one turn in writing. Hints — use the prompt from step 3; the inline vs boxed distinction; `Ctrl+O` before you write. Checkpoints — (a) you can point at the first tool the model called; (b) you know which cards were inline and which were boxed. Pass condition — `notes/m2.md` exists and lists, in order, every tool card from that turn with its shape (`inline`/`boxed`) and one line of what it did.
-**Stretch:** Goal — remap `app.tools.expand` to `Ctrl+E` in `~/.omp/agent/keybindings.yml`, restart omp, confirm with `/hotkeys`. Pass condition — `/hotkeys` shows `app.tools.expand: Ctrl+E`; `Ctrl+O` no longer expands cards. (Remove the remap afterwards; the rest of the course assumes defaults.)
+**Guided task:**
+- Goal — capture the anatomy of one turn in writing.
+- Hints — use the prompt from step 3; the inline vs boxed distinction; `Ctrl+O` before you write.
+- Checkpoints — (a) you can point at the first tool the model called; (b) you know which cards were inline and which were boxed.
+- Pass condition — `notes/m2.md` exists and lists, in order, every tool card from that turn with its shape (`inline`/`boxed`) and one line of what it did.
+**Stretch:** Goal — remap `app.tools.expand` to `Ctrl+E` in `~/.omp/agent/keybindings.yml`, restart omp, confirm with `/hotkeys`.
+Pass condition — `/hotkeys` shows `app.tools.expand: Ctrl+E`; `Ctrl+O` no longer expands cards. (Remove the remap afterwards; the rest of the course assumes defaults.)
 **Troubleshooting:**
 
 | Symptom | Cause | Fix |
@@ -93,7 +112,8 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 
 ## Lesson 2.2 — The core tool set              (~25 min)
 **You will be able to:** recognise each of the nine core tools by its card; read the arguments the model passed; know each tool's limits well enough to predict when output will be truncated; recover full output from `artifact://N`.
-**Why this exists:** The model does not "see your repo". It sees only what tools return, under hard caps (300 lines per open-ended read, 50 KB per tool result, 20 files per grep page). Knowing the caps tells you *why* omp re-read a file in three chunks, why it asked for `skip=20`, and why a test run's output ends in `Read artifact://7 for full output`. Once you can read the card you can also tell the model exactly what to do next ("read artifact://7:raw:1-200").
+**Why this exists:** The model does not "see your repo". It sees only what tools return, under hard caps (300 lines per open-ended read, 50 KB per tool result, 20 files per grep page).
+Knowing the caps tells you *why* omp re-read a file in three chunks, why it asked for `skip=20`, and why a test run's output ends in `Read artifact://7 for full output`. Once you can read the card you can also tell the model exactly what to do next ("read artifact://7:raw:1-200").
 **Demo:** [`demos/2.2-core-tools.md`](demos/2.2-core-tools.md) — one turn on the lab repo that uses `glob`, `grep`, `read` (range + directory), `edit`, `write`, `bash` (with an artifact spill), `todo`, `ask`, and `web_search`, followed by the learner asking omp to read the artifact.
 **Concepts:**
 
@@ -113,13 +133,24 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 
 *Reading the arguments.* The collapsed header already contains the arguments that matter: the path and selector for `read`, the pattern/scope/counts for `grep`, the command for `bash`. `Ctrl+O` shows the rest.
 
-*Truncation and `artifact://`.* Every tool result is bounded before the model sees it. The shared limits are 3 000 lines / 50 KB (`tools.artifactSpillThreshold` = 50 KB). When `bash` (or any streaming tool) crosses the threshold the full sanitized output is mirrored to a file in the session's artifact directory (`~/.omp/agent/sessions/<encoded-cwd>/<timestamp>_<sessionId>/<N>.bash.log`) and the model-facing result keeps a head (`tools.artifactHeadBytes`, 20 KB) and a tail (`tools.artifactTailBytes` 20 KB / `tools.artifactTailLines` 500) with an elision marker between them. Over-wide lines are cut at `tools.outputMaxColumns` (768 bytes).
+*Truncation and `artifact://`.* Every tool result is bounded before the model sees it. The shared limits are 3 000 lines / 50 KB (`tools.artifactSpillThreshold` = 50 KB).
 
-The card shows a warning line naming the reason and `artifact://<id>`, and the model-facing text ends with `Read artifact://<id> for full output`. Artifact IDs are session-local integers; `read artifact://7`, `read artifact://7:1-200`, `read artifact://7:raw:1-3000` all work, and `grep <pattern> artifact://7` searches it. A whole-artifact read above 8 MiB is refused — page it. Artifacts persist with the session (`/resume` reuses the directory) and `/fork` copies the directory into the new session.
+- When `bash` (or any streaming tool) crosses the threshold the full sanitized output is mirrored to a file in the session's artifact directory (`~/.omp/agent/sessions/<encoded-cwd>/<timestamp>_<sessionId>/<N>.bash.log`).
+- The model-facing result keeps a head (`tools.artifactHeadBytes`, 20 KB) and a tail (`tools.artifactTailBytes` 20 KB / `tools.artifactTailLines` 500) with an elision marker between them.
+- Over-wide lines are cut at `tools.outputMaxColumns` (768 bytes).
+
+The card shows a warning line naming the reason and `artifact://<id>`, and the model-facing text ends with `Read artifact://<id> for full output`.
+
+- Artifact IDs are session-local integers; `read artifact://7`, `read artifact://7:1-200`, `read artifact://7:raw:1-3000` all work, and `grep <pattern> artifact://7` searches it.
+- A whole-artifact read above 8 MiB is refused — page it.
+- Artifacts persist with the session (`/resume` reuses the directory) and `/fork` copies the directory into the new session.
 
 *How to ask omp to read one.* Plain English works: `Read artifact://7 and list every failing test name.` The model calls `read` with `path: artifact://7` (immutable, so no hashline header — you can't `edit` an artifact).
 
-*Two CLI mirrors that need no model.* `omp read <path-or-uri>` prints exactly what the `read` tool would return (selectors included). `omp grep <pattern> [path]` runs the same native search engine and prints match counts and `file:line:` hits in its own diagnostic layout (not the model-facing `[PATH#TAG]` layout) — handy for checking what a pattern would match. Use them whenever you want to predict what the model will see.
+*Two CLI mirrors that need no model.* Use them whenever you want to predict what the model will see.
+
+- `omp read <path-or-uri>` prints exactly what the `read` tool would return (selectors included).
+- `omp grep <pattern> [path]` runs the same native search engine and prints match counts and `file:line:` hits in its own diagnostic layout (not the model-facing `[PATH#TAG]` layout) — handy for checking what a pattern would match.
 
 **Try it (Walkthrough):**
 1. Outside omp: `omp read api` then `omp read api/__init__.py`.
@@ -137,9 +168,13 @@ The card shows a warning line naming the reason and `artifact://<id>`, and the m
 7. Prompt: `Create notes/m2-scratch.txt containing the word hello.`
    Expected: `✎ Write: notes/m2-scratch.txt · 1 lines`; `git status` shows nothing (`notes/` is gitignored).
 
-**Guided task:** Goal — fix lab issue #2 (`GET /orders` first page is missing orders; the fix spans `api/server.py` and `api/db.py` — see `docs/ISSUES.md`) and account for every tool call. Hints — read `docs/ISSUES.md` first; the gated test `LAB_ISSUE=2 python3 -m unittest tests.test_issues` fails on `main` and passes once both halves are fixed; ask for the smallest fix plus that test run; watch the Todo HUD if the model creates a plan; expand the `bash` test card before believing "tests pass".
-Checkpoints — (a) a `read` of `docs/ISSUES.md`; (b) at least one `grep` (or `read`) that reaches the second file; (c) two `✎ Edit` cards; (d) a `$ LAB_ISSUE=2 python3 -m unittest tests.test_issues` card whose footer has no `Exit:`. Pass condition — `api/server.py` and `api/db.py` both appear in `git diff --stat`; `notes/m2.md` lists the tool sequence (tool name + one-line argument summary, in order); any truncated output was recovered via `read artifact://N` and the id is written in the notes.
-**Stretch:** Goal — force a grep page boundary. Prompt for a pattern that matches in more than 20 files (the lab tracks 36 text files, so `.` — any non-empty line — over the whole repo does it) and ask omp to continue to the next page. Pass condition — the first inline card ends with `Use skip=<N> for the next page` and the second `🔍 Grep:` card's expanded args show `skip: <N>`.
+**Guided task:**
+- Goal — fix lab issue #2 (`GET /orders` first page is missing orders; the fix spans `api/server.py` and `api/db.py` — see `docs/ISSUES.md`) and account for every tool call.
+- Hints — read `docs/ISSUES.md` first; the gated test `LAB_ISSUE=2 python3 -m unittest tests.test_issues` fails on `main` and passes once both halves are fixed; ask for the smallest fix plus that test run; watch the Todo HUD if the model creates a plan; expand the `bash` test card before believing "tests pass".
+- Checkpoints — (a) a `read` of `docs/ISSUES.md`; (b) at least one `grep` (or `read`) that reaches the second file; (c) two `✎ Edit` cards; (d) a `$ LAB_ISSUE=2 python3 -m unittest tests.test_issues` card whose footer has no `Exit:`.
+- Pass condition — `api/server.py` and `api/db.py` both appear in `git diff --stat`; `notes/m2.md` lists the tool sequence (tool name + one-line argument summary, in order); any truncated output was recovered via `read artifact://N` and the id is written in the notes.
+**Stretch:** Goal — force a grep page boundary: prompt for a pattern that matches in more than 20 files and ask omp to continue to the next page.
+Pass condition — the first inline card ends with `Use skip=<N> for the next page` and the second `🔍 Grep:` card's expanded args show `skip: <N>`.
 **Troubleshooting:**
 
 | Symptom | Cause | Fix |
@@ -171,18 +206,33 @@ Checkpoints — (a) a `read` of `docs/ISSUES.md`; (b) at least one `grep` (or `r
 
 ## Lesson 2.3 — Why edits are reliable: hashline              (~10 min)
 **You will be able to:** read a `[path#TAG]` header; explain why an edit was rejected as stale; recognise the "re-read, then edit" pattern in a transcript.
-**Why this exists:** The classic agent failure is editing a file it last saw ten minutes ago: the search string no longer matches, or worse, it matches in the wrong place. omp's default `edit` mode, **hashline**, makes every edit carry proof of what the model saw. Each `read`, `grep`, successful `edit`, and `write` returns a four-hex **snapshot tag** computed from the whole normalized file. An `edit` must quote that tag and refer to line numbers from that snapshot.
-
-If the file changed underneath (you saved in your editor, a formatter ran, another tool wrote it), the tag no longer matches and the edit is refused — and the model re-reads instead of guessing. You never have to think about it, but you will *see* it in the transcript, and you should know that a refused edit is the system working.
+**Why this exists:** The classic agent failure is editing a file it last saw ten minutes ago: the search string no longer matches, or worse, it matches in the wrong place.
+omp's default `edit` mode, **hashline**, makes every edit carry proof of what the model saw. Each `read`, `grep`, successful `edit`, and `write` returns a four-hex **snapshot tag** computed from the whole normalized file. An `edit` must quote that tag and refer to line numbers from that snapshot.
 **Demo:** [`demos/2.3-hashline.md`](demos/2.3-hashline.md) — the model-facing text of a read, the edit payload, the success receipt, then a stale-tag rejection after the learner edits the file by hand, and the automatic recovery.
 **Concepts:**
-- **Header**: `[api/db.py#1F2A]` then `48:def get_user(user_id: int) -> dict | None:`. The tag is four uppercase hex characters derived from the file's normalized content and recorded in the session **snapshot store** (256 paths × 4 versions, files ≤ 4 MiB). `grep` mints the same tags (`[PATH#TAG]` + `*48:` match rows), so the model can edit straight from a search hit.
-- **Patch language** (you read it; the model writes it): one `[PATH#TAG]` section per file, then ops — `PUT 4.=4:` replace line 4 (`+TEXT` body rows are the final content), `PUT 10.=14:` replace a range, `PUT <1:` / `PUT >N:` insert before/after, `PUT >$:` append, `PUT N*:` replace the syntactic block starting at N (tree-sitter), `CUT N.=M` delete, `REM` delete file, `MV dest` rename. All numbers refer to the **original** snapshot, never to earlier hunks in the same call.
-- **What gets rejected**: unknown/absent tag; lines the model has not been shown (`re-read elided or undisplayed ranges before editing them`); a stale tag when the snapshot chain can't prove a unique safe result; overlapping ops; a byte-identical no-op (three repeats trip the loop guard). A stale tag *can* be recovered silently when the store proves the edit still lands uniquely — you'll see a `Warnings:` block on the receipt.
+- **Header**: `[api/db.py#1F2A]` then `48:def get_user(user_id: int) -> dict | None:`. The tag is four uppercase hex characters derived from the file's normalized content and recorded in the session **snapshot store** (256 paths × 4 versions, files ≤ 4 MiB).
+  - `grep` mints the same tags (`[PATH#TAG]` + `*48:` match rows), so the model can edit straight from a search hit.
+- **Stale tag ⇒ refused edit**: if the file changed underneath (you saved in your editor, a formatter ran, another tool wrote it), the tag no longer matches and the edit is refused — and the model re-reads instead of guessing. You never have to think about it, but you will *see* it in the transcript, and you should know that a refused edit is the system working.
+- **Patch language** (you read it; the model writes it): one `[PATH#TAG]` section per file, then ops. All numbers refer to the **original** snapshot, never to earlier hunks in the same call.
+
+  | Op | Effect |
+  |---|---|
+  | `PUT 4.=4:` | replace line 4 (`+TEXT` body rows are the final content) |
+  | `PUT 10.=14:` | replace a range |
+  | `PUT <1:` / `PUT >N:` | insert before/after |
+  | `PUT >$:` | append |
+  | `PUT N*:` | replace the syntactic block starting at N (tree-sitter) |
+  | `CUT N.=M` | delete |
+  | `REM` | delete file |
+  | `MV dest` | rename |
+
+- **What gets rejected**: unknown/absent tag; lines the model has not been shown (`re-read elided or undisplayed ranges before editing them`); a stale tag when the snapshot chain can't prove a unique safe result; overlapping ops; a byte-identical no-op (three repeats trip the loop guard).
+  - A stale tag *can* be recovered silently when the store proves the edit still lands uniquely — you'll see a `Warnings:` block on the receipt.
 - **Transcript signature of a stale edit**: `✘ Edit: <file>` (red) → `• Read <file>:<range>` → `✎ Edit: <file> ⟦+1/-1⟧`. That middle read is the point.
 - **No tag, no edit**: `:raw` reads, `artifact://`, `skill://`, `agent://` and other immutable resources deliberately omit the header. If you want the model to edit a file, don't have it read it `:raw`.
 - **Receipts**: a successful edit returns a fresh `[path#TAG]`, a short post-edit preview, and (in the card) a unified diff with `⟦+added/-removed⟧`. `write` also returns a fresh header so the next edit needs no re-read.
-- **Mention only**: `edit.mode` selects the wire contract — `hashline` (default), `apply_patch`, `patch`, `replace`; `PI_EDIT_VARIANT` overrides per process. Leave it alone. `edit.blockAutoGenerated` (default `true`) refuses files that look generated (the guard reads the file header for generated-file markers) — the lab's `generated/` files carry `# GENERATED — do not edit`, which Module 6 uses.
+- **Mention only**: `edit.mode` selects the wire contract — `hashline` (default), `apply_patch`, `patch`, `replace`; `PI_EDIT_VARIANT` overrides per process. Leave it alone.
+  - `edit.blockAutoGenerated` (default `true`) refuses files that look generated (the guard reads the file header for generated-file markers) — the lab's `generated/` files carry `# GENERATED — do not edit`, which Module 6 uses.
 
 **Try it (Walkthrough):**
 1. Outside omp: `omp read cli/log.py` and note the `[cli/log.py#TAG]` header.
@@ -196,7 +246,11 @@ If the file changed underneath (you saved in your editor, a formatter ran, anoth
 5. Prompt: `Read cli/log.py:raw and then change line 1.`
    Expected: the model re-reads without `:raw` before editing (a `:raw` read has no tag) — or explains it needs to.
 
-**Guided task:** Goal — produce and explain one stale-tag event on purpose. Hints — the snapshot store is per session; `git checkout -- <file>` between two edits is the fastest way to change a file behind omp's back. Checkpoints — (a) you identified the tag in a `read` header; (b) you changed the file externally; (c) the next edit either re-read or warned. Pass condition — `notes/m2.md` contains the two tags (before/after) and one sentence on what the transcript showed between the refusal and the successful edit.
+**Guided task:**
+- Goal — produce and explain one stale-tag event on purpose.
+- Hints — the snapshot store is per session; `git checkout -- <file>` between two edits is the fastest way to change a file behind omp's back.
+- Checkpoints — (a) you identified the tag in a `read` header; (b) you changed the file externally; (c) the next edit either re-read or warned.
+- Pass condition — `notes/m2.md` contains the two tags (before/after) and one sentence on what the transcript showed between the refusal and the successful edit.
 **Stretch:** Goal — observe a block edit. Ask omp to replace an entire function in `api/` "as one block". Pass condition — the expanded edit receipt shows a block-resolution line (the op was `PUT N*:`), and `git diff` shows only that function changed.
 **Troubleshooting:**
 
@@ -225,17 +279,34 @@ If the file changed underneath (you saved in your editor, a formatter ran, anoth
 
 ## Lesson 2.4 — `bash` behaviors you'll notice              (~20 min)
 **You will be able to:** run your own shell commands from the composer with `!`; explain why a long command "backgrounded itself"; start, inspect, and stop a named service through `proc://`; predict when a command gets a PTY; know what the bash interceptor does and that it is off by default.
-**Why this exists:** `bash` is the tool that touches the world, so its quirks are the ones you'll trip over first: output caps, a persistent shell (so `cd` and `export` stick), an automatic background hand-off after 60 s, and a supervised **service** mode for dev servers. omp also exposes the same shell to *you* without a model turn (`!cmd`), which is the fastest way to check what it just did.
+**Why this exists:** `bash` is the tool that touches the world, so its quirks are the ones you'll trip over first: output caps, a persistent shell (so `cd` and `export` stick), an automatic background hand-off after 60 s, and a supervised **service** mode for dev servers.
+omp also exposes the same shell to *you* without a model turn (`!cmd`), which is the fastest way to check what it just did.
 **Demo:** [`demos/2.4-bash-services.md`](demos/2.4-bash-services.md) — `!git status` from the composer; a test run that auto-backgrounds and delivers later; the lab API started as service `api` with a port-readiness check; `read proc://`, `read proc://api`, `write proc://api/kill`.
 **Concepts:**
-- **Two surfaces, one executor.** The model's `bash` tool and your `!cmd` both run through `executeBash()`. Only the tool path gets interception, approval, auto-background, and the boxed card renderer; your `!` commands render in a dedicated block that keeps the last 20 lines collapsed. `bash.enabled: false` removes the *model's* tool but not your `!`.
-- **Persistent shell session.** Non-PTY tool calls reuse a native `Shell` keyed by session, so state persists across calls; the environment is hardened non-interactive (`PAGER=cat`, `GIT_EDITOR=true`, `TERM=dumb`, `NO_COLOR=1`, `CI=true`…). Concurrent calls never share one shell — extras run one-shot. A leading `cd <dir> && …` is rewritten into the structured `cwd` argument.
+- **Two surfaces, one executor.** The model's `bash` tool and your `!cmd` both run through `executeBash()`. Only the tool path gets interception, approval, auto-background, and the boxed card renderer; your `!` commands render in a dedicated block that keeps the last 20 lines collapsed.
+  - `bash.enabled: false` removes the *model's* tool but not your `!`.
+- **Persistent shell session.** Non-PTY tool calls reuse a native `Shell` keyed by session, so state persists across calls; the environment is hardened non-interactive (`PAGER=cat`, `GIT_EDITOR=true`, `TERM=dumb`, `NO_COLOR=1`, `CI=true`…).
+  - Concurrent calls never share one shell — extras run one-shot. A leading `cd <dir> && …` is rewritten into the structured `cwd` argument.
 - **In-process coreutils.** The native shell bundles a uutils-style command set (`jq` is the vendored `jaq`; `PI_DISABLE_UUTILS_BUILTINS` falls back to system binaries) and resolves `scheme://` paths — `cat artifact://7 | wc -l` works, `realpath local://x` prints the backing file. External programs never see virtual paths.
 - **Timeouts.** Default 300 s; `timeout: 0` disables; positive values clamp to 1–3600 and to `tools.maxTimeout` if set. A timeout returns a failed card with `details.timedOut`.
-- **Auto-background** (`bash.autoBackground.enabled: true`, `thresholdMs: 60000`): a foreground command that outlives the window becomes a managed job. The card ends `Backgrounded as job <id>; result will be delivered automatically.` and the result arrives later as its own update. Explicit `async: true` does the same immediately (`async.enabled: true`, `async.maxJobs: 100`). `read proc://` lists jobs; `read proc://<id>` inspects without consuming delivery; `write proc://<id>/kill` cancels; the `wait` tool blocks until the next result (the model should keep working instead).
-- **Named services** (`launch.enabled: true`): `bash` with `name` (≤ 48 chars, unique per project) and optional `ready: {port, log, host, timeout}` and `env`. Incompatible with `async`/`timeout`. Readiness waits on every condition (default 30 s). Reusing a live name restarts it. `read proc://<name>` → status + log tail; `grep <re> proc://<name>` searches logs; `write proc://<name>` sends stdin (Enter appended); `write proc://<name>/kill` stops; `write proc://<name>/mode` with `persist`/`session`/`detached`. Services live in a project-scoped launch broker, outside the session; from any terminal `omp ps` lists them and `omp ps logs <name> --follow`, `omp ps stop <name>`, `omp ps kill <name>`, `omp ps restart <name>` control them.
-- **PTY** (`pty: true`): only in the interactive TUI with `PI_NO_PTY` unset (`--no-pty` sets it). Opens a `Console` overlay, forwards your keystrokes, real `TERM=xterm-256color`, inherits your environment (no hardening). `Esc` in the overlay kills the process. Asked for where unavailable, the call runs without a terminal and appends `pty requested but unavailable in this environment; ran without a terminal`.
-- **Interceptor** (`bashInterceptor.enabled`, **default `false`** — enable it): regex rules that return `Blocked: <message>` instead of running, steering the model to a dedicated tool. Default rule set routes `cat|head|tail|less|more` → `read`, `grep|rg|ripgrep|ag|ack` → `grep`, `find|fd|locate` with name/type flags → `glob`, `sed -i`/`perl -i`/`awk -i inplace` → `edit`, `echo|printf|cat <<` with redirection → `write`. A rule fires only if its target tool is available; piped stdin stages (`… | grep x`) are never intercepted. It is routing, not security — `bash.patterns` (Module 4) is the allow/prompt/deny policy.
+- **Auto-background** (`bash.autoBackground.enabled: true`, `thresholdMs: 60000`): a foreground command that outlives the window becomes a managed job. The card ends `Backgrounded as job <id>; result will be delivered automatically.` and the result arrives later as its own update.
+  - Explicit `async: true` does the same immediately (`async.enabled: true`, `async.maxJobs: 100`).
+  - `read proc://` lists jobs; `read proc://<id>` inspects without consuming delivery; `write proc://<id>/kill` cancels; the `wait` tool blocks until the next result (the model should keep working instead).
+- **Named services — define one** (`launch.enabled: true`): `bash` with `name` (≤ 48 chars, unique per project) and optional `ready: {port, log, host, timeout}` and `env`. Incompatible with `async`/`timeout`. Readiness waits on every condition (default 30 s). Reusing a live name restarts it.
+- **Named services — interact via `proc://`**: `read proc://<name>` → status + log tail; `grep <re> proc://<name>` searches logs; `write proc://<name>` sends stdin (Enter appended); `write proc://<name>/kill` stops; `write proc://<name>/mode` with `persist`/`session`/`detached`.
+- **Named services — the CLI mirror**: services live in a project-scoped launch broker, outside the session; from any terminal `omp ps` lists them and `omp ps logs <name> --follow`, `omp ps stop <name>`, `omp ps kill <name>`, `omp ps restart <name>` control them.
+- **PTY** (`pty: true`): only in the interactive TUI with `PI_NO_PTY` unset (`--no-pty` sets it). Opens a `Console` overlay, forwards your keystrokes, real `TERM=xterm-256color`, inherits your environment (no hardening). `Esc` in the overlay kills the process.
+  - Asked for where unavailable, the call runs without a terminal and appends `pty requested but unavailable in this environment; ran without a terminal`.
+- **Interceptor** (`bashInterceptor.enabled`, **default `false`** — enable it): regex rules that return `Blocked: <message>` instead of running, steering the model to a dedicated tool. A rule fires only if its target tool is available; piped stdin stages (`… | grep x`) are never intercepted. It is routing, not security — `bash.patterns` (Module 4) is the allow/prompt/deny policy.
+
+  | Default rule (command) | Routed to |
+  |---|---|
+  | `cat` \| `head` \| `tail` \| `less` \| `more` | `read` |
+  | `grep` \| `rg` \| `ripgrep` \| `ag` \| `ack` | `grep` |
+  | `find` \| `fd` \| `locate` with name/type flags | `glob` |
+  | `sed -i` / `perl -i` / `awk -i inplace` | `edit` |
+  | `echo` \| `printf` \| `cat <<` with redirection | `write` |
+
 - **Cache note:** a `gh issue`/`gh pr` mutating command invalidates the `issue://`/`pr://` cache so later reads are fresh (Module 8).
 
 **Try it (Walkthrough):**
@@ -258,8 +329,13 @@ If the file changed underneath (you saved in your editor, a formatter ran, anoth
 9. `omp config set bashInterceptor.enabled true`, restart omp, prompt: `Use cat to show api/__init__.py.`
    Expected: a failed `$ cat api/__init__.py` card with `Blocked: Use the \`read\` tool instead of cat/head/tail…`, then a `• Read api/__init__.py` card. Set it back to `false` (or leave it on — many people do).
 
-**Guided task:** Goal — the outline's service exercise, end to end. Start the lab API as service `api` ready on port 8080, prove readiness, read its logs, hit it once, kill it. Hints — the `ready.port` check is what makes the card say `Ready: yes`; `read proc://api` is a read, not a bash call; killing is a `write` to `proc://api/kill`. Checkpoints — service card with `State: ready`; `ⓘ Proc api …` card; `⏹ Proc kill api`. Pass condition — the transcript contains a service card showing readiness, and `read proc://` after the kill no longer lists `api` (`0 services`); `omp ps` in another terminal agrees.
-**Stretch:** Goal — see a PTY. Prompt: `Open python3 interactively with a PTY and wait for me.` Type `1+1`, Enter, then `Esc`. Pass condition — a `Console` overlay appeared, echoed `2`, and the card shows the session ended on `Esc` (exit code recorded as a kill). If you are on `--no-pty`, the card instead contains `pty requested but unavailable` — record that instead.
+**Guided task:**
+- Goal — the outline's service exercise, end to end. Start the lab API as service `api` ready on port 8080, prove readiness, read its logs, hit it once, kill it.
+- Hints — the `ready.port` check is what makes the card say `Ready: yes`; `read proc://api` is a read, not a bash call; killing is a `write` to `proc://api/kill`.
+- Checkpoints — service card with `State: ready`; `ⓘ Proc api …` card; `⏹ Proc kill api`.
+- Pass condition — the transcript contains a service card showing readiness, and `read proc://` after the kill no longer lists `api` (`0 services`); `omp ps` in another terminal agrees.
+**Stretch:** Goal — see a PTY: have omp open an interactive `python3` with a PTY, evaluate one expression in the `Console` overlay, then end it with `Esc`.
+Pass condition — a `Console` overlay appeared, echoed the result, and the card shows the session ended on `Esc` (exit code recorded as a kill). If you are on `--no-pty`, the card instead contains `pty requested but unavailable` — record that instead.
 **Troubleshooting:**
 
 | Symptom | Cause | Fix |
@@ -293,14 +369,18 @@ If the file changed underneath (you saved in your editor, a formatter ran, anoth
 
 ## Lesson 2.5 — `ask` and `todo`              (~10 min)
 **You will be able to:** answer an `ask` picker (single, multi, "Other", multi-question navigation); set `ask.timeout`/`ask.notify`; read the todo HUD and use `/todo expand|collapse`.
-**Why this exists:** Two tools exist purely to keep *you* in the loop. `ask` turns "the model guessed" into "the model asked", with a keyboard picker instead of a free-text negotiation. `todo` makes a multi-step plan visible while it runs, so you can see the model drift before it finishes. Both are on by default and cost nothing to use; the only setting most people touch is `ask.timeout`, and only when running unattended.
+**Why this exists:** Two tools exist purely to keep *you* in the loop. `ask` turns "the model guessed" into "the model asked", with a keyboard picker instead of a free-text negotiation. `todo` makes a multi-step plan visible while it runs, so you can see the model drift before it finishes.
+Both are on by default and cost nothing to use; the only setting most people touch is `ask.timeout`, and only when running unattended.
 **Demo:** [`demos/2.5-ask-todo.md`](demos/2.5-ask-todo.md) — a two-question `ask` (radio + checkbox), the answered card, then a `todo` init/start/done sequence with the HUD.
 **Concepts:**
-- **`ask`** is registered only when the session has a UI (never in `-p`/RPC). One call, one or more questions. Each option has a `label` and optional `description` (shown as `↳ …`). Single-select renders `○`/`◉`; `multi: true` renders `☐`/`☑`. The runtime appends its own controls — `Other (type your own)` opens a text editor; multi-select gets `Done selecting`; in a multi-question form ←/→ move between questions and prior answers are kept; the rich dialog also offers `Chat about this` (returns control to the composer without answering). `recommended` marks a default `(Recommended)`.
-- **Timeout & notify.** `ask.timeout` (seconds, default `0` = wait forever) auto-selects the recommended (else first) option and marks the result `(auto-selected after timeout)`; it is always disabled in plan mode. `ask.notify` (`on` by default) sends a terminal notification `Waiting for input` — set `off` if your terminal bells annoy you. If `speech.enabled` is on, the question is also spoken.
+- **`ask`** is registered only when the session has a UI (never in `-p`/RPC). One call, one or more questions. Each option has a `label` and optional `description` (shown as `↳ …`). Single-select renders `○`/`◉`; `multi: true` renders `☐`/`☑`. `recommended` marks a default `(Recommended)`.
+  - The runtime appends its own controls — `Other (type your own)` opens a text editor; multi-select gets `Done selecting`; in a multi-question form ←/→ move between questions and prior answers are kept; the rich dialog also offers `Chat about this` (returns control to the composer without answering).
+- **Timeout & notify.** `ask.timeout` (seconds, default `0` = wait forever) auto-selects the recommended (else first) option and marks the result `(auto-selected after timeout)`; it is always disabled in plan mode.
+  - `ask.notify` (`on` by default) sends a terminal notification `Waiting for input` — set `off` if your terminal bells annoy you. If `speech.enabled` is on, the question is also spoken.
 - **Cancel** (`Esc` in the picker) aborts the tool *and the turn*: the transcript shows the call as cancelled and the model stops.
 - **`todo`**: phases → tasks; statuses `pending` `in_progress` `completed` `abandoned` `blocked`. Exactly one task is `in_progress` (normalization auto-promotes the first pending one). The card is a tree (`☑ Todo N tasks`, `☐`/`☑` rows, `I. Phase  0/2`), and the same state is mirrored in the sticky HUD above the composer.
-- **`/todo`**: `/todo expand` shows every phase/task in the HUD, `/todo collapse` restores the preview (both display-only). Manual edits through `/todo` are persisted as `user_todo_edit` entries and the model is told via a `<system-reminder>`. On `/resume`, completed/abandoned tasks are dropped from the live list. Subagents don't get `todo`; the parent owns the list. `todo.enabled: true`; `tasks.todoClearDelay` 60 s fades closed items in the HUD.
+- **`/todo`**: `/todo expand` shows every phase/task in the HUD, `/todo collapse` restores the preview (both display-only). Manual edits through `/todo` are persisted as `user_todo_edit` entries and the model is told via a `<system-reminder>`.
+  - On `/resume`, completed/abandoned tasks are dropped from the live list. Subagents don't get `todo`; the parent owns the list. `todo.enabled: true`; `tasks.todoClearDelay` 60 s fades closed items in the HUD.
 
 **Try it (Walkthrough):**
 1. Prompt: `Before touching anything, ask me which of these you should do for issue #2: fix only the bug, fix and run the gated LAB_ISSUE=2 test, or fix and refactor the module. Use the ask tool with a recommended option.`
@@ -316,7 +396,11 @@ If the file changed underneath (you saved in your editor, a formatter ran, anoth
 6. Let the turn finish.
    Expected: tasks flip to `☑` in the HUD as the model calls `todo done`; closed items fade after ~60 s.
 
-**Guided task:** Goal — make `ask` unattended-safe. Hints — `omp config set ask.timeout 20` and `ask.notify off`; ask a question with `recommended`; walk away. Checkpoints — the picker appears without a bell; after 20 s it resolves by itself. Pass condition — the answered card's text ends with `(auto-selected after timeout)` and `omp config get ask.timeout` prints `20`. Reset both settings afterwards.
+**Guided task:**
+- Goal — make `ask` unattended-safe.
+- Hints — `omp config set ask.timeout 20` and `ask.notify off`; ask a question with `recommended`; walk away.
+- Checkpoints — the picker appears without a bell; after 20 s it resolves by itself.
+- Pass condition — the answered card's text ends with `(auto-selected after timeout)` and `omp config get ask.timeout` prints `20`. Reset both settings afterwards.
 **Stretch:** Goal — cancel an `ask` with `Esc` and observe that the turn stops, then resume with a normal prompt. Pass condition — the `Ask` card is marked cancelled/aborted and no further tool cards appear until your next prompt.
 **Troubleshooting:**
 
@@ -363,7 +447,9 @@ If the file changed underneath (you saved in your editor, a formatter ran, anoth
 | `Alt+Shift+L` / `Alt+Shift+C` | Copy current line / whole prompt | Clipboard helpers. |
 | `Shift+Tab` (`app.thinking.cycle`) | Cycle thinking level | Module 3. |
 
-- **Vim mode** — `tui.vimMode` is **off by default**; enable with `omp config set tui.vimMode true` or `/settings` → Interaction → Input → *Vim Editing Mode*. Starts in Insert; `Esc` → Normal (border colour changes; `tui.vimModeDisplay: text|icon|none` shows the mode). Motions `h j k l w b e 0 ^ $ gg G`, counts, operators `d y c` with motions and text objects (`iw aw i" a( ip …`), `x D C dd yy cc p P u`, Visual `v`/`V`. `Ctrl` chords, `Enter`, and `Tab` keep their app meaning in every mode, so `Enter` still submits from Normal. `Esc` only reaches the app interrupt when Vim has nothing pending — in Insert it just switches modes, so stopping a turn from Insert is `Esc` `Esc`.
+- **Vim mode** — `tui.vimMode` is **off by default**; enable with `omp config set tui.vimMode true` or `/settings` → Interaction → Input → *Vim Editing Mode*. Starts in Insert; `Esc` → Normal (border colour changes; `tui.vimModeDisplay: text|icon|none` shows the mode).
+  - Motions `h j k l w b e 0 ^ $ gg G`, counts, operators `d y c` with motions and text objects (`iw aw i" a( ip …`), `x D C dd yy cc p P u`, Visual `v`/`V`.
+  - `Ctrl` chords, `Enter`, and `Tab` keep their app meaning in every mode, so `Enter` still submits from Normal. `Esc` only reaches the app interrupt when Vim has nothing pending — in Insert it just switches modes, so stopping a turn from Insert is `Esc` `Esc`.
 
 **Try it (Walkthrough):**
 1. Type `@` and a few letters of `ISSUES`.
@@ -381,7 +467,11 @@ If the file changed underneath (you saved in your editor, a formatter ran, anoth
 7. `omp config set tui.vimMode true`, restart, type `fix the users endpoint`, press `Esc`, move to `users` with `b`/`w`, type `ciw` `orders` `Esc`, then `Enter`.
    Expected: border colour changed on `Esc`; the word was replaced; `Enter` submitted from Normal mode.
 
-**Guided task:** Goal — drive one whole turn without touching the mouse or restarting. Hints — combine `@`, `Ctrl+Q`, `Alt+Up`, `Ctrl+R`. Checkpoints — a follow-up delivered after the turn; a dequeued message edited and re-sent; a previous prompt recalled with `Ctrl+R`. Pass condition — the transcript shows two consecutive user messages where the second was queued (sent with no idle gap), and `notes/m2.md` names the three chords you used.
+**Guided task:**
+- Goal — drive one whole turn without touching the mouse or restarting.
+- Hints — combine `@`, `Ctrl+Q`, `Alt+Up`, `Ctrl+R`.
+- Checkpoints — a follow-up delivered after the turn; a dequeued message edited and re-sent; a previous prompt recalled with `Ctrl+R`.
+- Pass condition — the transcript shows two consecutive user messages where the second was queued (sent with no idle gap), and `notes/m2.md` names the three chords you used.
 **Stretch:** Goal — Vim mode. With `tui.vimMode: true`, compose a three-line prompt, use `V` + `d` to delete a line and `u` to undo it, then `ciw` on one word. Pass condition — `omp config get tui.vimMode` prints `true` and the submitted prompt contains the `ciw` replacement.
 **Troubleshooting:**
 

@@ -17,6 +17,7 @@ Built against `omp/18.3.1` (Linux x64, Python-only build machine, anthropic prov
 - **`ci/review.sh` gate** — the M13 solution script (as of this build) exits 1 on `verdict: fail` as well as on P0. On the v2 diff the reviewer lists the seeded issues and votes `fail` (real run). The module therefore adds one scope sentence to the prompt and shows both runs; this is a genuine teaching point, not a workaround, and is flagged in the rubric (a learner who deletes the verdict check gets E9 = 1).
 - **Managed skills path** — `~/.omp/agent/managed-skills/<name>/SKILL.md` per `omp://tools/learn.md`; `memory://root/learned.md` only under `memory.backend: local` (per the established corrections list).
 - **Stretch items** (`/collab`, `WATCHDOG.md`, prewalk cost delta) are graded as bonus only; none was executed here (no second participant, no advisor model configured, prewalk needs an interactive session).
+- **Lesson header duration** — Lesson 15.1 is the whole module (one lesson, five phases), so its header reads `(~180 min total; phases 15–60 min each)` instead of the template's `(~X min)`; the per-phase budgets are in `exercises.md`.
 
 ## Not executed on the build machine (described from docs / owning modules)
 

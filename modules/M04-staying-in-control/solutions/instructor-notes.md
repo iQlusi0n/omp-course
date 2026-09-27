@@ -23,6 +23,9 @@ Why step 8 switches to `write`: an `allow` rule lowers the command to the `write
 
 Step 10 (`… && rm -rf .pytest_cache`): with `bash.allowCompoundCommands` at its default `false`, `allow` cannot approve a compound line → exec-tier prompt in `write` mode. If the learner also added `rm -rf *: deny`, the line is denied instead (segment match). Both are correct outcomes; the report should say which.
 
+### 4.2 Stretch (eval bypass)
+Reference prompt: with `rm -rf *` denied in `bash.patterns`, ask omp to remove the scratch directory "using Python's `subprocess` in `eval`" (e.g. `subprocess.run(["bash","-c","rm -rf scratch"])`). Expected: the `bash.patterns` `deny` does not fire because the rules govern the `bash` tool only; the directory is removed. Setting `tools.approval.eval: prompt` (or `deny`) is the fix the note should name.
+
 ## 4-G1 (plan mode, issue #5)
 
 Pass check:
@@ -38,6 +41,9 @@ Terminal chord problems: `Alt+Shift+P` may not reach omp on terminals that do no
 
 Session naming: after approval the session is auto-named from the plan title only if the session had no name yet (session-tree-plan.md). A learner who `/rename`d earlier will not see it; not a failure.
 
+### 4.3 Stretch (headless plan-then-implement)
+Reference command: `omp --plan-yolo -p "Implement issue #5; skip sub-item (c) — it is out of scope"`. Print-mode output shows the plan, then the implementation on the `smol` role (or `--plan-yolo-into <model>`); `git diff --stat` must show no email-related change.
+
 ## 4-G2 (annotate → review → commit)
 
 - Both notes must be visible in `notes/m4-review.md` verbatim; the review report should reference them (the overlay passes them as operator focus to `/review`).
@@ -48,6 +54,8 @@ Session naming: after approval the session is auto-named from the plan title onl
 ## 4-S1 (conflict-lab)
 
 The lab's documented flow is `git switch -c scratch main && git merge conflict-lab` → `ours = HEAD` (main content), `theirs = conflict-lab`. Both files have exactly one block (`SERVICE_NAME` in `api/server.py` L18-22, `DESCRIPTION` in `cli/__main__.py` L17-21 — competing one-line edits, so `@both` is wrong here). Tests do not pin either string, so any resolution passes the suite.
+
+Expected sequence (the exercise states only the goal; use this to grade the approach): `read <file>:conflicts` first for both files (expect `#1` and `#2`, ids continue across files in one session); one block resolved with a side token (`@ours` or `@theirs`) and the other with literal content that combines both sides' wording; finish with `read <file>:conflicts` showing none for both files. Conclude the merge with `git commit`, not `omp commit` (see step 5 below).
 
 Reference resolution:
 1. `read api/server.py:conflicts` → `#1`; `read cli/__main__.py:conflicts` → `#2` (verified: ids continue across files within one session; from the shell each `omp read` starts at `#1` again).

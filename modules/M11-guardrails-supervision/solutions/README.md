@@ -18,6 +18,22 @@ captured output). Verified outcomes:
 - `no-bare-print`: triggers on `print("hi")` under `--path cli/__main__.py`; does not trigger on `sys.stdout.write(...)` nor on `--source text`; `omp ttsr scan -v -r solutions/no-bare-print.md cli/` lists `cli/commands.py` only.
 - `no-unverified-tests`: `omp ttsr test` never triggers (judge not called); `-v` prints `question (judged at runtime, not tested)`; `omp ttsr scan` skips it (alone with `-r` it prints `Rule registered but produced no TTSR entry.`).
 
+## Guided-task reference prompts (moved out of exercises.md)
+
+The exercises describe what each prompt must contain; these are the exact wordings used when the module was dry-run.
+
+| Exercise | Reference wording |
+|---|---|
+| 11-G1 (trap prompt) | `Fix issue #8 as described in docs/ISSUES.md. Keep the change minimal.` — "keep the change minimal" is the phrasing that tempts `except Exception:` → 400. |
+| 11-G3 (plan-gated feature) | `Add a --json flag to the CLI orders subcommand (python3 -m cli orders --month 2026-03 --json) that prints the rows as a JSON array instead of the table. Plan first, then implement, then run the tests.` |
+| 11-G4 (provocation) | `quickly add a debug print to cli/__main__.py` |
+| 11-G4 (`/omfg` complaint) | `/omfg stop adding bare print() calls to the CLI` |
+
+## Lesson stretch notes (README)
+
+- **11.1 Stretch** is 11-S2 plus a first step: generate the initial rule with `/omfg` from the "tests pass" complaint, then convert it to a `question:` rule with a `condition:` prefilter (see 11-S2 below).
+- **11.2 Stretch** is 11-S3: `advisor: true` in the agent frontmatter, or `/agents` → Enter → advisor strip; spawn on a small `api/` change; find the log in Agent Hub.
+
 ## Stretch answers
 
 **11-S1 (notes-backed windows).** `compaction.experimentalContextManagement: true`, restart if

@@ -23,13 +23,26 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 
 **You will be able to:** read a PDF, a SQLite table, a member of a zip file, a notebook, and a GitHub URL through the single `read` tool; write a row into SQLite or a file into an archive; run a one-shot web search from the shell with a pinned provider.
 
-**Why this exists:** `read` takes one `path` string and dispatches on what the string looks like: a local file, a directory, `archive.zip:member`, `db.sqlite:table?where=…`, `https://…`, or an internal URL like `pr://42`. Because the model already knows `read`, teaching *you* the selector grammar is the whole lesson — once you can spell `data/lab.sqlite:orders?limit=5`, so can the prompt you write, and omp stops shelling out to `sqlite3`/`unzip`/`pdftotext` (which it may not even have).
+**Why this exists:** `read` takes one `path` string and dispatches on what the string looks like: a local file, a directory, `archive.zip:member`, `db.sqlite:table?where=…`, `https://…`, or an internal URL like `pr://42`.
+Because the model already knows `read`, teaching *you* the selector grammar is the whole lesson — once you can spell `data/lab.sqlite:orders?limit=5`, so can the prompt you write, and omp stops shelling out to `sqlite3`/`unzip`/`pdftotext` (which it may not even have).
 
 **Demo:** `demos/8.1-read-formats.md` — live `omp read` output for each selector below, captured on 18.3.1.
 
 **Concepts:**
 
-- *Selector grammar (local files).* Suffix on the path: `:50-100` inclusive range, `:50` open-ended (default limit `read.defaultLimit = 300`), `:50+20` count, `:5-16,960-973` multiple ranges, `:raw` verbatim (no summary, no line prefixes), `:conflicts` (index unresolved merge markers as `conflict://N`), `:img` (rasterize a local `.svg`/`.svgz` as an image). Parseable code files of ≥ `read.summarize.minTotalLines = 100` lines read without a selector come back as a *structural summary* (declarations kept, bodies elided) with a footer naming the elided ranges — re-read those ranges, never guess. Prose (`.md`, `.txt`) is never summarized unless `read.summarize.prose = true`.
+- *Selector grammar (local files).* Suffix on the path:
+
+  | Suffix | Meaning |
+  |---|---|
+  | `:50-100` | inclusive range |
+  | `:50` | open-ended (default limit `read.defaultLimit = 300`) |
+  | `:50+20` | count |
+  | `:5-16,960-973` | multiple ranges |
+  | `:raw` | verbatim (no summary, no line prefixes) |
+  | `:conflicts` | index unresolved merge markers as `conflict://N` |
+  | `:img` | rasterize a local `.svg`/`.svgz` as an image |
+
+- *Structural summaries.* Parseable code files of ≥ `read.summarize.minTotalLines = 100` lines read without a selector come back as a *structural summary* (declarations kept, bodies elided) with a footer naming the elided ranges — re-read those ranges, never guess. Prose (`.md`, `.txt`) is never summarized unless `read.summarize.prose = true`.
 - *Directories.* `read api/` renders a tree (depth 2, 12 children per directory).
 - *Documents.* `.pdf .doc .docx .ppt .pptx .xls .xlsx .rtf .epub` are converted to text; line selectors apply to the converted text (`docs/spec.pdf:1-40`). Each PDF page is marked `<!-- Page N -->`; embedded images become `read <pdf>:<id>.png` handles.
 - *Archives.* `fixtures/bundle.zip` lists members (`README.md`, `data/`, `config.json`); `fixtures/bundle.zip:README.md` reads one; `fixtures/bundle.zip:data` lists a folder (`sample.csv`); `:README.md:1-5` slices. Containers: tar family, zip family (`.zip .jar .war .apk .whl .vsix …`), `.7z .rar .iso .deb .rpm .asar`, single-stream `.gz .xz .zst`.
@@ -41,13 +54,18 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
   - `data/lab.sqlite?q=SELECT …` → raw SQL, ≤ 1000 rows, no other params allowed
 - *Notebooks.* `.ipynb` renders as editable `# %% [code] cell:N` text; `:raw` gives the JSON.
 - *Images.* Any image path is sent inline to a vision-capable model; `read shot.png?q=what is selected?` asks the `vision` role a question (`images.questionTimeoutMs = 300000`).
-- *URLs.* `https://…` or `www.…` are fetched and rendered reader-style; known sites get special handlers (the demo shows `Method: github-repo` for a GitHub repo URL). `:raw` returns the raw HTML; `:1-40` pages the cached render without refetching. A host:port URL needs a trailing slash before a selector (`https://example.com/:80`). Output shown to the model is capped at 300 lines / 50 KiB; the full render is spilled to `artifact://`.
+- *URLs.* `https://…` or `www.…` are fetched and rendered reader-style; known sites get special handlers (the demo shows `Method: github-repo` for a GitHub repo URL). `:raw` returns the raw HTML; `:1-40` pages the cached render without refetching.
+  - A host:port URL needs a trailing slash before a selector (`https://example.com/:80`). Output shown to the model is capped at 300 lines / 50 KiB; the full render is spilled to `artifact://`.
 - *Internal URLs* handled by `read`: `agent:// artifact:// attachment:// cfg:// conflict:// history:// issue:// local:// mcp:// memory:// omp:// pr:// proc:// rule:// security:// skill:// ssh:// vault:// xd://`.
   - `pr://42`, `issue://7` (short form resolves the repo from the checkout), `pr://owner/repo/42`, `pr://42/diff`, `pr://42/diff/all`, `?comments=0`; bare `issue://?state=open&limit=10` lists. These are served by the `gh` CLI (must be installed and logged in).
   - `ssh://host/path/file` reads a remote UTF-8 file or directory (≤ 1 MiB, POSIX remote shell); bare `ssh://` lists configured hosts; `omp ssh add <name> --host … --user …` registers one; percent-encode `:` `?` `#` in the path.
   - `xd://` lists the tool devices mounted in this session (Lesson 8.3).
-- *`write` to the same targets.* `write data/lab.sqlite:users` with a JSON5 object inserts a row; `write data/lab.sqlite:users:42` updates; empty content deletes; `write fixtures/bundle.zip:notes/todo.txt` rewrites the archive atomically with the new member (zip family, `.tar`, `.tar.gz`, `.tar.zst`, `.asar` are writable; `.7z`/`.rar` are read-only). Writing `@ours`/`@theirs`/`@base`/`@both` to `conflict://N` resolves a marker block registered by `:conflicts`.
-- *`web_search`* (default on: `web_search.enabled = true`). One `query` plus optional `recency` (`day|week|month|year`), `limit`, `num_search_results`. Google-style operators (`site:`, `-site:`, `after:`, `before:`, `inurl:`, `intitle:`, `filetype:`, quotes, `OR`) are parsed and mapped per provider. Provider choice is the `web` **model role**: `modelRoles.web` is the primary, `retry.fallbackChains.web` the fallbacks; unset, omp walks its built-in chain (`web/parallel` first — always available without credentials — then credentialed engines, then keyless scrapers such as `web/duckduckgo`). Per-provider hard timeout `providers.webSearchTimeoutSeconds = 60`. From the shell: `omp q --model web/duckduckgo -l 3 "query"` (`omp q` = `omp search` = `omp web-search`; the in-session tool has no per-call provider override).
+- *`write` to the same targets.* `write data/lab.sqlite:users` with a JSON5 object inserts a row; `write data/lab.sqlite:users:42` updates; empty content deletes.
+  - `write fixtures/bundle.zip:notes/todo.txt` rewrites the archive atomically with the new member (zip family, `.tar`, `.tar.gz`, `.tar.zst`, `.asar` are writable; `.7z`/`.rar` are read-only).
+  - Writing `@ours`/`@theirs`/`@base`/`@both` to `conflict://N` resolves a marker block registered by `:conflicts`.
+- *`web_search`* (default on: `web_search.enabled = true`). One `query` plus optional `recency` (`day|week|month|year`), `limit`, `num_search_results`. Google-style operators (`site:`, `-site:`, `after:`, `before:`, `inurl:`, `intitle:`, `filetype:`, quotes, `OR`) are parsed and mapped per provider.
+  - Provider choice is the `web` **model role**: `modelRoles.web` is the primary, `retry.fallbackChains.web` the fallbacks. Unset, omp walks its built-in chain: `web/parallel` first (always available without credentials), then credentialed engines, then keyless scrapers such as `web/duckduckgo`. Per-provider hard timeout `providers.webSearchTimeoutSeconds = 60`.
+  - From the shell: `omp q --model web/duckduckgo -l 3 "query"` (`omp q` = `omp search` = `omp web-search`; the in-session tool has no per-call provider override).
 
 **Try it (Walkthrough):**
 
@@ -71,7 +89,7 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 - Checkpoints: (a) `read data/lab.sqlite` shows the tables; (b) one `read` card contains the aggregated table.
 - Pass: the transcript has zero `bash` cards and one `read` card whose path starts with `data/lab.sqlite?q=`.
 
-**Stretch:** Register your own machine as an SSH host (`omp ssh add self --host 127.0.0.1 --user $USER`) and read the lab's `README.md` through `ssh://self/…`. Pass: the `read` card's source is an `ssh://` URL and the content matches `read README.md`. (Needs `sshd` reachable on localhost.)
+**Stretch:** Read the lab's `README.md` through omp's SSH transport, pointing at your own machine. Pass: the `read` card's source is an `ssh://` URL and the content matches `read README.md`. (Needs `sshd` reachable on localhost.)
 
 **Troubleshooting:**
 
@@ -110,15 +128,19 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 
 **You will be able to:** run Python (and JavaScript) in a kernel that keeps state across tool calls; install a package inside it; call omp tools from inside a cell; make a one-shot structured model call with `completion()`; decide when `eval` beats `bash`.
 
-**Why this exists:** `bash` forgets everything between calls and returns text. `eval` runs one cell per tool call in a *retained* runtime (Python subprocess or Bun worker), so a DataFrame loaded in call 1 is still there in call 5, `display()` returns structured JSON/images instead of stdout soup, and cells can call omp's own tools (`await tool.read(...)`). The model-facing prompt literally forbids `python -c` through bash for ad-hoc code — ask for `eval` by name and you get the retained kernel.
+**Why this exists:** `bash` forgets everything between calls and returns text. `eval` runs one cell per tool call in a *retained* runtime (Python subprocess or Bun worker), so a DataFrame loaded in call 1 is still there in call 5, `display()` returns structured JSON/images instead of stdout soup, and cells can call omp's own tools (`await tool.read(...)`).
+The model-facing prompt literally forbids `python -c` through bash for ad-hoc code — ask for `eval` by name and you get the retained kernel.
 
 **Demo:** `demos/8.2-eval-kernel.md` — three consecutive `eval` cards: build `by_month`, reuse it without reloading, then call `tool.read` from inside the kernel (captured live on 18.3.1).
 
 **Concepts:**
 
 - *One call = one cell.* Inputs: `language` (`py` | `js`), `code`, `title`, `timeout` (seconds, default 30, `0` disables, max 3600), `reset` (recreate this language's runtime). State is per language; resetting Python leaves JS untouched.
-- *Defaults:* `eval.py = true`, `eval.js = true`, `eval.tools.enabled = true`, `python.kernelMode = session` (`per-call` spawns a fresh interpreter every call), `python.interpreter = ""` (auto: active venv → `<cwd>/.venv` → `~/.omp/python-env` → `python`/`python3` on PATH). `PI_PY`/`PI_JS` env override the backend switches. ⚠ `eval.autoBackground.enabled = false`: when on, a cell running longer than `eval.autoBackground.thresholdMs = 60000` becomes a background job instead of blocking the turn.
-- *Prelude helpers (both languages):* `display(value)` (JSON-compatible structures, images, markdown), `print`, `read(path, offset?, limit?)`, `write(path, content)`, `env(...)`, `log(message)`, `phase(title)`, `tool.<name>(args)` — a real session tool call; **a coroutine in Python** (`await tool.read({'path': 'data/lab.sqlite'})`), `completion(...)`, `agent(...)`, `wait(...)`, `workpool(...)`, `@tool`. (`agent`/`workpool`/`@tool` are Module 10; `browser`/`computer` preludes are Module 14.)
+- *Defaults:* `eval.py = true`, `eval.js = true`, `eval.tools.enabled = true`, `python.kernelMode = session` (`per-call` spawns a fresh interpreter every call), `python.interpreter = ""` (auto: active venv → `<cwd>/.venv` → `~/.omp/python-env` → `python`/`python3` on PATH). `PI_PY`/`PI_JS` env override the backend switches.
+- ⚠ `eval.autoBackground.enabled = false`: when on, a cell running longer than `eval.autoBackground.thresholdMs = 60000` becomes a background job instead of blocking the turn.
+- *Prelude helpers (both languages):* `display(value)` (JSON-compatible structures, images, markdown), `print`, `read(path, offset?, limit?)`, `write(path, content)`, `env(...)`, `log(message)`, `phase(title)`.
+  - `tool.<name>(args)` — a real session tool call; **a coroutine in Python** (`await tool.read({'path': 'data/lab.sqlite'})`).
+  - `completion(...)`, `agent(...)`, `wait(...)`, `workpool(...)`, `@tool`. (`agent`/`workpool`/`@tool` spawn and coordinate *subagents* — helper omp sessions that run in the background — and are Module 10; `browser`/`computer` preludes are Module 14.)
 - *Magics (Python):* `%pip install <pkg>` (runs `python -m pip` for the kernel's interpreter, pauses the watchdog), `%load ./script.py` (executes a file in the retained namespace; re-run to reload), `%cd`, `%pwd`, `%env`, `%time`, `%who`, `%reset`, `%%bash`, `%%writefile`, `!cmd`. JS: `%bun add <pkg>`, `%environment project|managed`. Percent commands are standalone cells.
 - *Rich output:* pandas/PIL/plotly objects and every open matplotlib figure are emitted as images after the cell (`MPLBACKEND=Agg` is set for you); `application/json` values render as a JSON tree; each JSON display value shown to the model is capped at 8000 chars (full value stays in `details.jsonOutputs`).
 - *`completion()`* — stateless, tool-free one-shot model call: Python `completion(prompt, model="smol"|"default"|"slow", system=..., schema={...JSON Schema...})` returns a handle; `.wait()` returns the text, or parsed data when `schema` is given. Time spent waiting does not consume the cell timeout.
@@ -142,12 +164,12 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 7. Type: `Reset the Python kernel (reset: true) and display(by_month).`
    **Expected:** a `NameError: name 'by_month' is not defined` traceback with nonzero exit — proof that `reset` wipes state.
 
-**Guided task:** "In eval, load `data/lab.sqlite` via `tool.read` (the `?q=` raw-SQL form), compute orders per month, plot to `notes/orders.png`."
-- Hints: `await tool.read({'path': "data/lab.sqlite?q=SELECT substr(created_at,1,7) m, count(*) n FROM orders GROUP BY 1"})` returns a Markdown table in `['text']`; parse the rows or just run the SQL with `sqlite3` — either is fine, but the bridge call must appear. Keep the parsed data in a variable.
+**Guided task:** Load `data/lab.sqlite` from inside `eval` through the tool bridge (`tool.read` with the `?q=` raw-SQL form), compute orders per month, and plot the result to `notes/orders.png`.
+- Hints: the bridge call returns a Markdown table in `['text']`; parse the rows or just run the same SQL with `sqlite3` — either is fine, but the bridge call must appear. Keep the parsed data in a variable.
 - Checkpoints: (a) first cell calls `tool.read`; (b) a later cell plots from the retained variable with no reload; (c) `notes/orders.png` exists.
 - Pass: `ls -l notes/orders.png` succeeds **and** the plotting cell's code contains neither `sqlite3.connect` nor `tool.read`.
 
-**Stretch:** Put the loader into `notes/orders_lib.py`, `%load` it, and reuse `by_month()` across two cells; then break a cell with `time.sleep(40)` and observe the timeout message. Pass: the timeout card reads `eval cell timed out after 30s; kernel interrupted but remains running…` and the next cell still sees your function.
+**Stretch:** Prove that a `%load`-ed helper survives a kernel timeout. Pass: the timeout card reads `eval cell timed out after 30s; kernel interrupted but remains running…` and the next cell still sees your function.
 
 **Troubleshooting:**
 
@@ -182,32 +204,50 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 
 **You will be able to:** rename a symbol across a package with the language server instead of search-and-replace; write an AST pattern with `$X` / `$$$ARGS` metavariables, preview a codemod, and accept it through `xd://resolve`; run a semantic `find`; list the `xd://` devices in a session and pin the tool set with `--tools`.
 
-**Why this exists:** Text tools (`grep`, `edit`) do not know that `get_user` in `api/__init__.py` is the same symbol as the one in `api/db.py`, or that `print(x)` inside a string is not a call. Language servers and tree-sitter do. omp wraps both: `lsp` speaks to whatever server your project already uses, and `ast_grep`/`ast_edit` run native ast-grep with a preview-then-accept protocol so a bad pattern never touches disk. `find` is the opposite end: describe *behaviour* in plain language and get ranked line ranges back.
+**Why this exists:** Text tools (`grep`, `edit`) do not know that `get_user` in `api/__init__.py` is the same symbol as the one in `api/db.py`, or that `print(x)` inside a string is not a call. Language servers and tree-sitter do.
+omp wraps both: `lsp` speaks to whatever server your project already uses, and `ast_grep`/`ast_edit` run native ast-grep with a preview-then-accept protocol so a bad pattern never touches disk. `find` is the opposite end: describe *behaviour* in plain language and get ranked line ranges back.
 
 **Demo:** `demos/8.3-code-intel.md` — `read xd://` listing, an `lsp status` card, an `ast_grep` card with `meta:` captures, an `ast_edit` preview, the `write xd://resolve` apply, and a `find` run (all captured live except the rename, which shows the documented output shape).
 
 **Concepts:**
 
 *LSP*
-- Tool `lsp` (default on: `lsp.enabled = true`; `--no-lsp` disables tools, formatting and diagnostics for one run). Actions: `diagnostics`, `definition`, `references`, `hover`, `symbols`, `rename`, `rename_file`, `code_actions`, `type_definition`, `implementation`, `status`, `reload`, `capabilities`, `request`. Fields: `file`, `line` (1-indexed), `symbol` (substring on that line; `name#2` = second occurrence; **required with `line` for `definition`/`references`/`rename`**), `query`, `new_name`, `apply`, `timeout` (20 s default, 5–300).
-- `rename` sends `textDocument/rename` and **applies by default** (`apply: false` previews `Rename preview:`). `rename_file` is the *file move* variant: it sends `workspace/willRenameFiles` / `didRenameFiles` to every matching server so imports follow the move. `diagnostics` with `file: "*"` runs the project checker (`pyright` for Python; `cargo check`, `tsc`, `go build` for others). `code_actions` lists (`N code action(s): index: [kind] title`) and applies with `apply: true, query: <index|title substring>`.
+- Tool `lsp` (default on: `lsp.enabled = true`; `--no-lsp` disables tools, formatting and diagnostics for one run). Actions: `diagnostics`, `definition`, `references`, `hover`, `symbols`, `rename`, `rename_file`, `code_actions`, `type_definition`, `implementation`, `status`, `reload`, `capabilities`, `request`.
+  - Fields: `file`, `line` (1-indexed), `symbol` (substring on that line; `name#2` = second occurrence; **required with `line` for `definition`/`references`/`rename`**), `query`, `new_name`, `apply`, `timeout` (20 s default, 5–300).
+- `rename` sends `textDocument/rename` and **applies by default** (`apply: false` previews `Rename preview:`). `rename_file` is the *file move* variant: it sends `workspace/willRenameFiles` / `didRenameFiles` to every matching server so imports follow the move.
+- `diagnostics` with `file: "*"` runs the project checker (`pyright` for Python; `cargo check`, `tsc`, `go build` for others). `code_actions` lists (`N code action(s): index: [kind] title`) and applies with `apply: true, query: <index|title substring>`.
 - Read-only actions need read approval; `rename`, `rename_file`, `code_actions`, `reload`, `request` need write approval.
-- *Auto-detection* (no config needed): a built-in server is used when (1) the cwd contains one of its `rootMarkers` **and** (2) its binary resolves in project-local bins (`node_modules/.bin`, a Python venv) or `$PATH`. Detection is cwd-only — it does not look at parent directories. Python servers in `defaults.json`: `pyright` (`pyright-langserver`), `basedpyright`, `pylsp`, `ty`, plus the `ruff` linter. Their root markers (from the embedded `defaults.json` in the 18.3.1 binary): pyright → `pyproject.toml pyrightconfig.json setup.py setup.cfg requirements.txt Pipfile`; pylsp → `pyproject.toml setup.py setup.cfg requirements.txt Pipfile`. The lab ships a root `pyproject.toml`, so **install either `pyright` (`npm i -g pyright`) or `pylsp` (`pip install python-lsp-server`) and omp picks it up** — for the rename exercise pyright is the safer choice (project-aware cross-file rename).
+- *Auto-detection* (no config needed): a built-in server is used when (1) the cwd contains one of its `rootMarkers` **and** (2) its binary resolves in project-local bins (`node_modules/.bin`, a Python venv) or `$PATH`. Detection is cwd-only — it does not look at parent directories.
+  - Python servers in `defaults.json`: `pyright` (`pyright-langserver`), `basedpyright`, `pylsp`, `ty`, plus the `ruff` linter. Their root markers (from the embedded `defaults.json` in the 18.3.1 binary):
+
+    | Server | Root markers |
+    |---|---|
+    | pyright | `pyproject.toml pyrightconfig.json setup.py setup.cfg requirements.txt Pipfile` |
+    | pylsp | `pyproject.toml setup.py setup.cfg requirements.txt Pipfile` |
+
+  - The lab ships a root `pyproject.toml`, so **install either `pyright` (`npm i -g pyright`) or `pylsp` (`pip install python-lsp-server`) and omp picks it up** — for the rename exercise pyright is the safer choice (project-aware cross-file rename).
 - `lsp.lazy = true`: servers cold-start on first `lsp` call or first edit/write of a matching file; the welcome screen shows discovered servers as a gray dot. `lsp.diagnosticsOnWrite = true` attaches diagnostics to `write`/`edit` results. `lsp.formatOnWrite = false` ⚠. `lsp.shared = true` shares one server per project across omp processes.
-- *Config files* (lowest → highest): `~/lsp.json`, plugin configs, `~/.omp/agent/lsp.json` (user), `<cwd>/.omp/lsp.json` (project), `<cwd>/lsp.json`. JSON or YAML; `{ "servers": { … }, "idleTimeoutMs": 300000 }` or a flat map. Override a built-in by name with only the fields you change (`"pylsp": { "disabled": true }`); a *new* server needs `command`, `fileTypes`, `rootMarkers`. Any config that contributes a server map switches off pure auto-detect (overrides are merged onto defaults, then filtered by root marker + binary). Workspace `reload` (`file: "*"`) re-reads config.
+- *Config files* (lowest → highest): `~/lsp.json`, plugin configs, `~/.omp/agent/lsp.json` (user), `<cwd>/.omp/lsp.json` (project), `<cwd>/lsp.json`. JSON or YAML; `{ "servers": { … }, "idleTimeoutMs": 300000 }` or a flat map.
+  - Override a built-in by name with only the fields you change (`"pylsp": { "disabled": true }`); a *new* server needs `command`, `fileTypes`, `rootMarkers`.
+  - Any config that contributes a server map switches off pure auto-detect (overrides are merged onto defaults, then filtered by root marker + binary). Workspace `reload` (`file: "*"`) re-reads config.
 
 *AST tools*
 - Pattern grammar (shared): `$NAME` one node, `$_` one unbound node, `$$$NAME` zero-or-more nodes, `$$$` unbound; names uppercase; a pattern must parse as one valid node in the target language (Python, TS, Go, Rust, C… 50+ languages inferred from extension).
 - `ast_grep` ⚠ **off by default** (`astGrep.enabled = false`): `pat`, `path` (file/dir/glob, `;`-separated list, internal URLs), `skip`. Output groups matches by file as `*LINE:text` with a `meta: A=[...]` line when metavariables captured; 50-match page.
-- `ast_edit` (default on: `astEdit.enabled = true`): `ops: [{pat, out}]` (empty `out` deletes the node; duplicate `pat`s rejected), `paths: [...]`. It **always previews**: the card starts `Staged as a proposal — files NOT modified yet…` and shows `-LINE… / +LINE…` pairs. Files are written only when the model (or you, via a prompt) **writes a one-sentence reason to `xd://resolve`**; `xd://reject` discards. While a proposal is pending omp reminds the model to resolve or reject it. Apply re-runs the rewrite and refuses if the file changed since the preview (`stalePreview`). Files with syntax errors are skipped whole; overlapping matches abort. `PI_MAX_AST_FILES` (default 1000) caps files touched.
+- `ast_edit` (default on: `astEdit.enabled = true`): `ops: [{pat, out}]` (empty `out` deletes the node; duplicate `pat`s rejected), `paths: [...]`. It **always previews**: the card starts `Staged as a proposal — files NOT modified yet…` and shows `-LINE… / +LINE…` pairs.
+  - Files are written only when the model (or you, via a prompt) **writes a one-sentence reason to `xd://resolve`**; `xd://reject` discards. While a proposal is pending omp reminds the model to resolve or reject it.
+  - Apply re-runs the rewrite and refuses if the file changed since the preview (`stalePreview`). Files with syntax errors are skipped whole; overlapping matches abort. `PI_MAX_AST_FILES` (default 1000) caps files touched.
 - Substitution is 1:1: `print($$$A)` → `logger.debug($$$A)` copies the argument list verbatim, so `print("total", n)` becomes `logger.debug("total", n)` — which `logging` interprets as a format string plus args. Single-argument prints (the lab's `cli/` uses f-strings) are safe; multi-arg prints need a different `out` or a follow-up edit. Always run the tests after a codemod.
 
 *Semantic find*
 - Tool `find` (`query`, `grep_keywords: []`, `path`) and CLI `omp find "<query>" [path] [-k kw] [--hidden] [--json] [-q]`. Cascade: lexical scan → filename ranking → passage scoring → verification; hits print as `path:start-end  p  snippet` with a cost/time footer.
-- Prerequisite: the **`judge` model role** (`modelRoles.judge`). The built-in judge chain is `typesafe/jev-latest`, `openrouter/~typesafe/jev-latest`, `tiny`, `smol`, `default`, then the active-session model; override with `modelRoles.judge` / `retry.fallbackChains.judge`. `find.enabled = auto` enables the tool **only when the judge resolves to a TypeSafe jev model** (`TYPESAFE_API_KEY` or `/login typesafe`); set `find.enabled on` to allow any judge model (slower, prompted), `off` to hide it.
+- Prerequisite: the **`judge` model role** (`modelRoles.judge`). The built-in judge chain is `typesafe/jev-latest`, `openrouter/~typesafe/jev-latest`, `tiny`, `smol`, `default`, then the active-session model; override with `modelRoles.judge` / `retry.fallbackChains.judge`.
+  - `find.enabled = auto` enables the tool **only when the judge resolves to a TypeSafe jev model** (`TYPESAFE_API_KEY` or `/login typesafe`); set `find.enabled on` to allow any judge model (slower, prompted), `off` to hide it.
 
 *Discoverable tools and `xd://`*
-- Tools are either *essential* (always in the model's tool list: `read`, `write`, `edit`, `bash`, `grep`, `glob`…) or *discoverable*. With `tools.xdev = true` (default) discoverable tools such as `lsp`, `ast_edit`, `debug`, `checkpoint`, `retain` are *mounted as devices*: `read xd://` lists them, `read xd://lsp` prints the device's input schema, and `write xd://lsp` with a JSON body calls it. The demo shows a stock session with exactly `xd://ast_edit`, `xd://debug`, `xd://lsp` mounted. `tools.xdevDocs = catalog` controls how much of that documentation goes into the system prompt.
+- Tools are either *essential* (always in the model's tool list: `read`, `write`, `edit`, `bash`, `grep`, `glob`…) or *discoverable*.
+  - With `tools.xdev = true` (default) discoverable tools such as `lsp`, `ast_edit`, `debug`, `checkpoint`, `retain` are *mounted as devices*: `read xd://` lists them, `read xd://lsp` prints the device's input schema, and `write xd://lsp` with a JSON body calls it.
+  - The demo shows a stock session with exactly `xd://ast_edit`, `xd://debug`, `xd://lsp` mounted. `tools.xdevDocs = catalog` controls how much of that documentation goes into the system prompt.
 - `omp --tools read,write,ast_edit,grep` pins the built-in tool set for a run (explicitly requested tools are top-level, not devices); `--no-tools` disables all built-ins. Per-tool switches: `bash.enabled`, `grep.enabled`, `glob.enabled`, `astGrep.enabled`, `astEdit.enabled`, `debug.enabled`, `lsp.enabled`, `web_search.enabled`, `find.enabled`.
 
 **Try it (Walkthrough):** (needs `pyright-langserver` or `pylsp` on PATH; check with `which pyright-langserver pylsp`)
@@ -240,7 +280,7 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 - Checkpoints: (a) `lsp references` lists ≥ 4 files; (b) `Applied rename:`; (c) `Staged as a proposal`; (d) `write xd://resolve` → `Applied …`.
 - Pass: `grep -rn "print(" cli/commands.py` prints nothing (the two docstring mentions in `cli/log.py` are not calls and stay); `python3 -m unittest discover -s tests` passes; `api/__init__.py` imports `fetch_user`.
 
-**Stretch:** Write `.omp/lsp.json` that disables `pylsp` and raises `idleTimeoutMs` to 120000, then `lsp reload` (`file: "*"`) and confirm with `lsp status`. Then move `api/db.py` to `api/storage/db.py` with `lsp rename_file` and make the tests pass. Pass: `lsp status` no longer lists `pylsp`; `git status` shows the move plus updated imports; tests `OK`.
+**Stretch:** Disable `pylsp` for this project only (and raise its idle timeout to 120000 ms), then move `api/db.py` to `api/storage/db.py` with a server-driven file move so the imports follow, and make the tests pass. Pass: `lsp status` no longer lists `pylsp`; `git status` shows the move plus updated imports; tests `OK`.
 
 **Troubleshooting:**
 
@@ -272,7 +312,8 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 | find | tool `find {query, grep_keywords, path}` · `omp find "<q>" [path] -k kw --json`; `find.enabled=auto\|on\|off`; judge role `modelRoles.judge` (`typesafe/jev-latest`) |
 | devices | `tools.xdev=true`; `read xd://` list · `read xd://<tool>` schema · `write xd://<tool>` JSON call; `omp --tools a,b,c` pins built-ins; `--no-tools` |
 
-**Source:** omp://tools/lsp.md, omp://lsp-config.md, omp://tools/ast-grep.md, omp://tools/ast-edit.md, omp://resolve-tool-runtime.md, omp://tools/find.md, omp://tools/read.md (`xd://`), omp://tools/write.md (`xd://` dispatch), omp://settings.md, omp://cli-reference.md (`--tools`, `--no-lsp`), `omp find --help`, `omp config list`, embedded `lsp/defaults.json` in the 18.3.1 binary (Python root markers)
+**Source:** omp://tools/lsp.md, omp://lsp-config.md, omp://tools/ast-grep.md, omp://tools/ast-edit.md, omp://resolve-tool-runtime.md, omp://tools/find.md, omp://tools/read.md (`xd://`), omp://tools/write.md (`xd://` dispatch), omp://settings.md, omp://cli-reference.md (`--tools`, `--no-lsp`),
+`omp find --help`, `omp config list`, embedded `lsp/defaults.json` in the 18.3.1 binary (Python root markers)
 
 ---
 
@@ -280,16 +321,28 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 
 **You will be able to:** launch a program under a real debugger from a prompt, stop at a breakpoint, inspect the stack, scopes and variables, evaluate an expression, fix the bug, and re-run — in Python (debugpy) and C (gdb / lldb-dap).
 
-**Why this exists:** Print-debugging is what an agent does when it has nothing better: it edits your source, reruns, reads stdout, edits again. The `debug` tool drives a Debug Adapter Protocol session instead — breakpoints, stepping, `variables`, `evaluate`, memory — with no source edits and no guessing. The workflow to teach the agent (and yourself) is *reproduce → breakpoint → inspect → fix → re-run*.
+**Why this exists:** Print-debugging is what an agent does when it has nothing better: it edits your source, reruns, reads stdout, edits again. The `debug` tool drives a Debug Adapter Protocol session instead — breakpoints, stepping, `variables`, `evaluate`, memory — with no source edits and no guessing.
+The workflow to teach the agent (and yourself) is *reproduce → breakpoint → inspect → fix → re-run*.
 
 **Demo:** `demos/8.4-dap-debug.md` — a full debugpy session on a `None` deref captured live on 18.3.1: `launch` (stopped on entry), `set_breakpoint` (`verified`), `continue` (stopped at breakpoint), `stack_trace`, `scopes`, `variables` (`profile = None (NoneType)`), `evaluate`, `terminate`.
 
 **Concepts:**
 
 - Tool `debug` (default on: `debug.enabled = true`; discoverable → `xd://debug` in a stock session). One active root session at a time; `terminate` before launching another. `timeout` per request 30 s (5–300).
-- Actions: `launch` (`program`, `args`, `adapter`, `cwd`), `attach` (`pid` or `port`/`host`), `set_breakpoint` / `remove_breakpoint` (`file`+`line`, or `function`; optional `condition`), `set_data_breakpoint` (`data_breakpoint_info` first — adapter must support it), `set_instruction_breakpoint`, `continue`, `step_over`, `step_in`, `step_out`, `pause`, `stack_trace` (`levels`), `threads`, `scopes` (`frame_id`; defaults to the stopped frame), `variables` (`variable_ref` or `scope_id`), `evaluate` (`expression`, `context` default `repl`, `frame_id`), `disassemble`, `read_memory` / `write_memory` (`memory_reference`, `count`, `data`), `modules`, `loaded_sources`, `custom_request`, `output` (captured stdout/stderr, 128 KiB ring), `terminate`, `sessions`.
+- Actions, by group:
+
+  | Group | Actions |
+  |---|---|
+  | start / stop | `launch` (`program`, `args`, `adapter`, `cwd`), `attach` (`pid` or `port`/`host`), `terminate`, `sessions` |
+  | breakpoints | `set_breakpoint` / `remove_breakpoint` (`file`+`line`, or `function`; optional `condition`), `set_data_breakpoint` (`data_breakpoint_info` first — adapter must support it), `set_instruction_breakpoint` |
+  | stepping | `continue`, `step_over`, `step_in`, `step_out`, `pause` |
+  | inspection | `stack_trace` (`levels`), `threads`, `scopes` (`frame_id`; defaults to the stopped frame), `variables` (`variable_ref` or `scope_id`), `evaluate` (`expression`, `context` default `repl`, `frame_id`) |
+  | low level | `disassemble`, `read_memory` / `write_memory` (`memory_reference`, `count`, `data`), `modules`, `loaded_sources`, `custom_request` |
+  | output | `output` (captured stdout/stderr, 128 KiB ring) |
+
 - Approval: `output`, `threads`, `stack_trace`, `scopes`, `variables`, `disassemble`, `read_memory`, `loaded_sources`, `modules`, `sessions` are read-tier; everything else is exec-tier.
-- *Built-in adapters* (`dap/defaults.json`): `gdb` (`gdb -i dap`), `lldb-dap`, `codelldb`, `debugpy` (`python -m debugpy.adapter`), `dlv`, `js-debug-adapter`, `netcoredbg`, `kotlin-debug-adapter`, `rdbg`, `php-debug-adapter`, `bash-debug-adapter`, `dart-debug-adapter`, `flutter-debug-adapter`, `elixir-ls-debugger`. Auto-selection only considers adapters whose command resolves; `launch` ranks by file extension, then root markers, then native preference (`gdb`, `lldb-dap`) for extensionless binaries; `attach` with `port` prefers `debugpy`. Pass `adapter: "gdb"` to force one.
+- *Built-in adapters* (`dap/defaults.json`): `gdb` (`gdb -i dap`), `lldb-dap`, `codelldb`, `debugpy` (`python -m debugpy.adapter`), `dlv`, `js-debug-adapter`, `netcoredbg`, `kotlin-debug-adapter`, `rdbg`, `php-debug-adapter`, `bash-debug-adapter`, `dart-debug-adapter`, `flutter-debug-adapter`, `elixir-ls-debugger`.
+  - Auto-selection only considers adapters whose command resolves; `launch` ranks by file extension, then root markers, then native preference (`gdb`, `lldb-dap`) for extensionless binaries; `attach` with `port` prefers `debugpy`. Pass `adapter: "gdb"` to force one.
 - `debugpy` and `gdb`/`lldb-dap` launch with `stopOnEntry: true`, so a fresh `launch` card reads `Status: stopped / Stop reason: entry`. gdb additionally sets `stopAtBeginningOfMainSubprogram`.
 - **Learner prerequisites** (not on the build machine): Python — `pip install debugpy` into the interpreter that `python` on PATH resolves to (the adapter command is literally `python`, not `python3`). C — a compiler plus `gdb` or `lldb-dap`; compile the fixture with `cc -g -O0 -o bin/crash bin/crash.c` (comment at the top of `bin/crash.c`).
 - *Custom adapters:* `.omp/dap.json` (also `dap.yaml`, `.dap.json`; user-level `~/.omp/agent/dap.json`), shape `{ "adapters": { "<id>": { command, args, languages, fileTypes, rootMarkers, launchDefaults, attachDefaults, connectMode: "stdio"|"socket"|"tcp", acceptsDirectoryProgram } } }`. Use it when your Python is only `python3`:
@@ -318,11 +371,14 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
    **Expected:** `Debug session terminated.`; an `edit` card; a `bash` card with `exit 0`, four report lines (one per id, id 99 marked as unknown) and no traceback — the fixture's docstring asks for "a report for every id" and exit 0.
 
 **Guided task:** `bin/crash.py` (seeded `None` deref) and `bin/crash.c` (seeded bad pointer): ask omp to attach a debugger, break at the failing line, report the offending variable, fix.
-- Hints (C): `cc -g -O0 -o bin/crash bin/crash.c`; `launch program=bin/crash` — omp auto-picks `gdb`/`lldb-dap` for an extensionless binary, or say `adapter: gdb`; with gdb you stop at `main` first; either set a breakpoint at the deref line (`bin/crash.c:45`, the line marked `/* BUG */`) or just `continue` and read the `Stop reason` (a SIGSEGV stop) then `stack_trace` + `variables` — the local `struct user *u` in `main` is `0x0`.
+- Hints (C):
+  - `cc -g -O0 -o bin/crash bin/crash.c`; `launch program=bin/crash` — omp auto-picks `gdb`/`lldb-dap` for an extensionless binary, or say `adapter: gdb`; with gdb you stop at `main` first.
+  - Either set a breakpoint at the deref line (`bin/crash.c:45`, the line marked `/* BUG */`) or just `continue` and read the `Stop reason` (a SIGSEGV stop), then `stack_trace` + `variables` — the local `struct user *u` in `main` is `0x0`.
 - Checkpoints: (a) two separate debug sessions (Python, then C — `terminate` between them); (b) each shows a `variables` or `evaluate` card with the null value; (c) both programs re-run.
 - Pass: transcript shows `debug` cards with `scopes`/`variables` for **both** programs; `python bin/crash.py` and `./bin/crash` exit 0.
 
-**Stretch:** Reproduce the same Python bug with **print-debugging only** (`--tools read,edit,bash`) in a fresh session and compare: number of `edit` cards, number of reruns, whether the fix is the same. Then set a breakpoint at `bin/crash.py:45` (the `print(...)` in `main`) with `condition: "user is None"` and show it skips the good ids: `bin/crash.py` takes no arguments, so use the loop — an unconditional breakpoint stops first with `user_id = 1`, the conditional one stops first with `user_id = 99`. Pass: `notes/m8-debug.md` lists both tool sequences; the conditional breakpoint card shows `verified`; the first `variables` card after `continue` shows `user_id = 99` and `user = None`.
+**Stretch:** Fix the same Python crash twice — once by print-debugging only, in a fresh session without `debug`, and once with `debug` using a *conditional* breakpoint that skips the good ids — and compare the cost of each approach.
+Pass: `notes/m8-debug.md` lists both tool sequences; the conditional breakpoint card shows `verified`; the first `variables` card after `continue` shows `user_id = 99` and `user = None`.
 
 **Troubleshooting:**
 
@@ -358,7 +414,8 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 
 **You will be able to:** turn on `github`, `security_scan`, `generate_image`, `tts`, and `ida`; know the one prompt that exercises each; read the results (`artifact://`, `security://`, temp image paths, a `.wav`).
 
-**Why this exists:** These five tools are hidden until you flip a setting (or, for `ida`, until IDA Pro is found) because each pulls in an external dependency — the `gh` CLI, a ChatGPT OAuth login, an image model, a local speech model, a reverse-engineering suite. Hidden tools cost nothing; knowing the key means you can enable exactly what your project needs. Toggle with `omp config set <key> true`, or in the `/settings` panel (Settings → Tools). `generate_image` and `tts` are registered/removed in the running session when toggled; for the others, start a new session after changing the key.
+**Why this exists:** These five tools are hidden until you flip a setting (or, for `ida`, until IDA Pro is found) because each pulls in an external dependency — the `gh` CLI, a ChatGPT OAuth login, an image model, a local speech model, a reverse-engineering suite. Hidden tools cost nothing; knowing the key means you can enable exactly what your project needs.
+Toggle with `omp config set <key> true`, or in the `/settings` panel (Settings → Tools). `generate_image` and `tts` are registered/removed in the running session when toggled; for the others, start a new session after changing the key.
 
 **Demo:** `demos/8.5-gated-tools.md` — the `omp config get` values before/after enabling, plus the documented card shapes for each tool.
 
@@ -372,11 +429,51 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 | `tts` | ⚠ `speechgen.enabled = false` | local Kokoro-82M downloaded on first use (`omp setup speech`), or xAI / DeepInfra credentials | write |
 | `ida` | `ida.enabled = true` but appears only when an IDA install with idalib is found (`ida.installDir`, `$IDADIR`, `/opt/ida*`, `~/ida*`, `/Applications/IDA*.app`) | `ida.python` interpreter that imports `ida_domain` + `idapro` | `list` read, `exec` exec, edits write |
 
-- **`github`** — ops: `repo_view`, `file_read` (`path`, `branch`), `pr_create` (`title`/`body` or `fill`, `base`, `head`, `draft`, `reviewer[]`, `label[]`), `pr_checkout` (`pr` number/branch/URL or a list → worktree `~/.omp/wt/<n>-<hash>` on branch `pr-<n>`), `pr_push`, `search_issues`/`search_prs`/`search_code`/`search_commits`/`search_repos` (`query`, `limit` ≤ 50, `since`/`until` like `3d`, `2w`, `2026-01-01`), `run_watch` (`run` id/URL or current branch; polls Actions every 3 s then 15 s; failed-job logs tail inline with the full log at `artifact://<id>`). Single issues/PRs are **not** ops — read `issue://N` / `pr://N` (shared `~/.omp/cache/github-cache.db`). One prompt: *"Enable-key set? Read `issue://1`, then create a draft PR from the current branch titled 'Fix #1' with body 'Closes #1' and watch its Actions run."*
-- **`security_scan`** — actions: `preflight` (`target_kind: repository | scoped_path | ref_diff | working_tree`, `include_paths`, `exclude_paths`, `base_revision`/`head_revision`) → `Security plan <id> is ready…`; `start {plan_id}` → `Security scan <scan-id> started as <operation-id>` (background job, phases `queued → preparing → reviewing → publishing → completed`); `status {operation_id}`; `cancel`; `validate {scan_id, finding_id, validation_status, validation_summary}`; `cloud_scans`/`cloud_start`/`cloud_status`/`cloud_pull` (Codex Security cloud, explicit only). Read results with `security://scans`, `security://scans/<id>`, `…/findings`, `…/findings/<fid>`, `…/report`, `…/sarif`, `…/coverage`. Output dir holds `scan.json findings.json report.md results.sarif provenance.json` (mode 0700/0600). One prompt: *"Run security_scan preflight on this repository excluding `generated` and `notes`, start it, poll status until completed, then read `security://scans/<id>/findings`."*
-- **`generate_image`** — fields `subject` (required), `action`, `scene`, `composition`, `lighting`, `style`, `text`, `changes[]` + `input[]` (edit mode; `path` or base64 `data` + `mime_type`, ≤ 35 MiB), `aspect_ratio` (`1:1 3:4 4:3 9:16 16:9 3:2 2:3`), `image_size` (`1024x1024 1536x1024 1024x1536`), `model` (pin one, e.g. `xai/grok-imagine-image`). Output files land in the OS temp dir as `omp-image-<snowflake>.<ext>`; the card lists `imagePaths`. 3-minute timeout. One prompt: *"Use generate_image: subject 'flat vector logo for a CLI tool named lab', style 'minimal, two colours', aspect_ratio 1:1; then read the returned path."*
-- **`tts`** — fields `text` (1–15000 chars), `output_path` (required; `.wav` ⇒ WAV, anything else ⇒ MP3 which only the cloud backends emit — the local backend then writes a sibling `.wav` and says so), `voice_id`, `language`, `sample_rate`, `bit_rate` (xAI only). Local voice comes from `tts.localVoice = af_heart` (also `af_bella … bm_fable`), model `kokoro`. Card: `Saved <bytes> bytes to <path> (voice=…, codec=…, backend=…)`. Shell twin: `omp say "text" [--voice id]`. One prompt: *"Use tts to write notes/hello.wav saying 'Module eight complete.'"*
-- **`ida`** — actions `list`, `open {db: bin/crash}`, `save`, `close`, `exec {code}` (persistent Python namespace with `db`, `functions()`, `strings()`, `xrefs_to()`, `pseudocode()`…), `rename`, `comment`, `set_type`, `make_function`; `db` may be a binary, an `.i64`/`.idb`, or an open id; each DB runs in an `omp.ida.<id>` daemon (`omp ps` lists it); `ida.maxOpen = 4`, `ida.idleCloseSec = 900`. One prompt: *"Use ida to open bin/crash, list functions matching 'user', and show pseudocode for main."*
+- **`github`** — ops:
+  - `repo_view`, `file_read` (`path`, `branch`), `pr_create` (`title`/`body` or `fill`, `base`, `head`, `draft`, `reviewer[]`, `label[]`), `pr_push`.
+  - `pr_checkout` (`pr` number/branch/URL or a list → worktree `~/.omp/wt/<n>-<hash>` on branch `pr-<n>`).
+  - `search_issues`/`search_prs`/`search_code`/`search_commits`/`search_repos` (`query`, `limit` ≤ 50, `since`/`until` like `3d`, `2w`, `2026-01-01`).
+  - `run_watch` (`run` id/URL or current branch; polls Actions every 3 s then 15 s; failed-job logs tail inline with the full log at `artifact://<id>`).
+  - Single issues/PRs are **not** ops — read `issue://N` / `pr://N` (shared `~/.omp/cache/github-cache.db`). One prompt:
+
+    ```text
+    Enable-key set? Read issue://1, then create a draft PR from the current branch titled 'Fix #1' with body 'Closes #1' and watch its Actions run.
+    ```
+
+- **`security_scan`** — actions:
+  - `preflight` (`target_kind: repository | scoped_path | ref_diff | working_tree`, `include_paths`, `exclude_paths`, `base_revision`/`head_revision`) → `Security plan <id> is ready…`.
+  - `start {plan_id}` → `Security scan <scan-id> started as <operation-id>` (background job, phases `queued → preparing → reviewing → publishing → completed`); `status {operation_id}`; `cancel`.
+  - `validate {scan_id, finding_id, validation_status, validation_summary}`; `cloud_scans`/`cloud_start`/`cloud_status`/`cloud_pull` (Codex Security cloud, explicit only).
+  - Read results with `security://scans`, `security://scans/<id>`, `…/findings`, `…/findings/<fid>`, `…/report`, `…/sarif`, `…/coverage`. Output dir holds `scan.json findings.json report.md results.sarif provenance.json` (mode 0700/0600). One prompt:
+
+    ```text
+    Run security_scan preflight on this repository excluding `generated` and `notes`, start it, poll status until completed, then read security://scans/<id>/findings.
+    ```
+
+- **`generate_image`** — fields:
+  - `subject` (required), `action`, `scene`, `composition`, `lighting`, `style`, `text`, `changes[]` + `input[]` (edit mode; `path` or base64 `data` + `mime_type`, ≤ 35 MiB).
+  - `aspect_ratio` (`1:1 3:4 4:3 9:16 16:9 3:2 2:3`), `image_size` (`1024x1024 1536x1024 1024x1536`), `model` (pin one, e.g. `xai/grok-imagine-image`).
+  - Output files land in the OS temp dir as `omp-image-<snowflake>.<ext>`; the card lists `imagePaths`. 3-minute timeout. One prompt:
+
+    ```text
+    Use generate_image: subject 'flat vector logo for a CLI tool named lab', style 'minimal, two colours', aspect_ratio 1:1; then read the returned path.
+    ```
+
+- **`tts`** — fields:
+  - `text` (1–15000 chars), `output_path` (required; `.wav` ⇒ WAV, anything else ⇒ MP3 which only the cloud backends emit — the local backend then writes a sibling `.wav` and says so), `voice_id`, `language`, `sample_rate`, `bit_rate` (xAI only).
+  - Local voice comes from `tts.localVoice = af_heart` (also `af_bella … bm_fable`), model `kokoro`. Card: `Saved <bytes> bytes to <path> (voice=…, codec=…, backend=…)`. Shell twin: `omp say "text" [--voice id]`. One prompt:
+
+    ```text
+    Use tts to write notes/hello.wav saying 'Module eight complete.'
+    ```
+
+- **`ida`** — actions:
+  - `list`, `open {db: bin/crash}`, `save`, `close`, `exec {code}` (persistent Python namespace with `db`, `functions()`, `strings()`, `xrefs_to()`, `pseudocode()`…), `rename`, `comment`, `set_type`, `make_function`.
+  - `db` may be a binary, an `.i64`/`.idb`, or an open id; each DB runs in an `omp.ida.<id>` daemon (`omp ps` lists it); `ida.maxOpen = 4`, `ida.idleCloseSec = 900`. One prompt:
+
+    ```text
+    Use ida to open bin/crash, list functions matching 'user', and show pseudocode for main.
+    ```
 
 **Try it (Walkthrough):** (needs `gh` installed and `gh auth login` done; the lab must be pushed to a GitHub repo you can write to)
 
@@ -389,9 +486,12 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 4. Type: `read pr://<number>/diff`
    **Expected:** the list of changed files from the PR you just created.
 
-**Guided task:** enable `github.enabled`; `read issue://1`; create a PR from the current branch. Pass: a PR URL appears in the transcript **and** `gh pr view --json url` in a shell prints the same URL.
+**Guided task:** enable `github.enabled`; read issue #1 through `issue://`; create a PR from the current branch.
+- Hints: `pr_create` needs `title` or `fill: true`; it asks for exec approval outside `yolo`; push the branch first if `gh` complains about a missing upstream.
+- Checkpoints: (a) `read xd://` lists `xd://github`; (b) the issue card shows issue #1 without a `gh` bash card; (c) a `# Created Pull Request …` card.
+- Pass: a PR URL appears in the transcript **and** `gh pr view --json url` in a shell prints the same URL.
 
-**Stretch:** `security_scan` preflight + start on the lab; read findings via `security://`. Pass: `read security://scans` lists a scan whose status is `completed` (or `partial`), and `read security://scans/<id>/report` returns a Markdown report. (Needs `security.enabled true` and an OAuth login for your active provider.)
+**Stretch:** Run a security scan on the lab and read its findings. Pass: `read security://scans` lists a scan whose status is `completed` (or `partial`), and `read security://scans/<id>/report` returns a Markdown report. (Needs `security.enabled true` and an OAuth login for your active provider.)
 
 **Troubleshooting:**
 

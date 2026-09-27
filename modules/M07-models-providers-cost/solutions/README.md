@@ -66,7 +66,7 @@ The mock cannot follow the commit agent's protocol, so the fallback message is e
 
 ## 7-G2 (custom provider)
 
-Pass line observed (dry run on 18.3.5 against the shipped `tools/mock-provider.py`): `Hello from mock-1. You said: <system-reminder> Today: 2026-09-27; current working directory: '/tmp/dry2'. Do`. omp prepends a `<system-reminder>` block to the user message; the mock echoes the first 80 characters of it, so `say hi` never appears. Grade on `Hello from mock-1` and the `200` in the mock's stderr.
+Pass line: `Hello from mock-1. You said: say hi`. The lab mock (commit `6ccce2e`) strips omp's injected `<system-reminder>` block before echoing the first 80 characters of the user message, so the echo is exactly the learner's words. Grade on the full line and the `200` in the mock's stderr.
 
 ## 7-G3 (fallback chain)
 
@@ -108,13 +108,19 @@ Grading pitfalls: `~` must be expanded by omp (it is), but a relative `path:` is
 
 Grade on the `By Model:` section of `omp stats --summary` listing both ids. The mock contributes `mock-1: N reqs, $0.0000`; explain `unpricedRequests` in `--json` if a learner asks why gateway sessions are "free".
 
+Suggested identical prompt for the README 7.6 guided task (any short explanation request works): `Explain what api/__init__.py re-exports and why`, run once with `--model @smol` and once with `--model @slow`.
+
 ## 7.2 guided (`^` chip) and stretch (rebind)
 
 Not reproducible on the build machine (no interactive completion capture). Doc-backed: `^` uses the same scope/ranking as `Alt+P`; pseudonyms `m1…` appear as `<model agent="m1" name="…"/>` in the user message and survive `/resume`. Keybinding ids verified in `omp://keybindings.md`: `app.model.cycleForward` (`Ctrl+P`), `app.model.cycleBackward` (`Shift+Ctrl+P`), `app.model.selectTemporary` (`Alt+P`), `app.model.select` (`Alt+M`); an empty array disables an action.
 
+Suggested message for the guided task: type `Have ^`, pick a model from the completion, then finish with `summarize api/__init__.py`. The `^` token needs a whitespace boundary before it.
+
 ## 7.4 stretch (tiny titles)
 
 Not run here (no weights download on the build machine). Doc-backed: `omp tiny-models download lfm2.5-230m`; worker socket `~/.omp/run/tiny/<model>-<backend>.sock`, idle exit after 15 min; `modelRoles.tiny` unset ⇒ titles use the online path (no automatic download).
+
+Steps for the learner (kept out of the README because Stretch is goal-only): `omp tiny-models download lfm2.5-230m`; set `modelRoles.tiny: local/lfm2.5-230m`; start a session on a real chat model and send a descriptive first message so a title is generated.
 
 ## Cleanup for a shared machine
 

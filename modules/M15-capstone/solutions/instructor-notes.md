@@ -63,6 +63,17 @@ Built by hand in a scratch clone (`git clone omp-course-lab /tmp/lab-solution`),
 11. **Plan annotations exist but edits started earlier.** Usually the learner ran a "quick fix" prompt before `Alt+Shift+P`. E2 scores 1; the export makes the order unambiguous.
 12. **`omp ttsr list` empty.** The rule file lacks a trigger/description, or the command was run outside the lab root (scope globs are root-relative).
 
+## Stretch and Guided notes (moved out of `exercises.md`)
+
+| Task | Instructor hints |
+|---|---|
+| Phase 1 Stretch — `isolated: true` scouts | Needs a git repo; isolation is refused in plan mode, so the scouts must run before `Alt+Shift+P`. |
+| Phase 2 Stretch — isolated slice-C subagents | Merge with `task.isolation.merge: patch`; resolve any conflict via `read <file>:conflicts` / `write conflict://N` (M4 §4.5). |
+| Phase 3 Stretch — `pr://` review target | Needs `gh auth login` before `OMP_REVIEW_TARGET=pr://…`. |
+| Phase 3 Guided (a) — conditional breakpoint | Condition `version == 1`; on `data/lab.sqlite` (already at 2) the run reaches `Debug session terminated.` without a `Stop reason: breakpoint` card. |
+| Phase 3 Guided (b) — negative browser check | Existing email → issue #8 returns `500`; the banner shows `Signup failed: …` with class `error`. |
+| Phase 4 Guided — batch review | `reviewer` + `security-reviewer` in one batch (M10 §10.7) against `git diff module-15-start`; `omp commit --push` pushes each commit to the fork. |
+
 ## What is *not* on the solution branch
 
 `.omp/` (context files, rule, agent, hook, mcp.json), `ci/review.sh`, `notes/` — these are learner artefacts; the lab keeps `.omp/` and `ci/` empty so every module starts clean. The rubric's functional gate is entirely about the code and docs on the branch.

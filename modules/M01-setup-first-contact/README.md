@@ -17,7 +17,8 @@ How to read the transcripts: `$` lines are your shell, `›` lines are what you 
 ## Lesson 1.1 — What omp is (and isn't)              (~5 min)
 **You will be able to:** (1) describe the omp loop in one sentence; (2) say how a terminal agent differs from chat and from autocomplete; (3) name the four entry points and pick the right one for "I'm sitting at the keyboard".
 
-**Why this exists:** A chat assistant answers; an autocompleter guesses the next token. omp *acts*: given a prompt it reads files, searches, edits, and runs commands in your repo, and every one of those actions is rendered as a card you can expand and audit. The unit of work is a **turn**: prompt → model → zero or more tool calls → a final message. You are the reviewer of the cards, not the typist of the code. Everything else in this course is about steering that loop and reading its output.
+**Why this exists:** A chat assistant answers; an autocompleter guesses the next token. omp *acts*: given a prompt it reads files, searches, edits, and runs commands in your repo, and every one of those actions is rendered as a card you can expand and audit. The unit of work is a **turn**: prompt → model → zero or more tool calls → a final message.
+You are the reviewer of the cards, not the typist of the code. Everything else in this course is about steering that loop and reading its output.
 
 **Demo:** `demos/01-help.md` — the `omp --help` sections that matter today. Excerpt:
 
@@ -73,7 +74,11 @@ Available Tools (default-enabled unless noted):
 3. Run `omp --help | grep -n "^  acp"`.
    **Expected:** `acp            Run omp as an ACP (Agent Client Protocol) server over stdio`.
 
-**Guided task:** Goal: write the four entry points and the flag/command that starts each into `notes/m1-entrypoints.txt` in the lab repo (`notes/` is gitignored). Hints: everything is in `omp --help`; `--mode` has one value the short help doesn't list — `omp read omp://cli-reference.md` and search "Output modes". Checkpoints: (a) you found `-p`; (b) you found the `acp` subcommand; (c) you found the fifth `--mode` value in the doc. Pass: `grep -c -e "-p" -e rpc -e acp notes/m1-entrypoints.txt` prints `3` or more.
+**Guided task:**
+- Goal: write the four entry points and the flag/command that starts each into `notes/m1-entrypoints.txt` in the lab repo (`notes/` is gitignored).
+- Hints: everything is in `omp --help`; `--mode` has one value the short help doesn't list — `omp read omp://cli-reference.md` and search "Output modes".
+- Checkpoints: (a) you found `-p`; (b) you found the `acp` subcommand; (c) you found the fifth `--mode` value in the doc.
+- Pass: `grep -c -e "-p" -e rpc -e acp notes/m1-entrypoints.txt` prints `3` or more.
 
 **Stretch:** Goal: from `omp --help` alone, list the tools a *headless* run cannot use meaningfully. Pass: your list names `ask` and you can point at the phrase in `--help` that justifies it.
 
@@ -112,7 +117,11 @@ Current version: 18.3.1
 ```
 
 **Concepts:**
-- **Install script.** `curl https://omp.sh/install | sh` (the form documented in the bundled docs; adding `-fsSL` is ordinary curl hardening and changes nothing about omp). A Homebrew formula also exists; the docs mention it but not its name, so use the script if in doubt. A Nix package exists (`PI_PACKAGE_DIR` in `omp --help` is there for Nix/Guix store paths). Bun, Windows PowerShell and mise install paths are **not** described in the bundled docs and are therefore not taught here — see `BUILD-NOTES.md`.
+- **Install methods.**
+  - Script: `curl https://omp.sh/install | sh` (the form documented in the bundled docs; adding `-fsSL` is ordinary curl hardening and changes nothing about omp).
+  - Homebrew: a formula exists; the docs mention it but not its name, so use the script if in doubt.
+  - Nix: a package exists (`PI_PACKAGE_DIR` in `omp --help` is there for Nix/Guix store paths).
+  - Not taught here: Bun, Windows PowerShell and mise install paths are **not** described in the bundled docs — see `BUILD-NOTES.md`.
 - **Verify:** `omp --version` (also `-v`) prints `omp/<version>` and exits.
 - **Completions:** `omp completions SHELL` prints a script (`bash|zsh|fish`). Documented wiring (`omp completions --help`):
   - zsh: `eval "$(omp completions zsh)"` in `~/.zshrc`, or write it to a file in `$fpath`
@@ -161,7 +170,8 @@ Current version: 18.3.1
 ## Lesson 1.3 — Terminal requirements              (~8 min)
 **You will be able to:** (1) explain why some omp chords need a terminal that encodes modifier keys; (2) run a two-key test that tells you whether *your* terminal delivers them; (3) look up what omp expects with `/hotkeys` and remap in `keybindings.yml` when it doesn't.
 
-**Why this exists:** A classic terminal sends `Ctrl+O` and `Ctrl+Shift+O` as the *same* byte, and `Alt+Shift+P` may arrive as an Escape followed by `P`. omp's key parser understands the legacy encodings and the modern ones (xterm `modifyOtherKeys`, the Kitty keyboard protocol), but it can only distinguish chords the terminal actually encodes. When a chord "does nothing", the fix is on the terminal side or a remap — not in omp. Find out now, before Module 2 asks you to use `Ctrl+O` and `Ctrl+Shift+O` back to back.
+**Why this exists:** A classic terminal sends `Ctrl+O` and `Ctrl+Shift+O` as the *same* byte, and `Alt+Shift+P` may arrive as an Escape followed by `P`. omp's key parser understands the legacy encodings and the modern ones (xterm `modifyOtherKeys`, the Kitty keyboard protocol), but it can only distinguish chords the terminal actually encodes.
+When a chord "does nothing", the fix is on the terminal side or a remap — not in omp. Find out now, before Module 2 asks you to use `Ctrl+O` and `Ctrl+Shift+O` back to back.
 
 **Demo:** `demos/03-terminal-check.md`. Excerpt:
 
@@ -181,7 +191,19 @@ $ cd omp-course-lab && omp
 ```
 
 **Concepts:**
-- **What omp needs from the terminal.** The chords omp binds by default (`keybindings.md`): `Ctrl+O` expand card, `Ctrl+Shift+O` hide tool activity, `Ctrl+T` thinking, `Shift+Tab` thinking level, `Ctrl+P` / `Shift+Ctrl+P` cycle models, `Alt+P`, `Alt+M`, `Alt+Shift+P` plan mode, `Ctrl+R`, `Ctrl+G`, `Ctrl+Q` / `Ctrl+Enter` follow-up, `Alt+Up` / `Shift+Up` dequeue, `Alt+R`, `Alt+L`, `Alt+Shift+L`, `Alt+Shift+C`, `Ctrl+Shift+V` / `Alt+Shift+V`, `Ctrl+V`, `Ctrl+L`, `Alt+A`. Anything with `Shift+` on top of `Ctrl`/`Alt`, or `Ctrl+Enter`, requires the terminal to encode modifiers.
+- **What omp needs from the terminal.** The chords omp binds by default (`keybindings.md`):
+  | Chord(s) | Action |
+  |---|---|
+  | `Ctrl+O` | expand card |
+  | `Ctrl+Shift+O` | hide tool activity |
+  | `Ctrl+T` | thinking |
+  | `Shift+Tab` | thinking level |
+  | `Ctrl+P` / `Shift+Ctrl+P` | cycle models |
+  | `Alt+P`, `Alt+M`, `Alt+Shift+P` | plan mode |
+  | `Ctrl+Q` / `Ctrl+Enter` | follow-up |
+  | `Alt+Up` / `Shift+Up` | dequeue |
+  | `Ctrl+R`, `Ctrl+G`, `Alt+R`, `Alt+L`, `Alt+Shift+L`, `Alt+Shift+C`, `Ctrl+Shift+V` / `Alt+Shift+V`, `Ctrl+V`, `Ctrl+L`, `Alt+A` | other default bindings |
+  Anything with `Shift+` on top of `Ctrl`/`Alt`, or `Ctrl+Enter`, requires the terminal to encode modifiers.
 - **The two-key test.** `Ctrl+O` works in every terminal. `Ctrl+Shift+O` only works if the terminal encodes Shift alongside Ctrl. If `Ctrl+O` toggles a card but `Ctrl+Shift+O` either does nothing or *also* toggles the card, your terminal is collapsing the chord.
 - **`/hotkeys`** prints the active chords for your build, including remaps and extension-added bindings — it is what omp *expects*, so compare it against what you *pressed*.
 - **Remapping** lives in `~/.omp/agent/keybindings.yml`: a mapping of action ID → chord (or list of chords; `[]` disables). Chord names are case-insensitive, same notation as the UI. Not read from `config.yml`.
@@ -214,7 +236,12 @@ $ cd omp-course-lab && omp
 6. Press `Ctrl+C` twice to exit.
    **Expected:** back at the shell.
 
-**Guided task:** Goal: make one chord that your terminal cannot deliver work anyway. Hints: pick the action ID from `/hotkeys`; the file is `~/.omp/agent/keybindings.yml`; restart omp after editing. Checkpoints: (a) `/hotkeys` shows the new chord for the action; (b) the new chord performs the action. Pass: `/hotkeys` lists your remapped chord and pressing it toggles the corresponding UI element. (If every default chord already works, remap `app.tools.toggleVisibility` to `Alt+O` and verify anyway — you will need this skill on the next machine.)
+**Guided task:**
+- Goal: make one chord that your terminal cannot deliver work anyway.
+- Hints: pick the action ID from `/hotkeys`; the file is `~/.omp/agent/keybindings.yml`; restart omp after editing.
+- Checkpoints: (a) `/hotkeys` shows the new chord for the action; (b) the new chord performs the action.
+- Pass: `/hotkeys` lists your remapped chord and pressing it toggles the corresponding UI element.
+- If every default chord already works, remap `app.tools.toggleVisibility` to `Alt+O` and verify anyway — you will need this skill on the next machine.
 
 **Stretch:** Goal: run the same two-key test inside tmux and outside it, on the same terminal. Pass: `notes/m1-terminal.txt` records which chords worked in each context and which tmux option (if any) you had to enable.
 
@@ -247,7 +274,8 @@ $ cd omp-course-lab && omp
 ## Lesson 1.4 — Authenticate              (~10 min)
 **You will be able to:** (1) log in to one provider with `/login` or `omp login`; (2) prove the credential is stored with `omp token <provider>`; (3) explain where credentials live and in which order omp resolves a key, including the four `.env` files; (4) log out.
 
-**Why this exists:** Nothing happens without a model. omp separates the *provider* (the account: `anthropic`, `openai`, `google`, `ollama`, …) from the *model* (`anthropic/claude-…`), and each provider is authenticated independently. Most providers use OAuth through `/login`; API-key providers work from an environment variable or `.env` with no login at all. You pick **one** provider now. Routing several models and providers is Module 7.
+**Why this exists:** Nothing happens without a model. omp separates the *provider* (the account: `anthropic`, `openai`, `google`, `ollama`, …) from the *model* (`anthropic/claude-…`), and each provider is authenticated independently. Most providers use OAuth through `/login`; API-key providers work from an environment variable or `.env` with no login at all.
+You pick **one** provider now. Routing several models and providers is Module 7.
 
 **Demo:** `demos/04-login.md`. Excerpt:
 
@@ -290,7 +318,16 @@ anthropic (26)
 5. Start `omp` in the lab, type `/logout`, pick your provider, confirm; then `omp token <provider>`.
    **Expected:** `omp token` now fails (non-zero exit). Log back in with `/login <provider>` or `omp login <provider>` before Lesson 1.5.
 
-**Guided task:** Goal: make the lab repo use a key from a project `.env` while your shell has none, then prove which source won. Needs an API-key provider (e.g. `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`); OAuth-only learners use any key-based provider you have access to — the key does not need to be valid for `omp token` to report it. Hints: `.env.example` in the lab shows the file shape (its `labtok_…` token is fake — do not use it as a real key); `<cwd>/.env` outranks `~/.env`; `omp token <provider>` prints what will be used, and from a directory with no `.env` prints `No active credential found for provider "<id>".` plus `Configured providers: …`; `git status` must not show `.env` (it is gitignored). Checkpoints: (a) `env | grep -c _API_KEY` is `0` in your shell; (b) `omp token <provider>` from inside `omp-course-lab` prints the `.env` value; (c) from `cd /tmp` it exits non-zero. Pass: (b) and (c) both hold and `git status --short` does not list `.env`.
+**Guided task:**
+- Goal: make the lab repo use a key from a project `.env` while your shell has none, then prove which source won.
+- Needs an API-key provider (e.g. `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`). OAuth-only learners use any key-based provider you have access to — the key does not need to be valid for `omp token` to report it.
+- Hints:
+  - `.env.example` in the lab shows the file shape (its `labtok_…` token is fake — do not use it as a real key).
+  - `<cwd>/.env` outranks `~/.env`.
+  - `omp token <provider>` prints what will be used; from a directory with no `.env` it prints `No active credential found for provider "<id>".` plus `Configured providers: …`.
+  - `git status` must not show `.env` (it is gitignored).
+- Checkpoints: (a) `env | grep -c _API_KEY` is `0` in your shell; (b) `omp token <provider>` from inside `omp-course-lab` prints the `.env` value; (c) from `cd /tmp` it exits non-zero.
+- Pass: (b) and (c) both hold and `git status --short` does not list `.env`.
 
 **Stretch:** Goal: log in to a *second* provider and show both are stored independently. Pass: `omp token <a>` and `omp token <b>` both exit 0 and `omp usage` lists both accounts.
 
@@ -352,7 +389,9 @@ This is `omp-course-lab`, the practice repo for the *Working with omp* course. �
 - **During a turn:** `Esc` aborts the running turn (and clears the draft when nothing is running); `Ctrl+C` clears the composer, `Up` recalls the cleared draft; `Ctrl+C` twice exits.
 - **Reading the result:** every tool call is a card. For this prompt expect `read`/`grep` cards (investigation), an `edit` card (the fix), and a `bash` card running the test command. The final message is only as trustworthy as the cards above it — if there is no `bash` card, the check did not run (Module 3.5 makes a habit of this).
 - **The prompt you will use** (course-authored, modeled on the outline's quickstart):
-  > Read `docs/ISSUES.md` and locate issue #1. Inspect the code it points at for one small bug. Make the smallest safe fix — touch only the file that contains the bug. Then run `python3 -m unittest discover -s tests` and show me the result.
+  ```text
+  Read `docs/ISSUES.md` and locate issue #1. Inspect the code it points at for one small bug. Make the smallest safe fix — touch only the file that contains the bug. Then run `python3 -m unittest discover -s tests` and show me the result.
+  ```
 
 **Try it (Walkthrough):**
 1. `cd omp-course-lab && git checkout module-1-start && git status --short`
@@ -372,7 +411,11 @@ This is `omp-course-lab`, the practice repo for the *Working with omp* course. �
 8. Try stdin: `echo "Reply with exactly the word PIPED" | omp -p --no-session`
    **Expected:** `PIPED`.
 
-**Guided task:** Goal: capture a headless repo overview to `notes/m1.txt` with only the answer in the file. Hints: print mode writes the answer to stdout and progress to stderr; `>` redirects stdout only; `--no-session` keeps the session list clean. Checkpoints: (a) `notes/m1.txt` exists; (b) it does not contain the spinner line `Working...`; (c) it mentions both `api/` and `cli/`. Pass: `grep -c 'api/' notes/m1.txt` and `grep -c 'cli/' notes/m1.txt` are both ≥ 1 and `grep -cF 'Working...' notes/m1.txt` is `0`. (Match the three dots: the lab README calls the course *Working with omp*, so a bare `grep Working` gives a false positive.)
+**Guided task:**
+- Goal: capture a headless repo overview to `notes/m1.txt` with only the answer in the file.
+- Hints: print mode writes the answer to stdout and progress to stderr; `>` redirects stdout only; `--no-session` keeps the session list clean.
+- Checkpoints: (a) `notes/m1.txt` exists; (b) it does not contain the spinner line `Working...`; (c) it mentions both `api/` and `cli/`.
+- Pass: `grep -c 'api/' notes/m1.txt` and `grep -c 'cli/' notes/m1.txt` are both ≥ 1 and `grep -cF 'Working...' notes/m1.txt` is `0`. (Match the three dots: the lab README calls the course *Working with omp*, so a bare `grep Working` gives a false positive.)
 
 **Stretch:** Goal: run the fix prompt again from a clean checkout in print mode with `--mode json` and find the `edit` tool call in the event stream. Pass: `git checkout -- . && git checkout module-1-start` first; afterwards `git diff --stat` shows one file (`cli/format.py`) **and** `grep -c '"edit"' notes/m1-events.json` ≥ 1.
 
@@ -455,7 +498,16 @@ false
   | `omp config path` | active agent directory |
   | `omp config init-xdg` | create XDG data/state/cache dirs (Linux/macOS) |
   `/settings` inside a session edits the same global file through a panel. Keys must be full schema paths (`theme.dark`, not `theme`).
-- **Layering (preview; full treatment in Module 6.7):** env var on the definition › runtime override › `--config` overlays / `PI_CONFIG_FILES` › project `<cwd>/.omp/config.yml` (+ `settings.json`) › global `~/.omp/agent/config.yml` › default. Project settings are read only when `<cwd>/.omp/` is **non-empty** — at `module-1-start` the lab's `.omp/` holds only a `.gitkeep` and no `config.yml`, so nothing project-level applies yet. `omp config set` never writes the project file; edit `<repo>/.omp/config.yml` by hand.
+- **Layering (preview; full treatment in Module 6.7).** Highest precedence first:
+  | Layer | Where |
+  |---|---|
+  | env var on the definition | environment |
+  | runtime override | in-session |
+  | `--config` overlays / `PI_CONFIG_FILES` | command line / env |
+  | project | `<cwd>/.omp/config.yml` (+ `settings.json`) |
+  | global | `~/.omp/agent/config.yml` |
+  | default | schema |
+  Project settings are read only when `<cwd>/.omp/` is **non-empty** — at `module-1-start` the lab's `.omp/` holds only a `.gitkeep` and no `config.yml`, so nothing project-level applies yet. `omp config set` never writes the project file; edit `<repo>/.omp/config.yml` by hand.
 - **Two defaults to know now:** `tools.approvalMode` is `yolo` (auto-approve everything — Module 4 changes this); `startup.showSplash` is `false`.
 - **Profiles:** `omp --profile work` isolates auth, sessions, settings and caches under `~/.omp/profiles/work/agent/`; `OMP_PROFILE=work` does the same; `omp --profile work --alias omp-work` creates a shell shortcut. Keybindings are the one thing a profile inherits from the default profile.
 - **`omp setup`:** with no component it runs onboarding setup; `omp setup python --check` reports the interpreter used by the Python eval backend; `omp setup speech` selects and downloads local speech/dictation models (Module 7). `--check`/`--json` require a component.
@@ -476,7 +528,11 @@ false
 7. `omp config list | grep -c .`
    **Expected:** a number in the hundreds — this is why you use `get`.
 
-**Guided task:** Goal: create an isolated profile called `course`, confirm it has its own agent directory and its own (empty) auth store, then go back. Hints: `--profile` accepts any subcommand that reads config; `omp --profile course config path`; `omp --profile course token <provider>` should fail. Checkpoints: (a) `omp --profile course config path` ends in `/profiles/course/agent`; (b) that directory exists after the first run; (c) `omp --profile course token <provider>` exits non-zero. Pass: (a) and (c).
+**Guided task:**
+- Goal: create an isolated profile called `course`, confirm it has its own agent directory and its own (empty) auth store, then go back.
+- Hints: `--profile` accepts any subcommand that reads config; `omp --profile course config path`; `omp --profile course token <provider>` should fail.
+- Checkpoints: (a) `omp --profile course config path` ends in `/profiles/course/agent`; (b) that directory exists after the first run; (c) `omp --profile course token <provider>` exits non-zero.
+- Pass: (a) and (c).
 
 **Stretch:** Goal: relocate the whole agent directory for one command with `PI_CODING_AGENT_DIR`, and show `omp config path` follows it. Pass: `PI_CODING_AGENT_DIR=/tmp/omp-alt omp config path` prints `/tmp/omp-alt`.
 
@@ -544,7 +600,7 @@ Run `/hotkeys` inside an `omp` session to see the active chords for your current
   | `omp stats` · `omp usage` | usage statistics / provider limits | 7 |
   | `omp tiny-models list\|download` | tiny local models (titles, memory) | 7 |
   | `omp plugin …` · `omp install` | plugins, marketplaces | 12 |
-  | `omp agents unpack [--project]` | export bundled subagent definitions | 10 |
+  | `omp agents unpack [--project]` | export bundled subagent (background helper agent) definitions | 10 |
   | `omp share` · `omp collab` · `omp join` · `omp stream` · `omp play` · `omp clip` | sharing, live collaboration, recordings | 5, 14 |
   | `omp ttsr` | inspect/test Time-Traveling Stream Rules | 11 |
   | `omp search` / `omp q` / `omp web-search` | test web-search providers | 8 |
@@ -567,7 +623,11 @@ Run `/hotkeys` inside an `omp` session to see the active chords for your current
 5. `omp "models"` — *do not* press Enter on anything; just observe, then `Ctrl+C` twice.
    **Expected:** the TUI opens with `models` as the first message: an argument that is not a subcommand is a prompt.
 
-**Guided task:** Goal: build your own one-page index of the subcommands with their one-line purposes, straight from the binary. Hints: `omp --help` has a `COMMANDS` block; `sed -n '/^COMMANDS/,/^Environment/p'` isolates it; save to `notes/m1-commands.txt`. Checkpoints: (a) the file has ≥ 40 command lines; (b) it contains `worktree` and `ttsr`. Pass: `grep -c -e '^  worktree' -e '^  ttsr' notes/m1-commands.txt` prints `2`.
+**Guided task:**
+- Goal: build your own one-page index of the subcommands with their one-line purposes, straight from the binary.
+- Hints: `omp --help` has a `COMMANDS` block; `sed -n '/^COMMANDS/,/^Environment/p'` isolates it; save to `notes/m1-commands.txt`.
+- Checkpoints: (a) the file has ≥ 40 command lines; (b) it contains `worktree` and `ttsr`.
+- Pass: `grep -c -e '^  worktree' -e '^  ttsr' notes/m1-commands.txt` prints `2`.
 
 **Stretch:** Goal: run `omp gc --wal --apply` (WAL checkpoint only — safe; `--wal` restricts the sweep to that step) and compare its output with `omp gc --wal`. Pass: the applied run prints `GC applied (<agent dir>)` and `wal: checkpointed, …` instead of `GC dry-run` / `checkpoint dry-run`, and `omp` still starts afterwards.
 

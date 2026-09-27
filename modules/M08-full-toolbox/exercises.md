@@ -21,7 +21,12 @@ Type, one at a time: `read docs/spec.pdf:1-40` · `read data/lab.sqlite:orders?l
 **Pass:** four `read` cards with structured output: `<!-- Page 1 -->` in the first, a 5-row Markdown table with a `[N more rows; …offset=5…]` footer in the second, the README text in the third, `Method: github-repo` in the fourth. No `bash` cards. Save the four card bodies to `notes/m8-read.md`.
 
 ### 8.1-W  Write to a database row and an archive member (5 min)
-Prompt: *"Insert a user named Grace (email grace@lab.test) with the write tool into data/lab.sqlite:users, read it back with ?where=, then add a file notes/todo.txt containing 'hello' inside fixtures/bundle.zip and read it back."*
+Prompt:
+
+```text
+Insert a user named Grace (email grace@lab.test) with the write tool into data/lab.sqlite:users, read it back with ?where=, then add a file notes/todo.txt containing 'hello' inside fixtures/bundle.zip and read it back.
+```
+
 **Pass:** cards `Inserted row into users`, a `read` with a `?where=` clause (`name='Grace'` or `email='grace@lab.test'`) showing the new row, `Successfully wrote 5 bytes to fixtures/bundle.zip:notes/todo.txt`, and `read fixtures/bundle.zip:notes/todo.txt` → `hello`. Then `git checkout -- data/lab.sqlite fixtures/bundle.zip`.
 
 ### 8.1-G  Busiest month, no shell (10 min)
@@ -36,7 +41,7 @@ Hints: `omp q --model web/duckduckgo "…"`, `omp q --model web/startpage "…"`
 **Pass:** `notes/m8-search.md` contains both boxed outputs and names the two providers shown in the panel headers.
 
 ### 8.1-S  Read yourself over SSH (10 min; needs local `sshd`)
-`omp ssh add self --host 127.0.0.1 --user $USER`, then `read ssh://self/<abs path>/omp-course-lab/README.md`.
+Goal: read the lab's `README.md` through omp's SSH transport, pointed at your own machine.
 **Pass:** the `read` card's source is an `ssh://self/…` URL and `diff <(omp read ssh://self/…/README.md) <(omp read README.md:raw)` is empty (ignoring the hashline header).
 
 ---
@@ -48,11 +53,16 @@ Three prompts, three cells: build `by_month` from `data/lab.sqlite` and `display
 **Pass:** three `eval` cards; the second cell's code has no `sqlite3.connect`; the third shows `"text": "orders (72 rows)\nschema_version (1 rows)\nusers (12 rows)"` under `display[1]:`.
 
 ### 8.2-W  `reset` wipes state (3 min)
-Prompt: *"Reset the Python kernel and display(by_month)."*
+Prompt:
+
+```text
+Reset the Python kernel and display(by_month).
+```
+
 **Pass:** the card shows `NameError: name 'by_month' is not defined` and `Command exited with code 1`.
 
 ### 8.2-G  Orders per month, plotted (15 min)
-Goal: "In eval, load `data/lab.sqlite` via `tool.read` (`?q=` raw SQL), compute orders per month, plot to `notes/orders.png`."
+Goal: load `data/lab.sqlite` from inside `eval` through the tool bridge (`tool.read` with the `?q=` raw-SQL form), compute orders per month, and plot the result to `notes/orders.png`.
 Hints: `%pip install matplotlib` first (standalone cell); keep the parsed rows in a variable; `plt.savefig('notes/orders.png')`; the figure is also auto-captured inline.
 Checkpoints: (a) cell 1 contains `await tool.read`; (b) plotting cell contains neither `tool.read` nor `sqlite3`; (c) inline image appears in the card.
 **Pass:** `test -s notes/orders.png` succeeds **and** the plotting cell reuses the variable (no reload).
@@ -63,7 +73,7 @@ Hints: `completion(prompt, model="smol", schema={...}).wait()`; the wait does no
 **Pass:** the card's `display[1]:` is an object with a single `month` key whose value is one of `by_month`'s keys.
 
 ### 8.2-S  `%load` and the watchdog (10 min)
-Write `notes/orders_lib.py` with `def by_month(db): …`; `%load notes/orders_lib.py`; use it in two cells; then run a cell with `import time; time.sleep(40)`.
+Goal: prove that a `%load`-ed helper survives a kernel timeout.
 **Pass:** the sleeping cell's card contains `eval cell timed out after 30s; kernel interrupted but remains running`, and the following cell still calls `by_month()` successfully.
 
 ---
@@ -80,7 +90,8 @@ Prompts: `lsp references` for `get_user` on its `def` line in `api/db.py`; `lsp 
 
 ### 8.3-W  Codemod with preview and `xd://resolve` (10 min)
 Start omp with `astGrep.enabled` on (`omp config set astGrep.enabled true` or a `--config` overlay). Prompts: `ast_grep` pattern `print($$$A)` on `cli`; `ast_edit` `print($$$A)` → `logger.debug($$$A)` on `["cli"]`; *"apply the staged proposal by writing a reason to xd://resolve"*; then grep and tests.
-**Pass:** `Staged as a proposal — files NOT modified yet` card, then `Applied 10 replacements in 1 file.` (all 10 `print(` calls live in `cli/commands.py`; the docstring mentions in `cli/log.py` are not matched), `grep -rn "print(" cli/commands.py` empty (`grep -rn "print(" cli/` still shows the two docstring lines in `cli/log.py`), tests `OK` after adding `from cli.log import logger` to `cli/commands.py`.
+**Pass:** `Staged as a proposal — files NOT modified yet` card, then `Applied 10 replacements in 1 file.` (all 10 `print(` calls live in `cli/commands.py`; the docstring mentions in `cli/log.py` are not matched).
+Afterwards `grep -rn "print(" cli/commands.py` is empty (`grep -rn "print(" cli/` still shows the two docstring lines in `cli/log.py`), and tests are `OK` after adding `from cli.log import logger` to `cli/commands.py`.
 
 ### 8.3-G  Rename + codemod end to end (15 min)
 Goal: LSP rename `get_user` → `fetch_user` across `api/` (re-exported from `api/__init__.py`); then `ast_edit` `print($$$A)` → `logger.debug($$$A)` in `cli/`, accepting the proposal.
@@ -94,7 +105,7 @@ Hints: `omp find -q "…" .` or the `find` tool; add `-k get_user` style keyword
 **Pass:** top hit is under `api/` with a range that contains the handler; the footer shows `judged N` > 0.
 
 ### 8.3-S  Project LSP override and file move (15 min)
-Write `.omp/lsp.json` disabling `pylsp` and setting `idleTimeoutMs: 120000`; `lsp reload` with `file: "*"`; then `lsp rename_file api/db.py → api/storage/db.py` and make tests pass.
+Goal: disable `pylsp` for this project only, then move `api/db.py` to `api/storage/db.py` with a server-driven file move so the imports follow, and make the tests pass.
 **Pass:** `lsp status` no longer lists `pylsp`; `git status` shows the rename plus updated imports; tests `OK`.
 
 ---
@@ -112,7 +123,7 @@ Checkpoints: (a) two sessions; (b) a `variables`/`evaluate` card per program sho
 **Pass:** transcript shows `debug` cards with `scopes`/`variables` for **both** programs; `python bin/crash.py; echo $?` and `./bin/crash; echo $?` both print `0`.
 
 ### 8.4-S  Print-debug vs DAP, plus a conditional breakpoint (15 min)
-In a fresh session with `--tools read,edit,bash`, fix the Python crash by print-debugging; count `edit` cards and reruns. Then, with `debug` on the unfixed file (`git checkout -- bin/crash.py`), set a breakpoint at `bin/crash.py:45` (the `print(...)` in `main`) with `condition: "user is None"` and `continue` once. `bin/crash.py` takes no arguments — the loop over `WANTED_IDS = [1, 2, 99, 3]` is the input.
+Goal: fix the same Python crash twice — once by print-debugging only in a fresh session without `debug`, once with `debug` and a *conditional* breakpoint that skips the good ids — and compare the cost of each approach.
 **Pass:** `notes/m8-debug.md` lists both tool sequences with counts; the conditional-breakpoint card says `verified`; the first `variables` card after `continue` shows `user_id = 99` and `user = None` (an unconditional breakpoint on the same line stops first at `user_id = 1`).
 
 ---
@@ -133,5 +144,5 @@ For each tool you can enable, run its one-line prompt from `cheatsheet.md` and r
 **Pass:** `notes/m8-gated.md` has one line per enabled tool, each line copied from a real card (`Saved … bytes to notes/hello.wav …`, `omp-image-…`, `Opened …`).
 
 ### 8.5-S  Security scan (20 min; OAuth login required)
-`omp config set security.enabled true`; `security_scan preflight` excluding `generated` and `notes`; `start`; poll `status`; read `security://scans/<id>/findings` and `/report`.
+Goal: run a security scan on the lab and read its findings.
 **Pass:** `read security://scans` lists the scan as `completed` or `partial`; `read security://scans/<id>/report` returns Markdown; one finding (if any) is `validate`d with a summary and the finding card shows the new status.

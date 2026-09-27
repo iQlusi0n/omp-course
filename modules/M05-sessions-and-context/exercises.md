@@ -2,7 +2,7 @@
 
 Start point: `cd omp-course-lab && git checkout module-5-start`. All outputs go to `notes/` (gitignored). Time per exercise is in brackets. Every exercise has an observable pass condition — collect the evidence in `notes/m5.md`.
 
-Prerequisites: a logged-in model (Module 1). A vision-capable model is needed only for the `snapcompact` comparison in G2. No LSP, debugger, or browser required except to *open* the exported HTML / share link.
+Prerequisites: a logged-in model (Module 1). A vision-capable model is needed only for the `snapcompact` comparison in G2. No LSP (language-server code intelligence, Module 8), debugger, or browser required except to *open* the exported HTML / share link.
 
 Conventions: keys are shown as `Ctrl+O`; slash commands are typed in the composer and submitted with Enter; `!cmd` runs a shell command from the composer.
 
@@ -57,7 +57,7 @@ Goal: drive context past the threshold with large reads, watch auto-compaction, 
 
 Hints:
 - Default thresholds on large-window models are far away; set a fixed trigger: `omp config set compaction.thresholdTokens 30000` (writes the global config; for a lab-only override edit `omp-course-lab/.omp/config.yml` by hand). Check with `omp config get compaction.thresholdTokens`.
-- Big input: `Read docs/spec.md in full, then read every file in api/ and cli/ in full. Do not summarize.`
+- Big input: one prompt that asks omp to read `docs/spec.md` and every file under `api/` and `cli/` in full, and tells it not to summarize (exact wording in `solutions/`).
 - The divider looks like `── 📷 compacted · ctrl+o ──` and sits where compaction fired. `Ctrl+O` on it expands the summary.
 - `/handoff` refuses while streaming and prints `Nothing to hand off (already compacted)` if the kept tail is all that is left — do a turn or two of work between the auto-compaction and the handoff.
 - In `/tree`, type `compact` to find the `compaction` entries on the active path (`Alt+A` shows every bookkeeping entry as well).
@@ -93,23 +93,31 @@ Checkpoints:
 
 Goal: show that `omp -c` follows the terminal breadcrumb, not "newest file".
 
-Hints: two tmux/terminal panes in `omp-course-lab`; run a turn in pane A (`Reply A.`), then in pane B start `omp`, run `Reply B.`, `/exit`; in pane A `/exit` then `omp -c`.
+Hints:
+- Two tmux/terminal panes in `omp-course-lab`.
+- Run a one-line turn in pane A that identifies pane A; then in pane B start `omp`, run a one-line turn that identifies pane B, `/exit`.
+- In pane A `/exit` then `omp -c`.
+
 Checkpoints: `ls ~/.omp/agent/terminal-sessions/` shows two breadcrumbs; `cat` each — second lines differ.
-**Pass:** pane A's `omp -c` shows the `Reply A.` transcript although session B is newer. Paste both breadcrumb contents into `notes/m5.md`.
+
+**Pass:** pane A's `omp -c` shows pane A's transcript although session B is newer. Paste both breadcrumb contents into `notes/m5.md`.
 
 ---
 
 ## S1 — Record and replay  [5 min]  *(Stretch)*
 
-`/record`, run one short prompt, `/record` again, `/exit`, then `omp play -s 2`.
+Goal: capture a short session as an `.ompcast` recording and replay it from the shell.
+
 **Pass:** the status line showed `● REC`; `/record` printed `Saved …s recording to …ompcast`; `omp play -s 2` replays it (`Space` pauses, `q` quits). Optional: `omp clip -t "M5"` prints a `live.omp.sh/c/<id>` URL (needs Stencil login).
 
 ## S2 — Worktree session  [10 min]  *(Stretch)*
 
-Use `/wt m5-s2` (or plain `/wt` for a generated `wt/<timestamp>` branch) to move the current session into a new git worktree, then `omp worktree list`.
+Goal: move the current session into a new git worktree and prove omp knows about it.
+
 **Pass:** `omp worktree list` shows the path; `/resume` (Tab → all projects) shows the session under that path; `omp worktree clear --dry-run` lists it for removal.
 
 ## S3 — Method comparison  [15 min]  *(Stretch)*
 
-Repeat G1's read turn under `compaction.methodOrder` = `["shake","soft"]` and then `["snapcompact","soft"]` (vision model required).
+Goal: find out which compaction method actually runs under two different `compaction.methodOrder` settings, `["shake","soft"]` and `["snapcompact","soft"]` (vision model required).
+
 **Pass:** `notes/m5.md` names the method that ran each time (from what `Ctrl+O` on the divider reveals: `artifact://` refs vs image frames vs prose) and the resulting `context_pct`. Restore with `omp config reset compaction.methodOrder`.

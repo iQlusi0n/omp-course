@@ -39,7 +39,9 @@ Prerequisite: a provider account (OAuth: Anthropic, OpenAI Codex, GitHub Copilot
    ```
    **Expected:** nothing from `git status --short`; the TUI opens with an empty composer.
 6. Paste this prompt and press `Enter`:
-   > Read `docs/ISSUES.md` and locate issue #1. Inspect the code it points at for one small bug. Make the smallest safe fix — touch only the file that contains the bug. Then run `python3 -m unittest discover -s tests` and show me the result.
+   ```text
+   Read `docs/ISSUES.md` and locate issue #1. Inspect the code it points at for one small bug. Make the smallest safe fix — touch only the file that contains the bug. Then run `python3 -m unittest discover -s tests` and show me the result.
+   ```
 
    **Expected:** in order: a `read` card (`docs/ISSUES.md`), a `read` card for `cli/format.py` (issue #1 names that file; more `read`/`grep`/`glob` cards are fine), one `edit` card, one `bash` card containing `unittest`, then a final message reporting the tests pass.
 7. Press `Ctrl+O`.

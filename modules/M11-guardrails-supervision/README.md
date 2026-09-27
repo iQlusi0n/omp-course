@@ -12,10 +12,10 @@
 By the end of Module 10 you can fan work out to subagents. This module is about what watches
 the agent while it works:
 
-- rules that fire *mid-stream* and force a retry (**TTSR**, 11.1);
+- rules that fire *mid-stream* and force a retry (**Time-Traveling Stream Rules — TTSR**, 11.1);
 - a second model that reviews every turn and can interrupt (**advisor/watchdog**, 11.2);
 - a one-shot model hand-off so an expensive model plans and a cheap one implements (**prewalk**, 11.3);
-- the `tool_call` block contract you will build in Module 12 (**extension guardrails**, 11.4);
+- the `tool_call` block contract you will build in Module 12 (**extension guardrails**, 11.4 — an *extension* is code omp loads to add tools and event handlers; see Module 12);
 - the context strategies that keep a multi-hour session coherent (**notes-backed windows**, 11.5).
 
 Everything below is verified against the bundled docs (`read omp://…`) and the 18.3.1 binary.
@@ -36,9 +36,10 @@ graph LR
 
 ## Lesson 11.1 — Time-Traveling Stream Rules (TTSR)              (~25 min)
 **You will be able to:** write a `.omp/rules/*.md` rule with a `condition:` / `astCondition:` / `question:` trigger; predict from `interruptMode` and `scope` whether it aborts mid-stream or lands as a reminder; test and scan rules with `omp ttsr` before trusting them in a live session.
-**Why this exists:** `AGENTS.md` and rulebook rules are advice the model reads once at the top of the context and can drift away from ten tool calls later. TTSR rules are different: omp watches the *token stream* — assistant prose and tool arguments as they arrive — and when a rule's regex or ast-grep pattern matches, it aborts the generation immediately, throws away the partial output, injects a `<system-interrupt>` carrying the rule body, and retries. The model never gets to finish the bad edit. "Time-traveling" is literal: from the model's point of view the violation never happened; it just received a reminder before writing the line.
+**Why this exists:** `AGENTS.md` and rulebook rules are advice the model reads once and can drift away from ten tool calls later. TTSR rules instead watch the *token stream* as it arrives; when a rule's regex or ast-grep pattern matches, omp aborts the generation, injects a `<system-interrupt>` carrying the rule body, and retries. The model never gets to finish the bad edit.
 **Demo:** [`demos/11.1-ttsr-interrupt.md`](demos/11.1-ttsr-interrupt.md) — a `console.log` edit aborted mid-stream, the `Injecting rule: no-console-log` card, the retried edit using a guarded helper; plus real `omp ttsr test|scan|list` output captured on the build machine against the lab repo.
 **Concepts:**
+- **What is watched, and why "time-traveling".** The stream means assistant prose *and* tool arguments as they arrive. The partial output is thrown away; from the model's point of view the violation never happened — it just received a reminder before writing the line.
 - **Where rules live.**
   - Project: `<cwd>/.omp/rules/*.md` (or `.mdc`), loaded when `.omp/` is non-empty.
   - User: `~/.omp/agent/rules/*.md` (profile-aware, honours `PI_CODING_AGENT_DIR`).
@@ -162,7 +163,7 @@ graph LR
 *Hints:* `astCondition: "print($$$ARGS)"`; `scope: "tool:edit(cli/*.py), tool:write(cli/*.py)"`; `interruptMode: tool-only`. Verify with `omp ttsr test --source tool --tool edit --path cli/__main__.py 'print("hi")'` (should trigger) and the same with `'sys.stdout.write("hi\n")'` (should not).
 *Checkpoints:* `omp ttsr scan -v cli/` from the repo root lists `cli/commands.py` (the seeded `print()` sites; `cli/log.py`'s `logger` is the intended replacement).
 *Pass:* the rule shows in `omp ttsr list` with `astCondition: print($$$ARGS)`; the two `test` calls behave as stated; a live prompt that would add a `print()` to `cli/` produces the `Injecting rule: no-bare-print` card.
-**Stretch:** *Goal:* use `/omfg` to generate a rule from a complaint after the agent claims "tests pass" without running them; then convert it into a judged rule (`question:`) with a `condition:` prefilter so the judge is asked only when the reply contains "pass"/"verified".
+**Stretch:** *Goal:* a generated-then-judged rule: start from a complaint about the agent claiming "tests pass" without running them, and end with a `question:` rule whose `condition:` prefilter asks the judge only when the reply contains "pass"/"verified".
 *Pass:* `omp ttsr list` shows the rule with both `condition:` and `question:`; `omp ttsr test -v --source text 'All tests pass'` prints `question (judged at runtime, not tested)`; with `ttsr.judge: on`, a live reply that claims success without a test run receives a warning injection after the message (not mid-stream).
 **Troubleshooting:**
 | Symptom | Cause | Fix |
@@ -192,9 +193,10 @@ graph LR
 
 ## Lesson 11.2 — Advisor / Watchdog              (~25 min)
 **You will be able to:** enable a second model that reviews every turn; steer it with `WATCHDOG.md` priorities and a `WATCHDOG.yml` roster; read `<advisory>` notes by severity and know which ones interrupt; inspect the advisor with `/advisor status|dump`.
-**Why this exists:** A single model marking its own homework misses the same things every time. The advisor is a separate agent with its own model, its own read-only tool session, and its own append-only context. After each primary turn it receives only the *new transcript delta* (including reasoning and tool results) and may call one tool, `advise`, to push a note into the primary transcript. Nits batch quietly; a `concern` or `blocker` can interrupt and re-steer the run. It never approves or edits for the primary unless you explicitly grant mutating tools in the roster — it is a reviewer on the shoulder, priced separately, whose priorities you write down in `WATCHDOG.md`.
+**Why this exists:** A model marking its own homework misses the same things each time. The advisor is a separate agent with its own model, read-only tool session, and append-only context. After each primary turn it sees only the *new transcript delta* and may call one tool, `advise`, to push a note into the transcript: a reviewer on the shoulder, billed separately, steered by `WATCHDOG.md`.
 **Demo:** [`demos/11.2-advisor.md`](demos/11.2-advisor.md) — enabling the advisor, the `<advisory severity="blocker">` card landing after the agent wraps issue #8's `_signup` in a catch-all `except Exception` → 400, and `/advisor status`.
 **Concepts:**
+- **What it sees and can do.** The delta includes reasoning and tool results. Nits batch quietly; a `concern` or `blocker` can interrupt and re-steer the run. It never approves or edits for the primary unless you explicitly grant mutating tools in the roster; you write its priorities in `WATCHDOG.md`.
 - **Turn on (off by default).** Assign a model to the `advisor` role, then enable — persisted:
   ```yaml
   # ~/.omp/agent/config.yml (or <repo>/.omp/config.yml)
@@ -303,7 +305,7 @@ graph LR
 *Hints:* start from [`solutions/WATCHDOG.yml`](solutions/WATCHDOG.yml); keep `Fixer.enabled: false` until you have read what `bash` in an advisor implies; run `/advisor configure` to see how omp validates the file; re-run the issue #8 task.
 *Checkpoints:* `/advisor status` lists `ErrorHandling`, `ApiContract` (active) and `Fixer` (paused); the advisory card carries `advisor="ErrorHandling"`; the session artifacts dir contains `__advisor.errorhandling.jsonl` and `__advisor.apicontract.jsonl`.
 *Pass:* both named files exist and `omp stats` for the session shows advisor cost.
-**Stretch:** *Goal:* advise a subagent, not the main session. Add `advisor: true` to a custom agent from Module 10 (or set it from `/agents` → Enter → advisor strip), spawn it on a small `api/` change, and find its advisor log in Agent Hub.
+**Stretch:** *Goal:* advise a subagent, not the main session — a custom agent from Module 10 gets its own advisor while the parent session stays unadvised.
 *Pass:* Agent Hub shows the subagent's `advisor`-kind transcript with at least one review turn; if you used the hub, `omp config get task.agentAdvisor` records the choice.
 **Troubleshooting:**
 | Symptom | Cause | Fix |
@@ -333,9 +335,10 @@ graph LR
 
 ## Lesson 11.3 — Prewalk: plan expensive, implement cheap              (~15 min)
 **You will be able to:** arm a one-shot hand-off so the current model plans and the `@smol` model implements; recognise the hand-off point in the transcript and status line; restart the cycle with `/prewalk restart`; arm prewalk for subagents.
-**Why this exists:** Reading the repo, deciding what to change, and writing the todo list is where a strong model earns its price. Typing out the edits once the plan exists is not. Prewalk lets the session start on your `@default` (or any) model, injects a "plan deeply first" nudge, and — the moment the plan is committed (a `todo` call) and the first `edit`/`write` completes — switches the session to the `@smol` role. One shot, no manual `/model` dance. Model roles were set up in Module 7; prewalk is the workflow that cashes them in.
+**Why this exists:** Reading the repo, deciding what to change, and writing the todo list is where a strong model earns its price; typing out the edits once the plan exists is not. Prewalk starts on your `@default` (or any) model, injects a "plan deeply first" nudge, and switches to the `@smol` role once the plan is committed and the first edit completes. One shot, no manual `/model` dance.
 **Demo:** [`demos/11.3-prewalk.md`](demos/11.3-prewalk.md) — `omp --prewalk`, the armed notice, the todo list, the `Prewalk: switched to …` notice after the first edit, and the model chip change.
 **Concepts:**
+- **Roles first.** Model roles were set up in Module 7; prewalk is the workflow that cashes them in. "Plan committed" means a `todo` call; "first edit" means the first completed `edit`/`write` (details below).
 - **Off by default.** Persist with `omp config set prewalk.enabled true`, i.e.
   ```yaml
   prewalk:
@@ -383,7 +386,10 @@ graph LR
    **Expected:** two different selectors (else assign a cheaper model to `smol` in `/model`, or edit `modelRoles:` in `config.yml` — Module 7).
 2. `omp --prewalk` in `omp-course-lab`.
    **Expected:** `Prewalk: armed for <smol provider>/<id> — will switch at the first edit/write once the todo list exists.`; status line shows the prewalk indicator.
-3. Prompt: *"Add a `--json` flag to the CLI `orders` subcommand (`python3 -m cli orders --month 2026-03 --json`) that prints the rows as a JSON array instead of the table. Plan first, then implement, then run the tests."*
+3. Prompt:
+   ```text
+   Add a `--json` flag to the CLI `orders` subcommand (`python3 -m cli orders --month 2026-03 --json`) that prints the rows as a JSON array instead of the table. Plan first, then implement, then run the tests.
+   ```
    **Expected:** a todo card *before* any edit (the planning nudge). After the first `edit` card
    completes: `Prewalk: switched to <smol> after first edit call.`; the model chip shows the smol
    model; remaining edits and the test run happen on it.
@@ -420,9 +426,10 @@ graph LR
 
 ## Lesson 11.4 — Extension-level guardrails (preview)              (~5 min)
 **You will be able to:** state the `tool_call` block contract and where a hook file must live, so that in Module 12 you can build a hard guardrail that neither TTSR nor the advisor can provide.
-**Why this exists:** TTSR reacts to *text* and the advisor gives *advice*. Neither can say "this `bash` command shall not run". That is a code-level guardrail: an extension (or hook — hooks are loaded as extensions) subscribes to `tool_call`, inspects the tool name and input *before execution*, and returns `{ block: true, reason }`. The tool never runs; the model sees `reason` as the tool error. This lesson is a contract preview only — the build/load/test cycle is Module 12.
+**Why this exists:** TTSR reacts to *text* and the advisor gives *advice*; neither can say "this `bash` command shall not run". That is a code-level guardrail: an extension (or hook — hooks are loaded as extensions) subscribes to `tool_call`, inspects the tool name and input *before execution*, and returns `{ block: true, reason }`. The tool never runs; the model sees `reason` as the tool error.
 **Demo:** [`demos/11.4-extension-block.md`](demos/11.4-extension-block.md) — the handler shape and what a blocked call looks like as a tool-error card.
 **Concepts:**
+- **Preview only.** This lesson states the contract; the build/load/test cycle is Module 12.
 - **Contract.** `pi.on("tool_call", async (event, ctx) => { … })` may return
   `{ block?: boolean; reason?: string; input?: Record<string, unknown>; additionalContext?: string }`.
   - any handler returning `block: true` stops execution; `reason` becomes the thrown error text;
@@ -473,9 +480,10 @@ graph LR
 
 ## Lesson 11.5 — Long-running context strategies              (~20 min)
 **You will be able to:** turn on notes-backed context windows and use `context_notes`, `new_context`, and `history://current/full`; toggle `/extended-context`; choose between compaction, `/handoff`, `checkpoint`/`rewind`, and notes for a given situation.
-**Why this exists:** Module 5 showed compaction: when context nears the threshold omp asks a model to summarise old history. That is lossy and costs a model call. For very long tasks omp 18.x offers an experimental alternative: the model keeps a **notebook** (`context_notes`) of its working state, and when the window fills it asks for a fresh one (`new_context`) — no summariser; the notebook plus the most recent tool results carry over, and the raw journal stays searchable through `history://current/full`. Knowing which mechanism to reach for is the real skill; each has a distinct trigger, cost, and loss profile.
+**Why this exists:** Module 5 showed compaction: near the threshold omp asks a model to summarise old history — lossy, and a paid model call. For very long tasks omp 18.x offers an experimental alternative: the model keeps a **notebook** (`context_notes`) of its working state and, when the window fills, asks for a fresh one (`new_context`). No summariser; notebook and recent results carry over.
 **Demo:** [`demos/11.5-notes-context.md`](demos/11.5-notes-context.md) — enabling the setting, the two tools appearing, a `Context notes saved.` card, `new_context` → rollover divider, and `read history://current/full:1-40`.
 **Concepts:**
+- **Choosing.** The raw journal stays searchable through `history://current/full`. Knowing which mechanism to reach for is the real skill; each has a distinct trigger, cost, and loss profile.
 - **Enable (default `false`, experimental).** `/settings` → Context → Compaction →
   *Notes-backed context windows (experimental)*, or
   ```yaml

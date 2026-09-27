@@ -28,7 +28,8 @@ Solutions and instructor checks: `solutions/`.
 **Goal:** `ci/review.sh` reviews the working diff with a read-only omp, using `--config ci/ci.yml` for approval and tool pinning, and exits non-zero on a P0 finding.
 
 Hints:
-- Start from `solutions/ci-review.sh` and `solutions/ci.yml` if stuck, but write your own first: the pieces are `omp -p --mode json --no-session --config ci/ci.yml --tools read,grep,glob --max-time 5m "/review <ask for JSON>"`, then a parser for the last assistant `message_end`. Tell the reviewer to judge **only the working diff** and to answer `pass` when the diff is empty — otherwise it roams the whole lab and rates the seeded issues (#1–#8) as `P1`/`verdict=fail` even on a clean tree (observed on 18.3.5).
+- Start from `solutions/ci-review.sh` and `solutions/ci.yml` if stuck, but write your own first. The pieces: `omp -p --mode json --no-session --config ci/ci.yml --tools read,grep,glob --max-time 5m "/review <ask for JSON>"`, then a parser for the last assistant `message_end`.
+- Tell the reviewer to judge **only the working diff** and to answer `pass` when the diff is empty — otherwise it roams the whole lab and rates the seeded issues (#1–#8) as `P1`/`verdict=fail` even on a clean tree (observed on 18.3.5).
 - `ci.yml` needs `tools.approvalMode: always-ask` and a `tools.approval` deny list — keys in `omp://settings.md`.
 - Models sometimes fence JSON in ```` ``` ```` even when told not to; strip it.
 - omp exits `0` when it refuses a tool; your exit code must come from the parsed verdict (any `P0`, or `"verdict":"fail"`). Fail closed on unparseable output — and expect the model to wrap the JSON in prose sometimes, so extract the `{…}` rather than parsing the whole reply.
@@ -87,8 +88,6 @@ Checkpoints:
 ## E5 (S, 15 min, ACP editor required) — `omp acp` in Zed (or any ACP client); approve one write
 
 **Goal:** host omp inside your editor via ACP and observe the permission gate.
-
-Steps (goal only): register `omp acp` as an agent server in the editor; open `omp-course-lab`; ask for a read-only question (no dialog expected); ask for an edit to `cli/__init__.py` — reject once, then approve once.
 
 **Pass:** one rejected `edit` leaves `git diff --stat` empty; one approved `edit` shows `cli/__init__.py` in `git diff --stat`. Bonus: relaunch as `omp acp --yolo` and show the dialog no longer appears.
 

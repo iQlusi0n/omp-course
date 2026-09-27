@@ -23,7 +23,14 @@ Grading: `bash notes/failing.sh 2>&1 >/dev/null | wc -c` must be `0` — student
 
 ## E2 — ci/review.sh
 
-Use `ci-review.sh` verbatim as the reference. Observed evidence (demo 13.5, 18.3.1, scratch repo): planted P0 → `EXIT=1` with two `P0` rows; clean diff → `EXIT=0`; `--max-time 1` → "failing closed", `EXIT=1`. Audit run (18.3.5, lab with the planted P0 in `cli/__init__.py`): the reviewer answered with prose *and* a fenced JSON block listing the lab's seeded issues as `P1` with `verdict: "fail"` and did not name the planted line — the script now extracts the JSON object from prose/fences and exits `1` on `verdict: "fail"` as well as on a `P0` row, so the pipeline still went red. Dry run (18.3.5, lab at `module-13-start`): with the original prompt a **clean** tree also came back `8 finding(s), 0 P0, verdict=fail` (the seeded issues again) → `EXIT=1`, so the prompt now says "Review ONLY the lines changed in the working diff … If the diff is empty, answer pass"; with that, clean → `0 finding(s), 0 P0, verdict=pass`/`EXIT=0`, planted P0 → `P0 cli/__init__.py:4 …`/`EXIT=1` in two of three runs (one run answered `pass`). Grade checkpoint 2 on a rerun if the first attempt misses.
+Use `ci-review.sh` verbatim as the reference. Observed evidence, by run:
+- Demo 13.5 (18.3.1, scratch repo): planted P0 → `EXIT=1` with two `P0` rows; clean diff → `EXIT=0`; `--max-time 1` → "failing closed", `EXIT=1`.
+- Audit run (18.3.5, lab with the planted P0 in `cli/__init__.py`): the reviewer answered with prose *and* a fenced JSON block listing the lab's seeded issues as `P1` with `verdict: "fail"` and did not name the planted line. The script now extracts the JSON object from prose/fences and exits `1` on `verdict: "fail"` as well as on a `P0` row, so the pipeline still went red.
+- Dry run (18.3.5, lab at `module-13-start`): with the original prompt a **clean** tree also came back `8 finding(s), 0 P0, verdict=fail` (the seeded issues again) → `EXIT=1`. The prompt now says "Review ONLY the lines changed in the working diff … If the diff is empty, answer pass"; with that, clean → `0 finding(s), 0 P0, verdict=pass`/`EXIT=0`, planted P0 → `P0 cli/__init__.py:4 …`/`EXIT=1` in two of three runs (one run answered `pass`). Grade checkpoint 2 on a rerun if the first attempt misses.
+
+Lesson 13.5 Stretch (real CI) — the steps withheld from the learner: create `.github/workflows/review.yml` (or the CI's equivalent) from the "Pipeline skeleton" in the lesson; install omp; export the provider key from the CI secret store as an env var; run `ci/review.sh --max-time 5m`; post the finding rows as a PR comment. Grade on one red run (P0 branch), one green run (after the fix), and `grep -r labtok_ $CI_LOG` finding nothing.
+
+Lesson 13.5 Guided (PR target) — the learner runs `OMP_REVIEW_TARGET=pr://<N> bash ci/review.sh` after confirming `omp read pr://<N>/diff/all` works.
 
 Common student mistakes:
 - Putting `--yolo` on the command line "to be safe": runtime flags beat `--config`, so the overlay's `always-ask` is overridden (verified: `--config ask.yml --yolo` created the file).
@@ -36,7 +43,7 @@ Common student mistakes:
 ## E3 — RPC abort
 
 Wire sequence to look for in the student's log (from demo 13.2): `response prompt success:true` → text deltas → `response abort success:true` → `agent_end` → `prompt_result … status:"aborted" sessionSettled:true` → `session_settled`.
-Guided-task variant (steer instead of abort) was verified: `steer` ack `success:true`, original `prompt_result.status == "completed"`, final text `STEERED`.
+Guided-task variant (steer instead of abort) was verified with the frame `{"type":"steer","message":"Stop and instead reply with only the word STEERED"}` sent after N seconds: `steer` ack `success:true`, original `prompt_result.status == "completed"`, final text `STEERED`. The lesson leaves the steer wording to the learner; accept any message whose effect is unmistakable in the final text.
 
 Note the `prompt` ack's `data` omits `agentInvoked` when a turn *is* started; only the local-completion case carries `agentInvoked:false`. Students who wait for `data.agentInvoked === true` will hang.
 
@@ -44,9 +51,17 @@ Note the `prompt` ack's `data` omits `agentInvoked` when a turn *is* started; on
 
 Cannot be graded on the Python-only lab box. On a Bun machine check: `[sessionFile] undefined`, `[tools] read, grep, glob`, and that the write prompt produces no file. If a student's script writes files, the usual cause is `toolNames` without `restrictToolNames: true` (sdk.md: "by itself it is **not** an allowlist").
 
+Lesson 13.3 Guided (`notes/sdk-count.ts`) — reference prompt for checkpoint (b): "grep for TODO across the repo and summarize"; the table must show `grep ≥ 1` and never a `write`/`edit` row.
+
+Lesson 13.3 Stretch (persist and resume) — the recipe withheld from the learner: `SessionManager.create(process.cwd())`, print `session.sessionFile`; in a second run resume with `SessionManager.continueRecent(process.cwd())` and ask "what did I ask you last time?". Pass when the answer references the first prompt and `omp --resume <id>` opens the same session in the TUI.
+
 ## E5 — ACP
 
 No ACP client on the build machine; nothing was executed. Grade from the student's editor transcript: one rejected `edit` (tree unchanged), one approved (`git diff --stat` lists the file), and — bonus — no dialog after relaunching with `omp acp --yolo`. If the student reports "yolo in config but still prompted": approval-mode.md says a *default*-config ACP session keeps the client gate; yolo must be set explicitly.
+
+E5 steps (withheld from the learner): register `omp acp` as an agent server in the editor; open `omp-course-lab`; ask a read-only question (no dialog expected); ask for an edit to `cli/__init__.py` — reject once, then approve once.
+
+Lesson 13.4 Stretch (ACP vs print) — the command withheld from the learner: `omp -p --no-session --config notes/acp-yolo.yml "run python3 -m unittest discover -s tests and report the summary line"` with the overlay set to yolo + `tools.approval.bash: prompt`. Expected: the bash call is refused under `-p` (no UI to satisfy a `prompt` policy) but prompted in ACP; the note must cite approval-mode.md.
 
 ## E6 — host tool
 
@@ -59,3 +74,5 @@ Tax is added twice for the last line item when calculating order totals in `api/
 [prompt_result] status=completed
 ```
 (The issue text was a stand-in `docs/ISSUES.md` at build time; in the lab, issue #1 is "CLI shows money 10× too large" — the summary must name that `cli/format.py` money-formatting bug.) The `--no-tools` launch flag makes the host tool the only tool, which keeps the grading unambiguous.
+
+Lesson 13.2 Stretch — reference prompt from the lesson's earlier wording: "Use lab_issue to read issue #1 and summarize it in one line" (`rpc_host_tool.py` sends the near-identical "Use lab_issue to read issue #1 and summarize the bug in one line.").

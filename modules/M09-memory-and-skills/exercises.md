@@ -70,8 +70,10 @@ Lesson 9.3. Add the `autolearn:` block; restart omp.
 
 **Hints.**
 - `omp config get autolearn.enabled` from the repo must print `true` before you start; `learn` also needs the `mnemopi` backend from W1 to still be on.
-- Work #6 as in Module 3: reproduce with the command above, read the error, find the *actual* cause. The fixture's text points at locks/WAL/a running server; the real cause is `api/db.py::db_path()` handing the whole `sqlite:///…` string to `sqlite3.connect`, after which `connect()` swallows the `OperationalError` and raises the invented "locked" message. Fix `db_path`/`connect` (strip the prefix; report the real cause with the path) until `LAB_ISSUE=6 python3 -m unittest tests.test_issues` passes.
-- Ask for the lesson first, without a skill: "learn this as one durable lesson: the error says X, the real cause is Y, check Z first."
+- Work #6 as in Module 3: reproduce with the command above, read the error, find the *actual* cause. The fixture's text points at locks/WAL/a running server — a misdirection.
+- The real cause: `api/db.py::db_path()` hands the whole `sqlite:///…` string to `sqlite3.connect`, after which `connect()` swallows the `OperationalError` and raises the invented "locked" message.
+- Fix `db_path`/`connect` (strip the prefix; report the real cause with the path) until `LAB_ISSUE=6 python3 -m unittest tests.test_issues` passes.
+- Ask for the lesson first, without a skill. The lesson must name the misleading text, the real cause, and the check to run first (exact wording in `solutions/G1.md`).
 - Then either `manage_skill create` (usable immediately) or a second `learn` with `skill.action: create` (usable after `/new`). Pick a kebab-case name, e.g. `lab-issue-6-misleading-error`.
 - After creating the skill, `/new` and `read skill://<name>`.
 
@@ -89,11 +91,12 @@ Lesson 9.3. Add the `autolearn:` block; restart omp.
 
 Lesson 9.4. Add the `checkpoint:` block; restart omp. Memory backend does not matter here.
 
-**Goal.** Investigate `docs/ISSUES.md` #7 (`python3 -m cli users 9` prints `orders: 7`; the DB has 5 non-cancelled orders for user 9) inside a checkpoint, get a `rewind` report, and show that context usage fell while the report survived. The lab seeds three red herrings — the "default to 0" comment in `cli/commands.py`, the "check the seed" note in `api/server.py`, and `tools/seed_db.py` — and the real cause is one function in `api/db.py`.
+**Goal.** Investigate `docs/ISSUES.md` #7 (`python3 -m cli users 9` prints `orders: 7`; the DB has 5 non-cancelled orders for user 9) inside a checkpoint, get a `rewind` report, and show that context usage fell while the report survived.
+The lab seeds three red herrings — the "default to 0" comment in `cli/commands.py`, the "check the seed" note in `api/server.py`, and `tools/seed_db.py`. The real cause is one function in `api/db.py`.
 
 **Hints.**
 - Read `context_pct` on the right of the status line before you begin and again after the turn ends.
-- Prompt shape: "Set a checkpoint with goal '…'. Investigate #7 thoroughly — read code, run tests (`LAB_ISSUE=7 python3 -m unittest tests.test_issues`). When done, rewind with a report naming: the real cause, the red herring(s) you ruled out, the file:line to change. Don't fix anything."
+- Prompt shape: one message that sets a checkpoint with a stated goal, asks for a thorough investigation of #7 (read code, run `LAB_ISSUE=7 python3 -m unittest tests.test_issues`), and tells omp to rewind with a report naming the real cause, the red herring(s) ruled out, and the file:line to change — without fixing anything. Exact wording in `solutions/G2.md`.
 - The rewind is applied at *turn end*, not when the `rewind` card appears — wait for the prompt to return.
 - Then ask a question that can only be answered from the report, e.g. "What was the red herring?"
 - `/tree`, `Alt+A`, search `rewind` to see the `branch_summary` and hidden `rewind-report` entries at the branch point; `Esc` to leave without moving.

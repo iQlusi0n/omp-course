@@ -50,7 +50,14 @@ graph LR
   {"type":"agent_end","messages":[…all messages…]}
   ```
 
-  When the model calls a tool the assistant message has `content:[{type:"toolCall",…}]` and `stopReason:"toolUse"`, followed by `tool_execution_start {toolCallId,toolName,args,intent}`, `tool_execution_end {toolCallId,toolName,result,isError}`, a `message_start/end` pair with `role:"toolResult"`, `turn_end`, then a new `turn_start`. `assistantMessageEvent.type` is one of `thinking_start|delta|end`, `text_start|delta|end`, `toolcall_start|delta|end`; the `*_delta` forms carry `delta`, the `*_end` forms carry the full `content`.
+  When the model calls a tool, the assistant message has `content:[{type:"toolCall",…}]` and `stopReason:"toolUse"`. The frames that follow, in order:
+
+  1. `tool_execution_start {toolCallId,toolName,args,intent}`
+  2. `tool_execution_end {toolCallId,toolName,result,isError}`
+  3. a `message_start`/`message_end` pair with `role:"toolResult"`
+  4. `turn_end`, then a new `turn_start`
+
+  `assistantMessageEvent.type` is one of `thinking_start|delta|end`, `text_start|delta|end`, `toolcall_start|delta|end`. The `*_delta` forms carry `delta`; the `*_end` forms carry the full `content`.
   The final answer is the **last** `message_end` whose `message.role == "assistant"`; the `usage`/`cost` block on each assistant `message_start` is how you meter a run.
 - `--max-time <dur>` (`600`, `10m`, `1h`) — kills the run at the deadline: stderr `Deadline exceeded`, exit `1`, nothing on stdout.
 - `--no-session` — don't write a session file. `--no-title` (or `PI_NO_TITLE`) — skip the extra title-generation model call.
@@ -59,7 +66,11 @@ graph LR
 - `--approval-mode always-ask|write|yolo` — overrides `tools.approvalMode` (default **`yolo`**). Print mode has no UI, so any tool that *would* prompt is refused instead — the model reports it, omp still exits `0`.
 - `--profile <name>` — isolated auth/sessions/settings/caches (also `OMP_PROFILE`). Use a dedicated profile for bots.
 - `--model <id-or-role>` — fuzzy id (`haiku`, `openai/gpt-5.2`) or a configured role (`slow`, `@slow`).
-- Print-mode specifics from the docs: `plan.defaultOnStartup` is ignored (a note is printed; use `--plan-yolo` for a headless plan flow); bash always runs non-PTY; MCP servers are awaited up to `OMP_MCP_TIMEOUT_MS` (30 s) before the first turn, and `OMP_MCP_REQUIRE_READY=1` makes a pending/failed server exit `1`; with `--advisor`, print mode waits up to ten minutes for final advisor reviews before disposing.
+- Print-mode specifics from the docs:
+  - `plan.defaultOnStartup` is ignored (a note is printed; use `--plan-yolo` for a headless plan flow).
+  - bash always runs non-PTY.
+  - MCP servers are awaited up to `OMP_MCP_TIMEOUT_MS` (30 s) before the first turn; `OMP_MCP_REQUIRE_READY=1` makes a pending/failed server exit `1`.
+  - with `--advisor`, print mode waits up to ten minutes for final advisor reviews before disposing.
 - **Exit codes observed (18.3.1):** `0` normal completion — including when the model could not do what you asked; `1` startup failure (unknown model, no credentials) or `Deadline exceeded`. Treat "pass/fail" as a property of the *output*, never of the exit code alone.
 
 **Try it (Walkthrough):**
@@ -80,7 +91,11 @@ graph LR
 8. Show the precedence: `omp -p --no-session --config /tmp/ask.yml --yolo "Use the write tool to create NEW2.txt containing done."`
    **Expected:** `NEW2.txt` now exists (runtime flag beat the overlay). `rm NEW2.txt`.
 
-**Guided task:** `notes/answer.sh` — a script that takes a prompt as `$1`, runs omp headless against the lab with read-only tools, a 2-minute cap, no session file, and prints **only** the final assistant text. Hints: `--mode json`, the `jq -s … | last` filter from step 4, `2>/dev/null`. Checkpoints: (a) `bash notes/answer.sh "Reply with: ok"` prints exactly `ok`; (b) `bash notes/answer.sh "Create foo.txt"` creates nothing and exits `0`; (c) with `--max-time 1` hard-coded it prints nothing and exits `1`. Pass condition: (a)–(c) observed.
+**Guided task:**
+- Goal: `notes/answer.sh` — a script that takes a prompt as `$1`, runs omp headless against the lab with read-only tools, a 2-minute cap, no session file, and prints **only** the final assistant text.
+- Hints: `--mode json`, the `jq -s … | last` filter from step 4, `2>/dev/null`.
+- Checkpoints: (a) `bash notes/answer.sh "Reply with: ok"` prints exactly `ok`; (b) `bash notes/answer.sh "Create foo.txt"` creates nothing and exits `0`; (c) with `--max-time 1` hard-coded it prints nothing and exits `1`.
+- Pass condition: (a)–(c) observed.
 
 **Stretch:** make the script exit `2` when the model's answer contains the string `CANNOT` and `1` on omp failure, without changing omp's own exit codes. Pass: `bash notes/answer.sh "…"; echo $?` shows `0`, `1`, and `2` in the three scenarios.
 
@@ -120,18 +135,55 @@ graph LR
 **Demo:** `demos/13.2-rpc.md`
 **Concepts:**
 - Start: `omp --mode rpc [normal launch flags]`. Add `--no-ui` when your host cannot answer dialogs: extensions see `ctx.hasUI === false`, dialogs resolve to defaults, no `extension_ui_request` frames (except a host-issued `login`). `--mode rpc-ui` additionally routes tool UI such as `ask` through the UI sub-protocol. `@file` arguments are rejected in RPC mode. Title generation is off by default.
-- **Framing:** one JSON object per line, both directions. First stdout line is `{"type":"ready","protocolVersion":1,"supportedProtocolVersions":[1,2],"maxFrameBytes":1048576,"maxReassembledFrameBytes":67108864}`. Send `{"id":"…","type":"negotiate_protocol","protocolVersion":2}` to get lossless `rpc_chunk` sequences (base64 segments with `chunkId`, `index`, `count`, `byteLength`) instead of v1's 1 MiB cap.
+- **Framing:** one JSON object per line, both directions. The first stdout line is the `ready` frame:
+
+  ```json
+  {"type":"ready","protocolVersion":1,"supportedProtocolVersions":[1,2],"maxFrameBytes":1048576,"maxReassembledFrameBytes":67108864}
+  ```
+
+  Send `{"id":"…","type":"negotiate_protocol","protocolVersion":2}` to get lossless `rpc_chunk` sequences (base64 segments with `chunkId`, `index`, `count`, `byteLength`) instead of v1's 1 MiB cap.
 - **Correlation:** every command accepts `id`; the response echoes it: `{"id","type":"response","command","success":true,"data"}` or `{"success":false,"error","code?"}`. Malformed JSON → `command:"parse"` failure, loop continues. Responses across concurrent commands (e.g. `bash`) are **not** ordered — match on `id`.
-- **Prompt lifecycle:** `{"id":"req_1","type":"prompt","message":"…"}` is acked *immediately*. The turn's events follow (`agent_start`, `message_update` with `assistantMessageEvent.type == "text_delta"`, `tool_execution_*`, `agent_end`). Completion is the `prompt_result` frame with the same `id`: `{"type":"prompt_result","id","agentInvoked":true,"status":"completed|aborted|error","error?","sessionSettled"}`. A slash command that starts no turn completes with `data.agentInvoked:false` on the ack instead.
+- **Prompt lifecycle:** `{"id":"req_1","type":"prompt","message":"…"}` is acked *immediately*. The turn's events follow (`agent_start`, `message_update` with `assistantMessageEvent.type == "text_delta"`, `tool_execution_*`, `agent_end`). Completion is the `prompt_result` frame with the same `id`:
+
+  ```jsonc
+  {"type":"prompt_result","id","agentInvoked":true,"status":"completed|aborted|error","error?","sessionSettled"}
+  ```
+
+  A slash command that starts no turn completes with `data.agentInvoked:false` on the ack instead.
 - **Yield vs settled:** `prompt_result` = the agent yielded. `session_settled` = nothing can wake it (no queued steer/follow-up, no background `bash`/`task`/`eval`). Tear down a sandbox on `session_settled` or `prompt_result.sessionSettled == true`; `get_state` exposes `isSettled` and `hasPendingAsyncWork` for hosts attaching mid-stream.
 - **While streaming:** `prompt` needs `streamingBehavior: "steer" | "followUp"` or it fails; or use `steer` / `follow_up` / `abort` / `abort_and_prompt`. Queue defaults: `steeringMode` and `followUpMode` `one-at-a-time`, `interruptMode` `immediate` (steering can abort remaining tool calls in the turn; `wait` defers to turn end).
-- **Command families** (rpc.md "Command Schema"): state (`get_state`, `get_entries`, `get_tree`, `set_todos`, `set_event_filter`), model (`set_model {provider, modelId}`, `cycle_model`, `get_available_models`), thinking (`set_thinking_level`, `get_available_thinking_levels`), compaction (`compact`, `set_auto_compaction`), retry, `bash`/`abort_bash`, session (`new_session`, `open_session {sessionDir}`, `switch_session`, `branch`, `handoff`, `export_html`, `get_last_assistant_text`, `set_session_name`), messages (`get_messages`, `get_messages_page {cursor,limit}` — ≤ 256 per page, errors `session_busy` / `stale_cursor`), login.
+- **Command families** (rpc.md "Command Schema"):
+
+  | Family | Commands |
+  |---|---|
+  | state | `get_state`, `get_entries`, `get_tree`, `set_todos`, `set_event_filter` |
+  | model | `set_model {provider, modelId}`, `cycle_model`, `get_available_models` |
+  | thinking | `set_thinking_level`, `get_available_thinking_levels` |
+  | compaction | `compact`, `set_auto_compaction` |
+  | retry | retry |
+  | shell | `bash`, `abort_bash` |
+  | session | `new_session`, `open_session {sessionDir}`, `switch_session`, `branch`, `handoff`, `export_html`, `get_last_assistant_text`, `set_session_name` |
+  | messages | `get_messages`, `get_messages_page {cursor,limit}` — ≤ 256 per page, errors `session_busy` / `stale_cursor` |
+  | login | login |
+
 - `set_event_filter {events:[…]|null}` — pin the event `type`s you understand; responses, `prompt_result`, `session_settled`, host frames and `extension_error` are always written.
-- **Host tools:** `set_host_tools {tools:[{name,label,description,parameters(JSON Schema),hidden?,loadMode?}]}` → response `{toolNames}`. When the model calls one, omp emits `{"type":"host_tool_call","id","toolCallId","toolName","arguments"}`; you answer `{"type":"host_tool_result","id","result":{"content":[{"type":"text","text":"…"}]},"isError?"}` (optional `host_tool_update` with `partialResult` for progress; omp sends `host_tool_cancel {targetId}` on abort). Re-sending replaces the whole set.
-- **Host URI schemes:** `set_host_uri_schemes {schemes:[{scheme:"db",description,writable,immutable}]}`; reads/writes of `db://…` arrive as `host_uri_request {id, operation:"read"|"write", url, content?}`; reply `host_uri_result {id, content, contentType?, notes?, immutable?}` (writes: just `{id}`), or `isError:true` + `error`. Built-in schemes (`local://`, `skill://`, `artifact://`, `mcp://`, …) are reserved. `edit` never targets host URIs — expose `writable` and the model uses `write`.
+- **Host tools:** `set_host_tools {tools:[{name,label,description,parameters(JSON Schema),hidden?,loadMode?}]}` → response `{toolNames}`. Re-sending replaces the whole set. When the model calls one, the round trip is:
+
+  ```jsonc
+  ← {"type":"host_tool_call","id","toolCallId","toolName","arguments"}
+  → {"type":"host_tool_result","id","result":{"content":[{"type":"text","text":"…"}]},"isError?"}
+  ```
+
+  Optional `host_tool_update` with `partialResult` reports progress; omp sends `host_tool_cancel {targetId}` on abort.
+- **Host URI schemes:** `set_host_uri_schemes {schemes:[{scheme:"db",description,writable,immutable}]}`. Reads/writes of `db://…` arrive as `host_uri_request {id, operation:"read"|"write", url, content?}`.
+  Reply `host_uri_result {id, content, contentType?, notes?, immutable?}` (writes: just `{id}`), or `isError:true` + `error`.
+  Built-in schemes (`local://`, `skill://`, `artifact://`, `mcp://`, …) are reserved. `edit` never targets host URIs — expose `writable` and the model uses `write`.
 - **Subagents:** `set_subagent_subscription {level:"off"|"progress"|"events"}` (default `off`) gates `subagent_lifecycle` / `subagent_progress` / `subagent_event` frames; `get_subagents`, `get_subagent_messages {subagentId|sessionFile, fromByte}`.
 - **Shutdown:** close stdin → pending host/UI requests rejected, accepted commands drained, session disposed, exit `0`. Keep reading stdout until EOF; an unread pipe can delay exit indefinitely.
-- **Client libraries:** TypeScript `RpcClient` (`packages/coding-agent/src/modes/rpc/rpc-client.ts`; spawns `bun <cli> --mode rpc`, `setCustomTools()`) and Python `omp-rpc` (`from omp_rpc import RpcClient`; `RpcClient(provider=…, model=…)`, `get_state()`, `prompt_and_wait(...)`, `.require_assistant_text()`, `get_messages()`, `command=[...]` to own the child command). Both negotiate v2 automatically. The bundled Python package lives at `python/omp-rpc` in the omp source tree; `solutions/rpc_client.py` is a stdlib re-implementation of the same wire protocol so you can read every frame.
+- **Client libraries:** both negotiate v2 automatically.
+  - TypeScript `RpcClient` (`packages/coding-agent/src/modes/rpc/rpc-client.ts`; spawns `bun <cli> --mode rpc`, `setCustomTools()`).
+  - Python `omp-rpc` (`from omp_rpc import RpcClient`; `RpcClient(provider=…, model=…)`, `get_state()`, `prompt_and_wait(...)`, `.require_assistant_text()`, `get_messages()`, `command=[...]` to own the child command). The bundled package lives at `python/omp-rpc` in the omp source tree.
+  - `solutions/rpc_client.py` is a stdlib re-implementation of the same wire protocol so you can read every frame.
 
   The `omp-rpc` example from rpc.md, verbatim:
 
@@ -187,9 +239,13 @@ graph LR
 5. Send a bad line: `printf 'not json\n{"id":"s2","type":"get_state"}\n' | omp --mode rpc --no-ui --no-session --no-tools | jq -c 'select(.type=="response") | {id,command,success}'`
    **Expected:** `{"id":null,"command":"parse","success":false}` then `{"id":"s2","command":"get_state","success":true}` — the loop survived.
 
-**Guided task:** extend `rpc_client.py` (copy it to `notes/rpc_abort.py`) so that `--abort-after N` is replaced by *steering*: after N seconds send `{"type":"steer","message":"Stop and instead reply with only the word STEERED"}`. Hints: rpc.md "While streaming"; the steer is applied between tool calls / at the next step, so use a prompt that generates a long answer. Checkpoints: (a) the steer command gets a `success:true` response; (b) the `prompt_result` for the original prompt has `status:"completed"`; (c) the final assistant text is `STEERED`. Pass condition: all three observed in the client's output.
+**Guided task:**
+- Goal: extend `rpc_client.py` (copy it to `notes/rpc_abort.py`) so that `--abort-after N` is replaced by *steering*: after N seconds, send a `steer` command whose effect you can detect in the output — pick a message that makes the final answer unmistakably different from what the original prompt would produce.
+- Hints: rpc.md "While streaming"; the steer is applied between tool calls / at the next step, so use a prompt that generates a long answer.
+- Checkpoints: (a) the steer command gets a `success:true` response; (b) the `prompt_result` for the original prompt has `status:"completed"`; (c) the final assistant text is the one your steer asked for.
+- Pass condition: all three observed in the client's output.
 
-**Stretch:** register a host tool `lab_issue` (`parameters: {number:int}`) that returns the text of `docs/ISSUES.md` for issue *N* from your Python process, then prompt "Use lab_issue to read issue #1 and summarize it in one line". Pass: a `host_tool_call` frame arrives with `toolName:"lab_issue"`, your `host_tool_result` is accepted, and the final text mentions the issue #1 bug.
+**Stretch:** register a host tool `lab_issue` (`parameters: {number:int}`) that returns the text of `docs/ISSUES.md` for issue *N* from your Python process, then have the agent use it to summarize issue #1 in one line. Pass: a `host_tool_call` frame arrives with `toolName:"lab_issue"`, your `host_tool_result` is accepted, and the final text mentions the issue #1 bug.
 
 **Troubleshooting:**
 
@@ -260,7 +316,10 @@ graph LR
 - Model selection when `model` omitted: restore from session → settings `default` role → authenticated provider default. `modelFallbackMessage` tells you if a restore failed.
 - `SessionManager.inMemory()` → `session.sessionFile === undefined`, no disk persistence. `SessionManager.create(cwd)` → `.jsonl` on disk; `SessionManager.continueRecent(cwd)`, `.list(cwd)`, `.open(path)` for resume flows.
 - `Settings.isolated({...})` — test/embedder config that ignores the user's files (e.g. `"compaction.enabled": true, "retry.enabled": true`).
-- Tools: `toolNames: [...]` *requests* tools (can enable default-off ones) and is **not** an allowlist by itself; add `restrictToolNames: true` to make it one. Restricted sessions disable ambient MCP, extensions, custom commands and LSP by default; `enableMCP: false`, `enableLsp: false` are explicit. `customTools` in a restricted session need `allowRestrictedCustomTools: true` *and* their names in `toolNames`. Runtime: `getActiveToolNames()`, `getAllToolNames()`, `setActiveToolsByName(names)`.
+- Tools: `toolNames: [...]` *requests* tools (can enable default-off ones) and is **not** an allowlist by itself; add `restrictToolNames: true` to make it one.
+  Restricted sessions disable ambient MCP, extensions, custom commands and LSP by default; `enableMCP: false`, `enableLsp: false` are explicit.
+  `customTools` in a restricted session need `allowRestrictedCustomTools: true` *and* their names in `toolNames`.
+  Runtime: `getActiveToolNames()`, `getAllToolNames()`, `setActiveToolsByName(names)`.
 - Events: `session.subscribe(listener)` returns an unsubscribe fn. `message_update` → `event.assistantMessageEvent.type === "text_delta"` → `.delta`. `agent_end` is completion only when `event.isTerminal !== false`.
 - Prompting: `await session.prompt(text, { streamingBehavior? })`; while streaming use `steer()`, `followUp()`, `sendUserMessage(content, { deliverAs: "aside" })`, `abort()`.
 - Disposal: `await session.dispose()` (idempotent). If you must await your own teardown first, call `session.beginDispose()` synchronously before your first `await`, then `dispose()`.
@@ -299,9 +358,13 @@ graph LR
 4. Change `restrictToolNames: true` to `false`, re-run step 3.
    **Expected:** the file may now be created (toolNames alone only *requests* tools; the full default set is active). Revert.
 
-**Guided task:** write `notes/sdk-count.ts` that runs a read-only in-memory session, counts `tool_execution_start` events by `toolName`, and prints the table after `agent_end` with `isTerminal !== false`. Hints: sdk.md "Event subscription model"; keep a `Map`. Checkpoints: (a) compiles under `bun`; (b) for the prompt "grep for TODO across the repo and summarize" the table shows `grep ≥ 1`; (c) no `write`/`edit` row ever appears. Pass condition: the printed table.
+**Guided task:**
+- Goal: write `notes/sdk-count.ts` that runs a read-only in-memory session, counts `tool_execution_start` events by `toolName`, and prints the table after `agent_end` with `isTerminal !== false`.
+- Hints: sdk.md "Event subscription model"; keep a `Map`.
+- Checkpoints: (a) compiles under `bun`; (b) for a prompt that forces a repo-wide search (ask it to find some token across the repo and summarize) the table shows `grep ≥ 1`; (c) no `write`/`edit` row ever appears.
+- Pass condition: the printed table.
 
-**Stretch:** persist instead — `SessionManager.create(process.cwd())`, print `session.sessionFile`, then in a second run resume it with `SessionManager.continueRecent(process.cwd())` and ask "what did I ask you last time?". Pass: the second run's answer references the first prompt, and `omp --resume <id>` opens the same session in the TUI.
+**Stretch:** persist an SDK session to disk and resume it in a second run that asks what the first run asked. Pass: the second run's answer references the first prompt, and `omp --resume <id>` opens the same session in the TUI.
 
 **Troubleshooting:**
 
@@ -338,7 +401,9 @@ graph LR
 **Concepts:**
 - Start: `omp acp` (stdio server). `omp --mode acp` is documented as equivalent. Your editor launches this command; consult the editor's own docs for how to register a custom ACP agent (the omp docs do not ship editor config snippets).
 - **Same settings resolver as every launch:** global `~/.omp/agent/config.yml`, the project config of the ACP session's `cwd`, and any `--config <file>` overlays given to the `omp acp` process apply to every session that process creates.
-- **Default is *not* unattended.** The schema default of `tools.approvalMode` is `yolo`, but a default-config ACP session still keeps the **client permission gate**: `bash`, `edit`, `delete`, `move` go to the editor via ACP `session/request_permission`; other approval prompts use form elicitation when the client advertises `elicitation.form`. A rejected, cancelled or unsupported prompt rejects/cancels the tool call — omp never silently allows.
+- **Default is *not* unattended.** The schema default of `tools.approvalMode` is `yolo`, but a default-config ACP session still keeps the **client permission gate**.
+  `bash`, `edit`, `delete`, `move` go to the editor via ACP `session/request_permission`; other approval prompts use form elicitation when the client advertises `elicitation.form`.
+  A rejected, cancelled or unsupported prompt rejects/cancels the tool call — omp never silently allows.
 - **Unattended:** set `tools.approvalMode: yolo` *explicitly* (global or project config), or launch `omp acp --yolo` / `omp acp --auto-approve` / `omp acp --approval-mode yolo` / `omp acp --config ./acp-yolo.yml`. Explicit yolo skips omp's prompts *and* the client gate for `bash`/`edit`/`delete`/`move`, unless `tools.approval.<tool>` is `prompt` or `deny`.
 - Precedence is normal: runtime flags > `--config` overlays > project config > global config. ACP has no per-session approval field on `session/new` / `session/load` / `session/resume`; per-session yolo means a separate `omp acp` process with a flag or overlay.
 - Extension UI in ACP: `ctx.hasUI` is `true`; `select`/`confirm`/`input`/`editor` round-trip as elicitations (defaults when the client lacks `elicitation.form`); widgets/theming/terminal input are no-ops.
@@ -356,9 +421,13 @@ graph LR
 4. Create `notes/acp-yolo.yml` containing `tools:\n  approvalMode: yolo`, change the editor's agent command to `omp acp --config <abs path>/notes/acp-yolo.yml`, reconnect, repeat step 2.
    **Expected:** no permission dialog; the edit lands.
 
-**Guided task:** keep yolo but re-gate one tool: add `tools:\n  approval:\n    bash: prompt` to the same overlay and ask the agent to run `python3 -m unittest discover -s tests`. Hints: approval-mode.md "ACP sessions" last two paragraphs; per-tool `prompt`/`deny` survive yolo. Checkpoints: (a) `edit` still needs no dialog; (b) `bash` produces a permission request. Pass condition: both observed in the editor.
+**Guided task:**
+- Goal: keep yolo but re-gate one tool: add `tools:\n  approval:\n    bash: prompt` to the same overlay and ask the agent to run the test suite (`python3 -m unittest discover -s tests`).
+- Hints: approval-mode.md "ACP sessions" last two paragraphs; per-tool `prompt`/`deny` survive yolo.
+- Checkpoints: (a) `edit` still needs no dialog; (b) `bash` produces a permission request.
+- Pass condition: both observed in the editor.
 
-**Stretch:** run the guided-task overlay (yolo + `tools.approval.bash: prompt`) through print mode instead (`omp -p --no-session --config notes/acp-yolo.yml "run python3 -m unittest discover -s tests and report the summary line"`) and explain, in `notes/acp-vs-print.md`, why the bash call is *refused* there but *prompted* in ACP. Pass: the note names the missing surface (no UI in print mode → a `prompt` policy cannot be satisfied) and cites approval-mode.md.
+**Stretch:** run the guided-task overlay (yolo + `tools.approval.bash: prompt`) through print mode instead of ACP, and explain in `notes/acp-vs-print.md` why the bash call is *refused* there but *prompted* in ACP. Pass: the note names the missing surface (no UI in print mode → a `prompt` policy cannot be satisfied) and cites approval-mode.md.
 
 **Troubleshooting:**
 
@@ -420,12 +489,19 @@ graph LR
   …
   PY
   ```
-- **`/review` runs headless.** `omp -p "/review …"` runs the bundled review command and any trailing text is appended to its prompt — that is where you specify the JSON verdict format. Two things observed on the lab (18.3.5): the reviewer, having no `bash`, reconstructs the working diff by reading the tree (and even `.git/`), and if you do not tell it to judge *only the diff* it reviews the whole repository and rates the lab's seeded issues as `P1` with `verdict: "fail"` — even on a clean tree. The shipped script therefore says "Review ONLY the lines changed in the working diff … If the diff is empty, answer pass". There is no documented native JSON output for `/review`; the script asks for `{"findings":[{severity,file,line,title}],"verdict"}` and pulls the JSON object out of the reply even when the model wraps it in a code fence or prefixes prose (both observed despite "no prose, no code fence").
+- **`/review` runs headless.** `omp -p "/review …"` runs the bundled review command and any trailing text is appended to its prompt — that is where you specify the JSON verdict format. Two things observed on the lab (18.3.5):
+  - the reviewer, having no `bash`, reconstructs the working diff by reading the tree (and even `.git/`);
+  - if you do not tell it to judge *only the diff* it reviews the whole repository and rates the lab's seeded issues as `P1` with `verdict: "fail"` — even on a clean tree. The shipped script therefore says "Review ONLY the lines changed in the working diff … If the diff is empty, answer pass".
+
+  There is no documented native JSON output for `/review`; the script asks for `{"findings":[{severity,file,line,title}],"verdict"}` and pulls the JSON object out of the reply even when the model wraps it in a code fence or prefixes prose (both observed despite "no prose, no code fence").
 - **Verdict from content, not exit code.** omp exits `0` after a refused tool or an empty review. Parse the last assistant `message_end` from `--mode json`, then exit `1` on any `P0` or on `verdict: "fail"` (or on unparseable output — fail closed).
-- **PRs:** `read pr://<N>` (or `pr://<owner>/<repo>/<N>`) gives the PR view (`?comments=0` to drop comments); `pr://<N>/diff` lists changed files, `pr://<N>/diff/<i>` one file, `pr://<N>/diff/all` the full unified diff. The same URIs work from the shell: `omp read pr://12/diff/all`. Needs `gh` authenticated; results are cached in `~/.omp/cache/github-cache.db` (`github.cache.*` settings). `ci-review.sh` switches to a `pr://` target with `OMP_REVIEW_TARGET=pr://12`.
+- **PRs:** `read pr://<N>` (or `pr://<owner>/<repo>/<N>`) gives the PR view (`?comments=0` to drop comments); `pr://<N>/diff` lists changed files, `pr://<N>/diff/<i>` one file, `pr://<N>/diff/all` the full unified diff.
+  The same URIs work from the shell: `omp read pr://12/diff/all`. Needs `gh` authenticated; results are cached in `~/.omp/cache/github-cache.db` (`github.cache.*` settings).
+  `ci-review.sh` switches to a `pr://` target with `OMP_REVIEW_TARGET=pr://12`.
 - **Secrets via environment.** Provider keys are read from env (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, …; `omp --help` lists them) or `--api-key`. Put them in the CI secret store, never in `ci.yml` or the repo. The lab's `.env.example` `labtok_…` token exists so you can check the bot never echoes it.
 - **MCP in CI:** print mode waits for configured MCP servers up to `OMP_MCP_TIMEOUT_MS`; set `OMP_MCP_REQUIRE_READY=1` to fail fast, or avoid MCP in the bot profile.
-- **`robomp`** (`python/robomp`, Python ≥ 3.11): a self-hosted service that receives GitHub webhooks, classifies issues, resumes an `omp --mode rpc` session per issue, comments or opens a fix PR, and handles follow-ups; dashboard on `http://localhost:6543/` under Docker Compose; commands `robomp serve|triage|replay|status|cleanup`. It is what the shell script grows into once you want *fixes*, not just reviews.
+- **`robomp`** (`python/robomp`, Python ≥ 3.11): a self-hosted service that receives GitHub webhooks, classifies issues, resumes an `omp --mode rpc` session per issue, comments or opens a fix PR, and handles follow-ups.
+  Dashboard on `http://localhost:6543/` under Docker Compose; commands `robomp serve|triage|replay|status|cleanup`. It is what the shell script grows into once you want *fixes*, not just reviews.
 - **Pipeline skeleton** (generic CI YAML; the only omp-specific lines are the install and the two commands):
 
   ```yaml
@@ -456,9 +532,13 @@ graph LR
 6. `git checkout cli/__init__.py`.
    **Expected:** step 2 passes again.
 
-**Guided task:** wire it to a PR. Push a branch with the P0 from step 3, open a PR, then `OMP_REVIEW_TARGET=pr://<N> bash ci/review.sh`. Hints: `omp read pr://<N>/diff/all` first to confirm `gh` works; the script's prompt for PR targets tells the model to read that URI. Checkpoints: (a) `omp read pr://<N>` renders the PR; (b) the run's `tool_execution_start` frames show a `read` of `pr://<N>/diff/all`; (c) exit `1`. Pass condition: (c), and after fixing the P0 on the branch, exit `0`.
+**Guided task:**
+- Goal: wire it to a PR. Push a branch with the P0 from step 3, open a PR, then `OMP_REVIEW_TARGET=pr://<N> bash ci/review.sh`.
+- Hints: `omp read pr://<N>/diff/all` first to confirm `gh` works; the script's prompt for PR targets tells the model to read that URI.
+- Checkpoints: (a) `omp read pr://<N>` renders the PR; (b) the run's `tool_execution_start` frames show a `read` of `pr://<N>/diff/all`; (c) exit `1`.
+- Pass condition: (c), and after fixing the P0 on the branch, exit `0`.
 
-**Stretch:** put it in a workflow (`.github/workflows/review.yml` or your CI's equivalent) that installs omp, exports the provider key from the CI secret store, runs `ci/review.sh --max-time 5m`, and posts the finding rows as a PR comment. Pass: one red run on the P0 branch, one green run after the fix, and `grep -r labtok_ $CI_LOG` finds nothing.
+**Stretch:** run the reviewer in real CI on the P0 branch and again after the fix. Pass: one red run on the P0 branch, one green run after the fix, and `grep -r labtok_ $CI_LOG` finds nothing.
 
 **Troubleshooting:**
 

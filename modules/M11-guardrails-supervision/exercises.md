@@ -86,9 +86,9 @@ Prereq: 11-W1 done; a chat model logged in.
 - Assign the `advisor` role in `/model` (Roles view) or under `modelRoles:` in `~/.omp/agent/config.yml`
   (`modelRoles` is a record; `omp config set modelRoles.advisor` is not a key); leave `advisor.enabled` alone and use `/advisor on`.
 - Put `solutions/WATCHDOG.md` at `<repo>/WATCHDOG.md` ("watch for catch-all exception handling").
-- Prompt for the #8 fix with *"keep the change minimal"* — that phrasing tempts wrapping `_signup` in
-  `except Exception:` → 400, which also hides genuine crashes. `docs/ISSUES.md` #8 wants: missing field
-  or no `@` → 400, `sqlite3.IntegrityError` → 409, anything else still 500.
+- Prompt for the #8 fix in a way that rewards the smallest possible diff — that kind of request tempts
+  wrapping `_signup` in a catch-all exception handler → 400, which also hides genuine crashes.
+  `docs/ISSUES.md` #8 wants: missing field or no `@` → 400, `sqlite3.IntegrityError` → 409, anything else still 500.
 - If nothing lands, `/advisor dump` and read what the advisor actually said; a `nit` is delivered as a
   quiet aside at the next step boundary, not as an interrupt.
 
@@ -125,7 +125,8 @@ fails its 500 test). Bonus evidence: `ls <session-dir>/__advisor.jsonl`.
 *Hints:*
 - `omp config get modelRoles` — `smol` must differ from `default`.
 - Start with `omp --prewalk` (or `/prewalk` inside a session).
-- Ask for a feature that needs a plan: a `--json` flag on the CLI `orders` subcommand (`python3 -m cli orders --month 2026-03 --json`), *"plan first, then implement, then run the tests"*.
+- Ask for a feature that needs a plan before any edit — something touching more than one file in
+  `cli/` with a testable outcome — and ask for planning, implementation, and a test run as separate stages.
 - The gate is `todo` call → first completed `edit`/`write`. Files written through `bash` never trigger it.
 
 *Checkpoints:*
@@ -143,9 +144,10 @@ model chip changed. (`/prewalk` has no `status` subcommand — the notice is the
 *Goal:* turn a complaint into a saved TTSR rule without hand-writing regex.
 
 *Hints:*
-- Provoke a behaviour first: ask the agent to "quickly add a debug print to cli/__main__.py".
-- Then `/omfg stop adding bare print() calls to the CLI` — omp drafts a rule (regex or ast-grep),
-  validates it against the recent outputs, and offers to save it.
+- Provoke a behaviour first: ask for a quick, throwaway diagnostic output in `cli/__main__.py` (the
+  kind of request that produces a bare `print()`).
+- Then `/omfg <your complaint, in plain words, about bare print() calls in the CLI>` — omp drafts a
+  rule (regex or ast-grep), validates it against the recent outputs, and offers to save it.
 - Inspect with `omp ttsr list` and `omp ttsr test -v -r .omp/rules/<generated>.md --source tool --tool edit --path cli/x.py 'print("x")'`.
 
 *Checkpoints:* the generated file has frontmatter with `condition:` or `astCondition:`; `omp ttsr test` triggers on the snippet.

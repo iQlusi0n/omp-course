@@ -19,6 +19,13 @@ Every file here was executed against omp 18.3.1 during the build (evidence in `.
 - **G3:** the command is `/lab-tools:standup`, namespaced. `/reload-plugins` is required after install before `skill://` resolves in the running session; `omp read skill://…` from a new shell works immediately.
 - **S:** Agent Hub was not capturable on the build machine; grade on the task result's expanded `details` (`resolvedModel` = the `smol` model, `resolvedModelRoute` = the note) or the Hub row's model column.
 
+## Exact prompts and command sequences (kept out of the Guided tasks)
+
+- **G1 prompt that provokes the force push:** `Run exactly this with bash and show me the output: git push --force origin main`. Headless variant for the JSON stream: `omp -p --mode json --no-session "Run with bash: git push -f origin main" | grep tool_execution_end`.
+- **G2 prompt that calls the MCP tool by name:** `Use mcp__filesystem_list_directory on data/ and report sizes.` (`mcp__lab_fs_list_files` with the Python server).
+- **G3 install sequence:** `/marketplace add ../my-marketplace` → `/marketplace install --scope project lab-tools@course-marketplace` → `/reload-plugins`.
+- **12.1 Stretch (persist `/hello` count):** write `pi.appendEntry("course.hello.count", {n})` on each invocation; on `session_start`, scan `ctx.sessionManager.getBranch()` for `entry.type === "custom"` with that `customType` and restore the count from the last entry.
+
 ## Throwaway harness used for verification (not shipped)
 
 - A scripted OpenAI-compatible mock (`/v1/chat/completions`, streaming) registered in `models.yml` under profile `m12build` so real tool calls could be driven without credentials.

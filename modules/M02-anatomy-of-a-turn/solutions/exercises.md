@@ -20,6 +20,17 @@ Stretch (`-p --mode json`): the count of `tool_execution_start` events equals th
 
 Issue #2 files per `docs/ISSUES.md`: `api/server.py` (`_list_orders` computes `offset = page * db.PAGE_SIZE`; page 1 must start at offset 0) and `api/db.py` (`list_orders` binds `args += [offset, limit]` against `LIMIT ? OFFSET ?` — the two are swapped). Fixing only one file leaves the gated test red. Verify with `git diff --stat` (both files) and `LAB_ISSUE=2 python3 -m unittest tests.test_issues` (exit 0); the normal suite `python3 -m unittest discover -s tests` must stay green (`Ran 48 tests … OK (skipped=20)`).
 
+Exact prompts (moved out of the learner hints; use them if a learner is stuck):
+
+- Fix prompt:
+
+  ```text
+  Fix issue #2 from docs/ISSUES.md. Smallest safe change in the two files it names; then run `LAB_ISSUE=2 python3 -m unittest tests.test_issues` and `python3 -m unittest discover -s tests` and show me both results. Ask before touching anything outside api/ and tests/.
+  ```
+
+- Spill-forcing prompt: `Run: python3 -c "for i in range(3000): print(i, 'x' * 40)"` (about 140 KB, well over the 50 KB threshold).
+- Artifact read-back prompt: `Read artifact://<N>:1-30 and tell me the first and last line numbers you see.`
+
 Grading the tool sequence: it must contain, in order, at least `read docs/ISSUES.md` → (`grep` or `read` that reaches the second file) → `edit` × 2 → `bash LAB_ISSUE=2 python3 -m unittest …`. `todo` cards are optional unless the learner's prompt asked for a plan; if absent, the learner should have asked for one (the checkpoint says so).
 
 Artifact recovery: the id is session-local; if the learner reports `Artifact N not found. Available: …` they read it from a different session — that is acceptable evidence that they understand ids are per-session. The `• Read artifact://N` card must show *no* `#TAG` (immutable) — ask the learner why.
@@ -42,7 +53,13 @@ Kill evidence: `⏹ Proc kill api exited · pid <n> · ran <t>` then `read proc:
 
 Stretch: `write proc://api` with empty content sends Enter; the http.server ignores stdin so logs don't change — that's the expected observation. `write proc://api/mode` with `session` makes the service die with the session; `persist` (default shown as `persistent` in the listing) keeps it; `detached` restarts it without a PTY and persists beyond the broker.
 
+G2 Stretch prompt: `Send a blank line to the api service's stdin, then read its logs`.
+
 ## S1 — Vim `ciw`
+
+Steps (not shown to the learner):
+1. `omp config set tui.vimMode true` (or `/settings` → Interaction → Input → Vim Editing Mode). Restart omp.
+2. Type a draft containing the word `users`; press `Esc`; navigate with `b`/`w`; `ciw`; type `orders`; `Esc`; `Enter`.
 
 `tui.vimMode: true` → Insert on entry. `Esc` → Normal; border colour changes; with `tui.vimModeDisplay: text` the mode name is shown. `b`/`w` reach the word; `ciw` deletes inside-word and enters Insert; `Esc`; `Enter` submits from Normal. `omp config get tui.vimMode` → `true`.
 
@@ -53,7 +70,7 @@ Common confusion: pressing `Esc` once from Insert while a turn runs does *not* i
 - **2.1** Remap: `~/.omp/agent/keybindings.yml` → `app.tools.expand: Ctrl+E`. `/hotkeys` reflects it after restart. Remind them to delete the line.
 - **2.2** Grep page boundary: `def ` only matches in 14 of the lab's files, so it will *not* cross the 20-file page. Use `.` (any non-empty line) over the whole repo — 36 tracked text files. The first card's text ends `Use skip=20 for the next page`; the follow-up call has `skip: 20`.
 - **2.3** Block edit: the receipt (expanded card) includes a block-resolution line; the model's payload uses `PUT N*:` anchored at the `def` line. If the model used an explicit range instead, that is not a failure of the learner — ask them to request "as a single block anchored at the def line" once more.
-- **2.4** PTY: the `Console` overlay appears only in the TUI with `PI_NO_PTY` unset. `Esc` kills the PTY; the resulting card shows the captured output. Under `--no-pty` the card carries `pty requested but unavailable in this environment; ran without a terminal` — accept that as the pass.
+- **2.4** PTY: prompt `Open python3 interactively with a PTY and wait for me.`, type `1+1`, `Enter`, then `Esc`. The `Console` overlay appears only in the TUI with `PI_NO_PTY` unset. `Esc` kills the PTY; the resulting card shows the captured output (`2`). Under `--no-pty` the card carries `pty requested but unavailable in this environment; ran without a terminal` — accept that as the pass.
 - **2.5** Cancelling `ask` with `Esc` aborts the tool context and the turn; the card is marked cancelled and no further cards follow until the next prompt.
 - **2.6** Vim `V` + `d` deletes the line; `u` undoes; `ciw` as above. `omp config get tui.vimMode` → `true`.
 
