@@ -4,6 +4,10 @@ Built against `omp/18.3.1` (`/home/user/.local/bin/omp`). Build machine: Python 
 credentials usable for live sessions, no recordings. All TUI demos are reconstructions labelled as
 such; the CLI portions of `demos/11.1-ttsr-interrupt.md` are captured verbatim.
 
+**Wave 2 audit (2026-09-27):** the binary on PATH reported `omp/18.3.5` at audit time; the course-wide
+header still says 18.3.1 (orchestrator's call). Every `omp ttsr` capture and `omp config get` default in
+this module was re-run on that binary against the real `omp-course-lab` tree.
+
 ## Sources read this session
 
 `omp://` index, `omp://rulebook-matching-pipeline.md`, `omp://ttsr-injection-lifecycle.md`,
@@ -40,14 +44,51 @@ result/error strings, `── 📷 compacted · ctrl+o ──`) were extracted f
 ## Claims dropped as unverifiable
 
 - Colour of any TUI card (amber/red) — not documented.
-- Exact rendering of the advisor status table and `/extended-context status` line — not documented;
-  demos mark those lines illustrative.
-- Whether `omp ttsr scan` returns a non-zero exit on matches — observed **0 both ways** on 18.3.1, so
-  the lesson tells learners to grep the output in CI rather than rely on exit codes.
+- Exact rendering of the advisor status table and the `/extended-context status` value — not documented;
+  demos mark those lines illustrative (`Extended context enabled.`/`disabled.` and `Usage:` are verbatim).
+
+## Removed (unverifiable)
+
+Wave 2 audit. Each item was in the module and is now gone or rewritten:
+
+- **`omp ttsr test` exit codes (0 triggered / 1 not) and `echo exit=$?` steps.** On the audit binary a
+  no-trigger `test` exits 0 when project rules are loaded and 1 only in isolated `-r` mode; `scan` exits
+  0 either way. Lesson, cheat sheet, 11-W1 and demo now say "grep the output, not `$?`".
+- **`ctrl+o` on the `Injecting rule` card shows the rule body.** `Ctrl+O` is documented as "toggle
+  tool-output expansion" (`keybindings.md`); nothing documents it acting on the TTSR notification card.
+- **`read history://current` to find the `ttsr_injection` entry.** `tools/read.md`: bare
+  `history://current` names an ordinary agent called `current`. Replaced by grepping the session
+  journal (`~/.omp/agent/sessions/<encoded-cwd>/<timestamp>_<sessionId>.jsonl`, `session.md`) or `/export`.
+- **`omp config set modelRoles.advisor …` / `omp config get modelRoles.advisor` / `omp config set
+  modelRoles.smol …`.** `modelRoles` is a record; `omp config get modelRoles.advisor` prints
+  `Unknown setting`. Replaced by the `/model` Roles view or `modelRoles:` in `config.yml` (Module 7 convention).
+- **`Warning: prewalk disabled …` "on stderr".** The string is verified; the stream is not.
+- **"`/advisor status` in the parent shows no active advisor" (11-S3).** Not documented; pass now keys on
+  the artifact files (`<SubId>/__advisor.jsonl` present, no top-level `__advisor.jsonl`).
+- **"Builtin TS/Go/Rust rules fire in a Python repo".** All 27 builtins are scoped to `*.go`/`*.rs`/`*.ts(x)`
+  edits (`omp ttsr list`); row rewritten as "clutter list/scan output".
+- **Byte-limit error text** `Context notes are N UTF-8 bytes. Shorten …` — corrected to the binary's
+  `Context notes are N bytes; the limit is 16384 UTF-8 bytes. Shorten the notebook and use history://current/full to recover raw detail.`
+
+## Lab alignment (Wave 2)
+
+- Issue #8 is `POST /signup` (`api/server.py::_signup`): 500 on duplicate email, 201 on `not-an-email`;
+  the temptation is a catch-all `except Exception` → 400, which the gated test rejects (it patches
+  `create_user` to raise and expects 500). All references to `api/orders.py` / "except: pass" /
+  "malformed rows" were rewritten; `solutions/WATCHDOG.md` and `WATCHDOG.yml` now describe that contract.
+- Paths: `web/signup.js` → `web/app.js` (no `console.log` seeded); `cli/main.py` → `cli/__main__.py`;
+  the only seeded `print()` calls are in `cli/commands.py`; `cli/log.py` provides the `logger` replacement.
+- The CLI has `users`, `orders`, `health` — there is no `orders list`; the prewalk task now targets the
+  `orders` subcommand. Test suite on `main`: `Ran 48 tests … OK (skipped=20)`.
+- Rule counts in expected output: 27 builtins + project rules (`evaluated 28` with one rule installed,
+  `evaluated 30` with all three; `scan` reports `rules=29` because the `question:` rule is skipped;
+  from inside `cli/` both path-scoped rules drop out → `rules=27`).
 
 ## Observed on the live binary (not in docs)
 
-- `omp ttsr test` exit code: 0 when a rule triggered, 1 when none.
+- `omp ttsr test` exit code is **not** a trigger signal: 0 on trigger; on no-trigger it is 0 with project
+  rules loaded and 1 only in `-r` isolated mode. `omp ttsr scan` exits 0 either way; `scan -r <question rule>`
+  alone prints `Rule registered but produced no TTSR entry.` and exits 1.
 - `omp ttsr scan` header reports `rules=29` when `list` reports 30 — question rules are skipped
   (consistent with `ttsr-injection-lifecycle.md` §10).
 - Scope path globs are resolved relative to the `test`/`scan` root: running `scan` from inside `cli/`
@@ -71,5 +112,6 @@ result/error strings, `── 📷 compacted · ctrl+o ──`) were extracted f
   were not observed end-to-end here. Walkthroughs are written from the documented lifecycle and the
   verbatim notice strings; Appendix D step 4 (run every walkthrough in `--profile course-build`) must be
   done by the orchestrator/instructor on a machine with credentials.
-- Lab fixtures (`web/signup.js`, `cli/main.py`, issue #8 contents) were referenced by Appendix A paths
-  and generic descriptions; the exact seeded lines were not read (lab built in parallel).
+- Lab fixtures were read during the Wave 2 audit (`web/app.js`, `cli/__main__.py`, `cli/commands.py`,
+  `api/server.py`, `docs/ISSUES.md` #8, `tests/test_issues.py`); every path, prompt and expected output
+  in the module now matches the seeded tree.

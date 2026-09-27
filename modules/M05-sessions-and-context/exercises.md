@@ -14,7 +14,7 @@ Goal: run three turns, navigate the tree, label, jump back with a summary, then 
 
 1. `omp` → `/rename m5-w1`.
    Expected: `Session renamed to "m5-w1".`
-2. Turn 1: `Read cli/main.py and summarize its subcommands in one line. No edits.`
+2. Turn 1: `Read cli/__main__.py and summarize its subcommands in one line. No edits.`
    Turn 2: `Which of those subcommands reads data/lab.sqlite? One line, no edits.`
    Turn 3: `List the files under tests/. Filenames only, no edits.`
    Expected: three answers, at least two `read` cards.
@@ -56,16 +56,16 @@ Goal: run three turns, navigate the tree, label, jump back with a summary, then 
 Goal: drive context past the threshold with large reads, watch auto-compaction, then `/handoff "focus on the API refactor"`, and find the compaction entries in `/tree`.
 
 Hints:
-- Default thresholds on large-window models are far away; set a fixed trigger: `omp config set compaction.thresholdTokens 30000` (project layer if you run it inside the lab with `.omp/config.yml`; check with `omp config get compaction.thresholdTokens`).
+- Default thresholds on large-window models are far away; set a fixed trigger: `omp config set compaction.thresholdTokens 30000` (writes the global config; for a lab-only override edit `omp-course-lab/.omp/config.yml` by hand). Check with `omp config get compaction.thresholdTokens`.
 - Big input: `Read docs/spec.md in full, then read every file in api/ and cli/ in full. Do not summarize.`
-- The divider looks like `── 📷 compacted · ctrl+o ──` (snapcompact) or a text `compacted` divider (other methods). `Ctrl+O` on it expands the summary.
+- The divider looks like `── 📷 compacted · ctrl+o ──` and sits where compaction fired. `Ctrl+O` on it expands the summary.
 - `/handoff` refuses while streaming and prints `Nothing to hand off (already compacted)` if the kept tail is all that is left — do a turn or two of work between the auto-compaction and the handoff.
-- In `/tree`, `compaction` entries are hidden by the default filter; press `Alt+A` for `all`, then type `compact`.
+- In `/tree`, type `compact` to find the `compaction` entries on the active path (`Alt+A` shows every bookkeeping entry as well).
 
 Checkpoints:
 - `context_pct` on the composer border rises above the threshold during the read turn, then drops after the divider appears.
 - `/handoff "focus on the API refactor"` prints `Context handed off and compacted in place`.
-- `/tree` (`all` filter) shows two compaction rows on the bulleted path.
+- `/tree` shows two compaction rows on the bulleted path.
 
 **Pass:** `notes/m5.md` records the `context_pct` value before and after each compaction and the first heading of the handoff document (from `Ctrl+O`). Restore the default: `omp config reset compaction.thresholdTokens`.
 
@@ -106,10 +106,10 @@ Checkpoints: `ls ~/.omp/agent/terminal-sessions/` shows two breadcrumbs; `cat` e
 
 ## S2 — Worktree session  [10 min]  *(Stretch)*
 
-Use `/wt` to move the current session into a new git worktree with a new branch, then `omp worktree list`.
+Use `/wt m5-s2` (or plain `/wt` for a generated `wt/<timestamp>` branch) to move the current session into a new git worktree, then `omp worktree list`.
 **Pass:** `omp worktree list` shows the path; `/resume` (Tab → all projects) shows the session under that path; `omp worktree clear --dry-run` lists it for removal.
 
 ## S3 — Method comparison  [15 min]  *(Stretch)*
 
 Repeat G1's read turn under `compaction.methodOrder` = `["shake","soft"]` and then `["snapcompact","soft"]` (vision model required).
-**Pass:** `notes/m5.md` names the method that ran each time (divider text / `Ctrl+O` content: `artifact://` refs vs image frames vs prose) and the resulting `context_pct`. Restore with `omp config reset compaction.methodOrder`.
+**Pass:** `notes/m5.md` names the method that ran each time (from what `Ctrl+O` on the divider reveals: `artifact://` refs vs image frames vs prose) and the resulting `context_pct`. Restore with `omp config reset compaction.methodOrder`.

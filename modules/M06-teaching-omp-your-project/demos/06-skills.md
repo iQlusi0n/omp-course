@@ -27,19 +27,20 @@ $ omp
 > Which skills do you have available? Names and descriptions only.
 - release-checklist — Step-by-step checklist for cutting an omp-course-lab release … Use when asked to "release", "cut a version", or "tag".
 
-> /skill:release-checklist 0.2.0
+> /skill:release-checklist 1.1.0
 ▸ (custom message) The user invoked the skill "release-checklist" …
   [Skill directory: /home/you/omp-course-lab/.omp/skills/release-checklist]
-  User: 0.2.0
+  User: 1.1.0
 ▸ bash git status --porcelain
-▸ bash python3 -m pytest -q
-   14 passed in 0.41s
+▸ bash python3 -m unittest discover -s tests
+   Ran 48 tests in 0.71s
+   OK (skipped=20)
 ▸ read skill://release-checklist/report.md
 | Clean tree      | PASS | git status --porcelain (exit 0, empty) |
-| Tests           | PASS | python3 -m pytest -q (exit 0)          |
-| Version         | FAIL | VERSION is 0.1.0; bump required        |
+| Tests           | PASS | python3 -m unittest discover -s tests (exit 0) |
+| Version         | FAIL | pyproject.toml version is 1.0.0; bump to 1.1.0 required |
 …
-| Tag (proposed)  | —    | git tag -a v0.2.0 -m "v0.2.0" (not run) |
+| Tag (proposed)  | —    | git tag -a v1.1.0 -m "v1.1.0" (not run) |
 ```
 
 Hidden ≠ disabled (Guided task): with `hide: true` the skill vanishes from the model's list, but `omp read skill://release-checklist` and `/skill:release-checklist` still work.

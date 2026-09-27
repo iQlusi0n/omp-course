@@ -59,6 +59,6 @@
 | keep one gate | `tools.approval.bash: prompt` (or `deny`) survives yolo |
 
 ## CI review bot
-`omp -p --mode json --no-session --no-extensions --no-skills --config ci.yml --tools read,grep,glob --max-time 10m "/review <JSON verdict spec>"` → parse last assistant `message_end` → exit 1 on P0.
+`omp -p --mode json --no-session --no-extensions --no-skills --config ci.yml --tools read,grep,glob --max-time 10m "/review <JSON verdict spec>"` → parse last assistant `message_end` (extract the `{…}` from any fence/prose) → exit 1 on P0 or `verdict: fail`.
 `ci.yml`: `tools.approvalMode: always-ask` + `tools.approval: {write: deny, edit: deny, bash: deny, eval: deny, task: deny}`.
 PRs: `pr://N` · `pr://N/diff` · `pr://N/diff/<i>` · `pr://N/diff/all` · `pr://owner/repo/N` · `omp read pr://N`. Keys via env (`ANTHROPIC_API_KEY`, …). Bigger: `robomp serve`.

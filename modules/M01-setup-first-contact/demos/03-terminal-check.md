@@ -10,18 +10,18 @@ $ cd omp-course-lab && omp
 › read README.md and summarize it in one line
 
   ▸ read README.md                                  ← collapsed tool card
-  omp-course-lab is a small Python practice repo with an API, a CLI and seeded issues.
+  omp-course-lab is the Python-only practice repo for the course: an API, a CLI, seeded data and eight seeded issues.
 
 [Ctrl+O]
   ▾ read README.md
   │ 1: # omp-course-lab
-  │ 2: Python-only practice repo.                    ← card expanded: file lines visible
+  │ 3: The practice repository for the *Working with omp* course. …   ← card expanded: file lines visible
   │ …
 [Ctrl+O]
   ▸ read README.md                                  ← collapsed again
 
 [Ctrl+Shift+O]
-  omp-course-lab is a small Python practice repo …  ← tool activity hidden; only prose remains
+  omp-course-lab is the Python-only practice repo …   ← tool activity hidden; only prose remains
 [Ctrl+Shift+O]
   ▸ read README.md                                  ← tool activity back
 

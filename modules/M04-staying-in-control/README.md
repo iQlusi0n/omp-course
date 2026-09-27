@@ -7,7 +7,7 @@
 | **Built against** | `omp --version` → `omp/18.3.1` |
 | **Prerequisites** | Modules 1–3 (a working login, the TUI card vocabulary from M2, three-part prompts from M3) |
 | **Practice repo** | `omp-course-lab`, start from `git checkout module-4-start` |
-| **Fixtures used** | issue #4 (`stats` CLI subcommand — triggers several `edit` + `bash` approvals), issue #5 (order cancellation; sub-item (c) "email the customer" is out of scope), branch `conflict-lab` (conflicts in `api/server.py` and `cli/__main__.py`) |
+| **Fixtures used** | issue #4 (`stats` CLI subcommand — triggers several `edit` + `bash` approvals), issue #5 (order cancellation; sub-item (c) "email the customer" is out of scope), branch `conflict-lab` (merged into a scratch branch off `main`, it conflicts in `api/server.py` and `cli/__main__.py`) |
 | **Lab test command** | `python3 -m unittest discover -s tests` (gated issue tests: `LAB_ISSUE=N python3 -m unittest tests.test_issues`) |
 
 **Goal:** Choose how much autonomy omp gets, plan before implementing, review its work with your own notes, and commit cleanly.
@@ -127,7 +127,7 @@ graph LR
         approval: deny
   ```
 - `deny` stops the call before it runs — **including in `yolo`**. `prompt` displays an approval request (only an accepted one runs). `allow` lowers a matching *simple* command to the `write` tier, so it is auto-approved in `write` mode; by default an `allow` must match the entire command and **cannot approve a compound line** (`git *` does not approve `git status && rm -rf build`).
-- `deny` and `prompt` are checked against the whole command *and* each segment (split on `&&`, `||`, `;`, `|`, `&`, subshells, newlines), so `match: "rm -rf *"` catches `cd /tmp && rm -rf build`.
+- `deny` and `prompt` are checked against the complete command *and* each shell command segment, so `match: "rm -rf *"` catches `cd /tmp && rm -rf build`.
 - **`bash.allowCompoundCommands`** (default `false`): when `true`, flat chains of literal commands joined only by `&&` are evaluated per segment; the chain is auto-allowed only if *every* segment resolves to `allow`; any `deny` wins, otherwise any `prompt` wins; an unmatched segment falls back to `tools.approval.bash` and the active mode. Expansions, assignments, redirections, globs, `cd`/`source`/`eval` and non-POSIX shells (cmd, PowerShell, fish) keep the default behavior. Put narrow `deny` rules *before* overlapping `allow` rules.
 - Built-in critical patterns (`rm -rf /`, fork bombs, remote-fetch-then-execute, writes to `/etc/passwd`, host shutdown) force a prompt in non-yolo modes; their reason text appears on the card.
 - **Approval ≠ sandbox.** An allowed program keeps ambient filesystem, network and subprocess access. The rules govern the `bash` tool only. `eval` (Module 8) can run `subprocess.run(["bash","-c",...])` and a `bash.patterns` `deny` does nothing there; pair patterns with `tools.approval.eval: prompt` (or `deny`) if you need that gate.
@@ -188,7 +188,7 @@ graph LR
 **Demo:** `demos/4.3-plan-mode.md`
 **Concepts:**
 - Toggle: **`Alt+Shift+P`** (action `app.plan.toggle`; remap in `~/.omp/agent/keybindings.yml`). `plan.enabled` is `true` by default; `plan.defaultOnStartup: false` (set `true` to start every interactive session in plan mode).
-- While active: `write`/`edit` enforce a plan-mode write policy before mutating anything; subagents spawned by `task` are restricted to `read`, `grep`, `glob`, `web_search` (plus `ast_grep` if declared) with no child spawns; `ask` timeouts are disabled so a question can wait for you; steering asides are folded into context instead of starting a turn.
+- While active: `write`/`edit` enforce a plan-mode write policy before mutating anything; subagents spawned by `task` are restricted to `read`, `grep`, `glob`, `web_search` (plus `ast_grep` if declared) with no child spawns; `ask` timeouts are disabled so a question can wait for you.
 - **Proposal:** the model writes its plan to `local://<slug>-plan.md` and submits it with a plain-text `write` to `xd://propose` (body = the slug). That write is valid only while plan mode is active. Interactive mode hands the proposal to the **Plan Review** overlay.
 - **Plan Review overlay / `/plan-review`** (reopens the overlay for the latest plan; plan mode only):
   - Contents sidebar: `a` annotates the selected **section**; in the plan body `a` annotates the top visible line.
@@ -200,7 +200,7 @@ graph LR
 
 **Try it (Walkthrough):**
 1. `git checkout module-4-start` (or keep your 4.2 state), open `omp`, press `Alt+Shift+P`.
-   **Expected:** the status line / composer indicates plan mode is on. If nothing changes, your terminal is eating the chord — see Troubleshooting.
+   **Expected:** plan mode is on — the proof is the next step, where only read-only cards appear. If step 2 produces `edit`/`write` cards, your terminal ate the chord — see Troubleshooting.
 2. Prompt: `Implement issue #5 (order cancellation) from docs/ISSUES.md. Propose a plan first with one section per sub-item; state which tests you will add.`
    **Expected:** only `read`/`grep`/`glob` cards; then the Plan Review overlay opens with a Contents sidebar listing sections (expect one for `DELETE /orders/<id>`, one for `python3 -m cli cancel <id>`, one for sub-item (c) "email the customer").
 3. In the sidebar, move to the section for sub-item (c) "email the customer" (issue #5 marks it out of scope); press `a`, type `Out of scope for this issue — do not implement`, `Enter`.
@@ -210,7 +210,7 @@ graph LR
 5. Press `e` on the annotated section, append `; add a TODO comment instead`, `Enter`. Then `u`.
    **Expected:** the edit is undone; the original note remains.
 6. Approve the plan.
-   **Expected:** plan mode exits, implementation cards (`edit`, `bash`) run under your 4.1/4.2 approval settings; the session gains a name derived from the plan title.
+   **Expected:** plan mode exits, implementation cards (`edit`, `bash`) run under your 4.1/4.2 approval settings; the session gains a name derived from the plan title (terminal title and editor border colour refresh).
 7. `git diff --stat`.
    **Expected:** files for the in-scope sub-items only.
 
@@ -225,7 +225,7 @@ graph LR
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `Alt+Shift+P` does nothing | Terminal does not forward the chord (Kitty keyboard protocol, Module 1) | Remap `app.plan.toggle` in `~/.omp/agent/keybindings.yml`, or set `plan.defaultOnStartup: true` |
+| `Alt+Shift+P` does nothing | Terminal does not forward the chord | Remap `app.plan.toggle` in `~/.omp/agent/keybindings.yml`, or set `plan.defaultOnStartup: true` |
 | `/plan-review` says nothing to review | Not in plan mode, or no plan proposed yet | Toggle plan mode; ask for a plan explicitly |
 | Model tries to edit during planning and gets an error | Plan-mode write policy refused the mutation — working as designed | Let it finish the plan; approve; edits run after |
 | Plan approved but nothing implemented | Approval-time compaction was cancelled | Re-run `/plan-review` and approve again |
@@ -265,7 +265,7 @@ graph LR
 - **Code review flow:** the menu lists up to three GitHub PRs referenced in the conversation, then local diff kinds. `/annotate code-review pr://owner/repo/N [focus]` skips the menu. The diff is resolved once in the session cwd and **frozen**; overlay and reviewer read the same snapshot, filtered by the same exclusion rules as `/review`. The overlay offers **Continue with LLM review** (submits the `/review` prompt with your notes as operator focus) and **Paste annotations into prompt**. Nothing is posted to GitHub.
 - **Text sources** (`last`, `session`, file, literal): feedback is pasted into the composer, never auto-submitted. The latest reply is referenced as "your last reply" and only annotated lines are quoted.
 - **Overlay keys:** `a` line note · `A` whole-file/whole-text note · `e` edit note(s) at cursor · `u` undo last add/edit/delete. Editor: `Enter` save, `Shift+Enter` newline, `Escape` discard, external-editor key replaces the draft. Empty new notes are ignored; saving an empty edit deletes.
-- **`/review`** is the bundled review command the overlay submits to; it reviews the frozen diff with the bundled `reviewer` agent family (`reviewer`, `security-reviewer` exist as bundled task agents). Treat its output as a reviewer's report you still verify: expand its `read`/`grep` cards, then ask for fixes in a fresh prompt.
+- **`/review`** is the bundled review command the overlay submits to; it reviews the same frozen diff (same exclusion rules) with your notes as operator focus. Treat its output as a reviewer's report you still verify: expand its `read`/`grep` cards, then ask for fixes in a fresh prompt. (Bundled `reviewer` and `security-reviewer` task agents exist separately — Module 10.)
 - **GitHub as filesystem preview:** `read pr://N` (repo inferred) or `read pr://owner/repo/N`; `pr://N/diff`, `/diff/<i>`, `/diff/all`; `?comments=0` for the no-comments rendering; bare `pr://` lists with `?state=`, `?limit=`, `?author=`, `?label=`. Same shapes for `issue://`. Full treatment in Module 8.
 
 **Try it (Walkthrough):**
@@ -279,7 +279,7 @@ graph LR
    **Expected:** a `/review` turn starts; the transcript shows `read`/`grep` cards and a findings report that references your two notes.
 5. `/annotate last`, add one note on a finding you disagree with, `Enter`, close.
    **Expected:** the composer now contains a pasted message quoting "your last reply" with only the annotated lines. Edit it, then send.
-6. `read pr://can1357/oh-my-pi/1?comments=0` (or any public PR you know).
+6. `read pr://owner/repo/N?comments=0` for any public PR you know (needs `gh` installed and authenticated).
    **Expected:** a rendered PR summary card.
 
 **Guided task:** Review before merge, twice. Run `/annotate code-review` on the working diff, add ≥ 2 line notes, continue with LLM review, apply the fixes it proposes, then run `/annotate code-review` again on the new diff with focus text `"regressions only"`.
@@ -296,8 +296,8 @@ graph LR
 | `/annotate path` says missing/not a regular file | Path resolved against the live session cwd (follows `/move`, `/wt`) | Use a path relative to the current session cwd, or `./` prefix |
 | `/annotate code-review` shows an empty diff | No uncommitted changes and no base-branch delta | Pick a different diff kind, or make a change |
 | Notes vanished after review | Snapshot is frozen per invocation; a new `/annotate` starts empty | Paste annotations into prompt if you need them in text |
-| `/annotate last` pasted a warning about condensing | Older session message > 1,000 chars is condensed by the session model; that call failed | The full source is embedded anyway; proceed |
-| `read pr://…` fails | Not in a GitHub repo, or `gh`/network unavailable | Use the long form `pr://owner/repo/N`; check `gh auth status` |
+| `/annotate session` pasted a warning about condensing | Older session message > 1,000 chars is condensed by the session model; that call failed | The full source is embedded anyway; proceed |
+| `read pr://…` fails | `gh` not installed/authenticated, or not in a GitHub repo | Install `gh`, check `gh auth status`; use the long form `pr://owner/repo/N` |
 
 **Cheat sheet:**
 
@@ -330,6 +330,7 @@ graph LR
   | `-m, --model <id>` | Override model selection |
 
   It needs a model: without credentials it fails with `No model available for commit generation`. Model resolution tries the `commit` role first, then `smol` (observed in the failure trace); assign `modelRoles.commit` in `/model` → Roles (Module 7) to pin a cheap model.
+  Staging (observed on this build): with files already staged, `omp commit` commits **only** the staged changes and leaves the rest unstaged; with nothing staged it stages and commits the working-tree changes. `--legacy` prints `Staging all changes…` first. So `git add <files>` before `omp commit` is the way to scope a commit.
 - **`omp git [REVISION] [-C dir]`** — interactive fullscreen git UI: split diff viewer, staging sidebar, commit composer. `omp git HEAD~2` pins the view to one commit.
 - Generated and lockfile-like files: `edit.blockAutoGenerated` (default `true`) makes `edit`/`write` refuse to modify them, so they rarely show up in a model-authored diff.
 - **Conflicts:**
@@ -337,29 +338,29 @@ graph LR
   2. `read conflict://N` shows one block; `conflict://N/ours`, `/theirs`, `/base`, `/both` show one side (read-only scopes).
   3. `write conflict://N` with content replaces **only** that marker block. A line exactly `@ours`, `@theirs`, `@base`, or `@both` expands to the recorded side (`@both` = ours then theirs, for additive conflicts only; `@base` needs a diff3 base). Other content is literal.
   4. `write conflict://*` applies the same content to every registered conflict, or per-id directives `1: @ours\n2: @theirs` (each line one side token, no repeats). Bulk is all-or-nothing per file, applied bottom-up; partial cross-file success returns an error you must read. Resolved ids are invalidated.
-  5. Verify: `read <file>:conflicts` again → no conflicts; run tests; `git add` + commit.
-  From the shell you can preview step 1 with `omp read api.py:conflicts` (ids are session-scoped, so `conflict://N` works only inside the session that read the file).
+  5. Verify: `read <file>:conflicts` again → no conflicts; run tests; `git add` the files and conclude the merge with `git commit` (see the guided task for why not `omp commit`).
+  From the shell you can preview step 1 with `omp read api/server.py:conflicts` (ids are session-scoped, so `conflict://N` works only inside the session that read the file; a second file read in the same session continues the numbering — `#2`).
 
 **Try it (Walkthrough):**
 1. With 4.4's reviewed diff in the working copy: `omp commit --dry-run`.
    **Expected:** a proposed commit message (and any changelog edit) printed, nothing committed (`git log -1` unchanged).
 2. `omp commit -c "Implements issue #5 (cancellation); sub-item (c) email deliberately omitted"`.
    **Expected:** a commit lands; `git log --oneline -3` shows it; if the lab has a changelog, it was updated (use `--no-changelog` to skip).
-3. `omp git` → browse the commit in the split viewer; `q` (or your terminal's quit) to exit. Then `omp git HEAD~1`.
+3. `omp git` → browse the commit in the split viewer, then exit the UI. Then `omp git HEAD~1`.
    **Expected:** the fullscreen UI pinned to the previous commit.
-4. Conflict drill: `git checkout conflict-lab && git merge main`.
-   **Expected:** `CONFLICT (content)` in `api/server.py` and `cli/__main__.py`.
+4. Conflict drill (the lab's documented flow): `git switch -c scratch main && git merge conflict-lab`.
+   **Expected:** `CONFLICT (content)` in `api/server.py` and `cli/__main__.py` — one block each (`SERVICE_NAME` and `DESCRIPTION` strings changed on both sides).
 5. In `omp`, prompt: `Read api/server.py:conflicts and cli/__main__.py:conflicts, show me conflict://1/ours and conflict://1/theirs, and stop.`
-   **Expected:** cards: `⚠ N unresolved conflict(s) in <file>` with `#1 L…`, then the two sides.
+   **Expected:** cards: `⚠ 1 unresolved conflict in api/server.py` with `ours = HEAD` / `theirs = conflict-lab` and `#1 L…`, then `#2 L…` for `cli/__main__.py`, then the two sides.
 6. Prompt: `Resolve every conflict keeping theirs, except conflict #1 which should keep ours. Use per-id conflict://* directives. Then re-read both files with :conflicts and run the tests.`
-   **Expected:** one `write conflict://*` card with `1: @ours` + `2: @theirs…` lines, a re-read showing no conflicts, a passing test card, and `grep -c '<<<<<<<'` over the files returns 0.
+   **Expected:** one `write conflict://*` card with `1: @ours` + `2: @theirs` lines, a re-read showing no conflicts, a passing test card, and `git grep -c '<<<<<<<' -- api cli` returns nothing.
 
-**Guided task:** Commit the merge with a message that explains each resolution.
-- Hints: `omp commit -c "merge main into conflict-lab; #1 kept ours because …"`; `--dry-run` first.
-- Checkpoints: `git status` clean; `git log -1` is a merge commit.
+**Guided task:** Conclude the merge with a message that explains each resolution.
+- Hints: draft the message with `omp commit --dry-run -c "merge conflict-lab into scratch; #1 kept ours because …"`, then conclude with `git commit -m "<that message>"`. Observed on this build: `omp commit` does **not** conclude an in-progress merge — it creates a single-parent commit and leaves `MERGE_HEAD` in place, so `git status` still says "you are still merging". Use `omp commit` for ordinary commits, `git commit` for merges.
+- Checkpoints: `git status` clean; `git log -1 --format=%P` shows two parents.
 - Pass condition: `git log -1 --format=%B` mentions both files and the reason for each side choice.
 
-**Stretch:** Resolve a conflict by combining both sides with literal content plus a single `@theirs` line. Pass condition: `read <file>:conflicts` reports none and the resulting function contains lines from both branches.
+**Stretch:** Redo the merge (`git merge --abort`, then merge again) and resolve one block with literal content that combines both sides — e.g. a `SERVICE_NAME` that keeps `orders api` from `conflict-lab` and `v1` from `main` — and the other with a single `@theirs` line. Pass condition: `read <file>:conflicts` reports none and the resulting string contains text from both branches.
 
 **Troubleshooting:**
 
@@ -370,6 +371,7 @@ graph LR
 | `@base` fails | No diff3 base recorded | Use `@ours`/`@theirs`/literal content, or set `git config merge.conflictStyle diff3` before merging |
 | Bulk write returned `isError` | One file failed, others succeeded; failed-file ids stay registered | Read the error, re-run for the failed ids only |
 | Write to `conflict://1/ours` rejected | Side scopes are read-only | Write to `conflict://1` (no scope) |
+| `git status` says "still merging" after `omp commit` | `omp commit` made a single-parent commit and did not consume `MERGE_HEAD` | Conclude merges with `git commit`; keep `omp commit` for ordinary commits |
 
 **Cheat sheet:**
 
@@ -391,14 +393,14 @@ graph LR
 **Why this exists:** omp does not have a magic "undo last turn" for the working tree; git already is that, and it is the one tool every reviewer trusts. What git cannot undo is the *conversation*: once the model has argued itself into a wrong design, continuing in that session keeps the bad context. `/fork` copies the session so you can try again from the same point while keeping the original.
 **Demo:** `demos/4.6-fork-and-undo.md`
 **Concepts:**
-- **Files:** commit or stash before a risky prompt. Ask omp to work on a branch (`git switch -c try/x`) so `git diff main` is the review surface; after a bad turn `git checkout -- <file>` or `git restore .` and tell omp what you reverted (it cannot see your revert until it re-reads; hashline anchors will reject its stale edits — Module 2).
+- **Files:** commit or stash before a risky prompt. Ask omp to work on a branch (`git switch -c try/x`) so `git diff main` is the review surface; after a bad turn `git checkout -- <file>` or `git restore .` and tell omp what you reverted (it cannot see your revert until it re-reads; its old hashline tags are stale and an edit fails unless snapshot recovery can prove a safe result — Module 2).
 - **Conversation:** `/fork` creates a new session file from the current one and switches to it; the artifact directory is copied; persistent sessions only (`--no-session` cannot fork); rejected while the agent is streaming — press `Esc` first. From the shell: `omp --fork <id|path>` forks into the current cwd/session dir. `/tree`, `/branch`, and the full session model are Module 5.
 - **Pattern:** *before* "refactor `api/` to use X": `git stash` or commit → `/fork` → try it. If it goes wrong: `git restore .` in the fork, `/resume` the original (Module 5), and rewrite the prompt with the constraint you learned.
 - Turn-level checkpoints (`checkpoint`/`rewind` tools) exist but are **off by default**; they are taught in Modules 9 and 11.
 
 **Try it (Walkthrough):**
 1. `git status` clean (commit your 4.5 work). In `omp`, `/fork`.
-   **Expected:** the session switches; the status/title reflects a new session id.
+   **Expected:** the active session switches to a new session file (a second `.jsonl` appears under the session directory; `/resume` lists two sessions for this folder).
 2. Prompt: `Rename the cancel subcommand to void across cli/ and tests without keeping a compatibility alias.`
    **Expected:** several `edit` cards; tests may fail.
 3. Undo files: `git restore .` in another terminal. Back in omp: `I reverted your changes with git. Re-read before editing. Do the rename but keep a deprecated alias.`

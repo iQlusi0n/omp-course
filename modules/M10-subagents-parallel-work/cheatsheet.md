@@ -1,9 +1,9 @@
-# Module 10 cheat sheet — Subagents & Parallel Work (`omp/18.3.1`)
+# Module 10 cheat sheet — Subagents & Parallel Work (`omp/18.3.5`)
 
 ## `task` (batch shape, `task.batch: true`)
 | | |
 |---|---|
-| Call | `{ "context": "<shared, required>", "tasks": [ { "name?", "agent?", "task", "outputSchema?", "schemaMode?": "permissive\|strict", "isolated?", "effort?": "lo\|med\|hi" } ] }` |
+| Call | `{ "context": "<shared, required>", "tasks": [ { "name?", "agent?", "task", "solutionSpace", "outputSchema?", "schemaMode?": "permissive\|strict", "isolated?", "effort?": "lo\|med\|hi" } ] }` |
 | Bundled agents | `scout` (read-only, `@smol`) · `reviewer` (`@slow`, spawns `scout`) · `security-reviewer` (read-only) · `task` (`@task`, spawns `*`) · `sonic` (`@smol`, mechanical) |
 | Async return | ``Spawned N background agents using <types>.`` → results auto-deliver; ``<id> is now idle — message it via `write agent://<id>` …`` |
 | Read results | `read agent://<id>` · `read agent://<id>/key/0` · nested `agent://<id>.<child>` · `read history://<id>` · bare `read history://` |
@@ -34,7 +34,7 @@
 ## Isolation
 | | |
 |---|---|
-| Enable | `task.isolation.enabled` (**true**) + `isolated: true` per item; needs a git repo; rejected in plan mode |
+| Enable | `task.isolation.enabled` (**false** by default → set `true` in `.omp/config.yml`) + `isolated: true` per item; needs a git repo; rejected in plan mode |
 | Backend | `isolation.backend`: `auto` · `apfs` · `btrfs` · `zfs` · `reflink` · `overlayfs` · `projfs` · `block-clone` · `rcopy` (PAL fallback) |
 | Integrate | `task.isolation.merge`: `patch` (default, `<id>.patch`) · `branch` (`omp/task/<id>`, cherry-pick, stash) · `task.isolation.apply` (true) · `task.isolation.commits` |
 | Lifecycle | isolated agent → `parked`, **not revivable**; transcript via `history://<id>` |

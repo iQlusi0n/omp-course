@@ -45,7 +45,7 @@ Hints: `omp q --model web/duckduckgo "…"`, `omp q --model web/startpage "…"`
 
 ### 8.2-W  Retained state and the tool bridge (10 min)
 Three prompts, three cells: build `by_month` from `data/lab.sqlite` and `display()` it; `display(sum(by_month.values()))` in a new cell without reloading; `display(await tool.read({'path':'data/lab.sqlite'}))`.
-**Pass:** three `eval` cards; the second cell's code has no `sqlite3.connect`; the third shows `"text": "orders (N rows)\nusers (M rows)"` under `display[1]:`.
+**Pass:** three `eval` cards; the second cell's code has no `sqlite3.connect`; the third shows `"text": "orders (72 rows)\nschema_version (1 rows)\nusers (12 rows)"` under `display[1]:`.
 
 ### 8.2-W  `reset` wipes state (3 min)
 Prompt: *"Reset the Python kernel and display(by_month)."*
@@ -80,7 +80,7 @@ Prompts: `lsp references` for `get_user` on its `def` line in `api/db.py`; `lsp 
 
 ### 8.3-W  Codemod with preview and `xd://resolve` (10 min)
 Start omp with `astGrep.enabled` on (`omp config set astGrep.enabled true` or a `--config` overlay). Prompts: `ast_grep` pattern `print($$$A)` on `cli`; `ast_edit` `print($$$A)` → `logger.debug($$$A)` on `["cli"]`; *"apply the staged proposal by writing a reason to xd://resolve"*; then grep and tests.
-**Pass:** `Staged as a proposal — files NOT modified yet` card, then `Applied N replacements in M files.`, `grep -rn "print(" cli/` empty, tests `OK` (add `from cli.log import logger` where needed).
+**Pass:** `Staged as a proposal — files NOT modified yet` card, then `Applied 10 replacements in 1 file.` (all 10 `print(` calls live in `cli/commands.py`; the docstring mentions in `cli/log.py` are not matched), `grep -rn "print(" cli/` empty, tests `OK` after adding `from cli.log import logger` to `cli/commands.py`.
 
 ### 8.3-G  Rename + codemod end to end (15 min)
 Goal: LSP rename `get_user` → `fetch_user` across `api/` (re-exported from `api/__init__.py`); then `ast_edit` `print($$$A)` → `logger.debug($$$A)` in `cli/`, accepting the proposal.
@@ -103,17 +103,17 @@ Write `.omp/lsp.json` disabling `pylsp` and setting `idleTimeoutMs: 120000`; `ls
 
 ### 8.4-W  Break, inspect, fix (15 min; needs debugpy)
 Reproduce `python bin/crash.py` (exit 1). Prompts: launch under debugpy; breakpoint at the failing line; continue; `stack_trace`, `scopes`, `variables`, `evaluate … context watch`; terminate; fix; rerun.
-**Pass:** cards `Stop reason: entry` → `line L: verified` → `Stop reason: breakpoint` → `Variables: - user = None (NoneType)` → `Debug session terminated.`; final `bash` card runs `python bin/crash.py` with exit 0.
+**Pass:** cards `Stop reason: entry` → `line 39: verified` → `Stop reason: breakpoint` (frame `display_name`) → `Variables: - user = None (NoneType)` → `Debug session terminated.`; final `bash` card runs `python bin/crash.py` with exit 0 and prints a line for every id in `WANTED_IDS` (99 marked unknown).
 
 ### 8.4-G  Python and C, same workflow (20 min; C needs `cc` + `gdb`/`lldb-dap`)
 Goal: for `bin/crash.py` and `bin/crash.c`, attach a debugger, break at the failing line, report the offending variable, fix.
 Hints: `cc -g -O0 -o bin/crash bin/crash.c`; `launch program=bin/crash adapter=gdb` (stops at `main`; `continue` to the fault or set a breakpoint); `terminate` between sessions (one root session at a time).
-Checkpoints: (a) two sessions; (b) a `variables`/`evaluate` card per program showing `None` / `0x0`; (c) both fixed.
+Checkpoints: (a) two sessions; (b) a `variables`/`evaluate` card per program showing `user = None` (Python, in `display_name`) / `u = 0x0` (C, in `main` at `bin/crash.c:45`); (c) both fixed.
 **Pass:** transcript shows `debug` cards with `scopes`/`variables` for **both** programs; `python bin/crash.py; echo $?` and `./bin/crash; echo $?` both print `0`.
 
 ### 8.4-S  Print-debug vs DAP, plus a conditional breakpoint (15 min)
-In a fresh session with `--tools read,edit,bash`, fix the Python crash by print-debugging; count `edit` cards and reruns. Then, with `debug`, set the same breakpoint with `condition: "user is None"` and run once with a valid id and once with the failing default.
-**Pass:** `notes/m8-debug.md` lists both tool sequences with counts; the conditional-breakpoint card says `verified`; the valid-id run never reports `Stop reason: breakpoint`.
+In a fresh session with `--tools read,edit,bash`, fix the Python crash by print-debugging; count `edit` cards and reruns. Then, with `debug` on the unfixed file (`git checkout -- bin/crash.py`), set a breakpoint at `bin/crash.py:45` (the `print(...)` in `main`) with `condition: "user is None"` and `continue` once. `bin/crash.py` takes no arguments — the loop over `WANTED_IDS = [1, 2, 99, 3]` is the input.
+**Pass:** `notes/m8-debug.md` lists both tool sequences with counts; the conditional-breakpoint card says `verified`; the first `variables` card after `continue` shows `user_id = 99` and `user = None` (an unconditional breakpoint on the same line stops first at `user_id = 1`).
 
 ---
 

@@ -16,14 +16,14 @@ Prerequisites per exercise are stated up front; nothing here needs Node, a C too
    **Expected:** bash card with `name: "lab-api"`, `ready: {port: 8080}`; result `lab-api: ready pid=<n>`.
 2. Prompt: *"eval JS: open `http://127.0.0.1:8080/` in a browser tab named `signup` (wait_until load) and `console.log(JSON.stringify(await tab.observe()))`."*
    **Expected:** `Opened tab "signup" on headless browser (hidden, shared)` · `Title: omp-course-lab signup` · elements `[{id:1, role:"textbox", name:"Name "}, {id:2, role:"textbox", name:"Email "}, {id:3, role:"button", name:"Sign up"}]` (ids may differ — that is the point of observing).
-3. Prompt: *"In one eval cell: reopen the same tab, `observe()`, fill Name and Email via `tab.id(...)`, click the Sign up button, then `tab.run` a function that `waitForSelector('#banner', {visible:true, timeout:5000})`, reads its text with `tab.evaluate`, throws unless it is exactly `Welcome aboard!`, and returns it. Print the text, then `tab.screenshot({silent:true})` and print the path, then `tab.close()`."*
+3. Prompt: *"In one eval cell: reopen the same tab, `observe()`, fill Name and a fresh unique Email (e.g. `m14-${Date.now()}@example.com` — `ada@example.com` and the other seeded users already exist and a duplicate makes `POST /signup` return 500, lab issue #8) via `tab.id(...)`, click the Sign up button, then `tab.run` a function that `waitForSelector('#banner', {visible:true, timeout:5000})`, reads its text with `tab.evaluate`, throws unless it is exactly `Welcome aboard!`, and returns it. Print the text, then `tab.screenshot({silent:true})` and print the path, then `tab.close()`."*
    **Expected:** `banner: Welcome aboard!` · `screenshot: /tmp/omp-sshots-<hex>.webp` (or under `browser.screenshotDir`) · `Released managed tab "signup"`.
 4. Prompt: *"read <that path>"*. **Expected:** the image renders; the banner text is visible.
 5. Prompt: *"Copy the screenshot to `notes/14-1-signup.webp`."* **Expected:** file exists (`ls notes/`).
 
 **Pass:** the eval card contains `banner: Welcome aboard!` **and** `notes/14-1-signup.webp` exists.
 
-Deliberate failure (do it once): rerun step 3 with `timeout: 5` in `waitForSelector`. **Expected:** `timed out after 5ms` — the unit is milliseconds.
+Deliberate failures (do each once): rerun step 3 with `timeout: 5` in `waitForSelector`. **Expected:** `timed out after 5ms` — the unit is milliseconds. Rerun step 3 with `ada@example.com`. **Expected:** the cell throws `banner was "Signup failed: internal error"` — the seeded user already exists.
 
 ---
 
@@ -111,4 +111,4 @@ Deliberate failure (do it once): rerun step 3 with `timeout: 5` in `waitForSelec
 
 ## Cleanup
 
-`write proc://lab-api/kill` (or ask omp to stop the `lab-api` service). `/computer off`. `/collab stop`. `omp config set browser.relay false` if you enabled it in the 14.1 stretch. Delete `notes/14-1-signup.webp` if you don't want it (`notes/` is gitignored anyway).
+`write proc://lab-api/kill` (or ask omp to stop the `lab-api` service). `git checkout -- data/lab.sqlite` (or `python3 tools/seed_db.py`) — every successful signup added a row to the tracked seed DB. `/computer off`. `/collab stop`. `omp config set browser.relay false` if you enabled it in the 14.1 stretch. Delete `notes/14-1-signup.webp` if you don't want it (`notes/` is gitignored anyway).

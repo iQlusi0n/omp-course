@@ -47,3 +47,28 @@ Scratch repo `/tmp/m06lab` with the shipped `solutions/dot-omp/` copied to `.omp
 | Settings layering, `omp config`, `/settings`, `--config`, profiles | 6.7 |
 | `SYSTEM.md` / `APPEND_SYSTEM.md` / `PERSONALITY.md` / template | 6.8 |
 | Secrets obfuscation (default off) | 6.9 |
+
+## Wave 2 audit (2026-09-27)
+
+Re-verified every command, flag, key, path and default against `omp://context-files.md`, `rulebook-matching-pipeline.md`, `skills.md`, `slash-command-internals.md`, `settings.md`, `config-usage.md`, `system-prompt-customization.md`, `secrets.md`, `cli-reference.md`, `environment-variables.md`, `keybindings.md`, `theme.md`, `omp --help`, `omp config --help`, `omp read --help`, and `omp config get` for every default quoted. Shell steps re-run in a scratch copy of the lab with `solutions/dot-omp/` installed (outputs identical to the "Verification performed" list above); one `omp -p --no-session --no-tools` run confirmed that `AGENTS.md`, the `@../docs/spec.md` import and `RULES.md` reach the model (reply quoted the unittest command, `# omp-course-lab — Service Specification (v1)` and the `generated/` rule verbatim).
+
+### Fixed (lab alignment)
+
+- **Test command.** The lab is stdlib-only and pytest is not installed (`python3 -c "import pytest"` fails; `omp-course-lab/README.md` and `docs/ISSUES.md` use `python3 -m unittest discover -s tests`, which runs 48 tests, 20 skipped). Replaced `python3 -m pytest -q` everywhere: README 6.1/6.5/6.6/6.8, `exercises.md` 6-W, demos 01/03/06/08, `solutions/dot-omp/AGENTS.md`, `rules/sqlite-migrations.md` (`python3 -m unittest tests.test_db`), `skills/release-checklist/SKILL.md`.
+- **`generated/` header.** Lab files start with `# GENERATED — do not edit` and are written by `tools/seed_db.py` (re-running it is deterministic: `git status` clean afterwards). `AGENTS.md`, README 6.1, `exercises.md` 6-W and the release skill now name the header and the generator.
+- **Release skill fixtures.** The lab has no `VERSION` file and no `CHANGELOG.md`; the only tags are `module-N-start`. Skill step 3 now bumps `version` in `pyproject.toml` (currently `1.0.0`); step 5 runs `python3 tools/seed_db.py` and diffs `generated/ data/`. README 6.6 / demo 06 use release `1.1.0` instead of `0.2.0` (must exceed 1.0.0).
+- **`docs/spec.md` first heading** is `# omp-course-lab — Service Specification (v1)` (README 6.1 step 5, demo 01 quoted a made-up heading).
+- Demo 07: the real `omp config get … --config` error starts `error: Unknown option '--config'.` (was `Error:`).
+- Demo 08: `api/orders.py` does not exist in the lab → `api/server.py`.
+- Instructor notes 6-S: `theme.dark dracula` → `dark` (`theme.md` names only the embedded `dark.json`/`light.json` plus `defaults/*.json`; `titanium` is the verified default; `dracula` is not documented).
+- `.env.example` token (`labtok_0123456789abcdef`, 23 chars) and `DATABASE_URL=sqlite:///data/lab.sqlite` re-checked against the lab file; regex `labtok_[0-9a-f]{16}` matches.
+
+### Removed (unverifiable)
+
+- Cheat sheet claim that `APPEND_SYSTEM.md` walks up to the nearest non-empty `.omp/`. `config-usage.md` documents walk-up for `SYSTEM.md`, `RULES.md` and `.omp/AGENTS.md` only; `system-prompt-customization.md` extends it to `SYSTEM_TEMPLATE.md`. The row now says walk-up is documented only for `SYSTEM.md` and tells learners to keep `APPEND_SYSTEM.md` in the same `.omp/`.
+- Demo 08 tool list contained `eval`; `omp --help` lists `python` (and no `eval`) — replaced with names from `omp --help` only.
+
+### Notes
+
+- The binary on PATH now reports `omp/18.3.5` (`omp --help` banner `omp v18.3.5`). All modules pin `omp/18.3.1` and the wave-2 brief says 18.3.1; headers left unchanged — course-wide decision for the orchestrator. No documented behaviour used by this module differed between the two.
+- While checking seed determinism I ran `git checkout -- .` in `omp-course-lab`, which reverted a pre-existing uncommitted change to `omp-course-lab/tools/mock-provider.py` that was not mine. Reported to the orchestrator; nothing else in the lab was touched.

@@ -12,9 +12,9 @@ Prerequisites: a logged-in provider (Module 1); a terminal that delivers `Ctrl+E
 
 1. `cd omp-course-lab && git checkout module-6-start && mkdir -p .omp`
 2. Write `.omp/AGENTS.md` containing at least:
-   - Test: `python3 -m pytest -q`
+   - Test: `python3 -m unittest discover -s tests` (the lab is stdlib-only; pytest is not installed)
    - Lint: `python3 -m compileall -q api cli`
-   - "`generated/` is build output — never edit it by hand."
+   - "`generated/` is build output written by `tools/seed_db.py` (files start with `# GENERATED — do not edit`) — never edit it by hand."
    - Last line: `@../docs/spec.md` (relative to `.omp/`, not the repo root)
 3. Write `.omp/RULES.md` with one line: `Never run git commit or git push unless the user explicitly asks in the current message.`
 4. Start `omp` in the repo root. Type `/extensions`.
@@ -23,7 +23,7 @@ Prerequisites: a logged-in provider (Module 1); a terminal that delivers `Ctrl+E
 6. Prompt: `Append a comment "# reviewed" to the first file under generated/ and commit it.`
    Expected: omp declines or asks before touching `generated/`, and does not commit. It cites the context file or the rule.
 7. Prompt: `What is the test command? Answer from context, no tool calls.`
-   Expected: `python3 -m pytest -q`, no `read` card.
+   Expected: `python3 -m unittest discover -s tests`, no `read` card.
 
 **Pass condition (all three):**
 - `git status --porcelain generated/` prints nothing and `git log -1 --format=%s` is unchanged from `module-6-start`.

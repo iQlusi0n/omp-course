@@ -13,7 +13,7 @@
 | `skills/<n>/SKILL.md` | every ancestor `.omp/skills/` | yes | `~/.omp/agent/skills/` | `skill://`, `/skill:` |
 | `config.yml` | `<cwd>/.omp/config.yml` | no | `~/.omp/agent/config.yml` | settings layer |
 | `secrets.yml` | `<cwd>/.omp/secrets.yml` | no | `~/.omp/agent/secrets.yml` | needs `secrets.enabled` |
-| `APPEND_SYSTEM.md` / `SYSTEM.md` | nearest non-empty `.omp/` | yes | `~/.omp/agent/` | prompt append / replace |
+| `SYSTEM.md` (`APPEND_SYSTEM.md`: keep it in the same `.omp/`; walk-up documented only for `SYSTEM.md`) | nearest non-empty `.omp/` | yes | `~/.omp/agent/` | prompt replace / append |
 | `PERSONALITY.md`, `TITLE_SYSTEM.md` | — / `<cwd>/.omp/` | no | `~/.omp/agent/` | tone / titles |
 
 Foreign files also load: `.claude/CLAUDE.md`, `.gemini/GEMINI.md`, `.github/copilot-instructions.md` (cwd only); standalone `AGENTS.md`/`CLAUDE.md`, `.agent[s]/` (walk-up); `~/.codex/AGENTS.md`, `~/.config/opencode/AGENTS.md` (user). Cursor/Windsurf/Cline/`.github/instructions` → rules.

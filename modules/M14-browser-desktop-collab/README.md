@@ -66,7 +66,7 @@ Every setting default above was read with `omp config get <key>` on a machine wh
 
 Prerequisite: none beyond omp — headless Chromium is managed by omp (the build machine had no system Chrome and this walkthrough still passed). First `browser.open` may take longer while Chromium is provisioned.
 
-1. In the lab root, start the API as a supervised service from the composer (`!` bang or ask omp): *"Start `python3 -m api` as a bash service named `lab-api`, ready when port 8080 answers."* omp calls `bash` with `{"command":"python3 -m api","name":"lab-api","ready":{"port":8080}}`. The API also serves `web/` as static files, so `http://127.0.0.1:8080/` is the signup form (`web/index.html`).
+1. In the lab root, ask omp to start the API as a supervised service: *"Start `python3 -m api` as a bash service named `lab-api`, ready when port 8080 answers."* omp calls `bash` with `{"command":"python3 -m api","name":"lab-api","ready":{"port":8080}}` (service mode exists only on the tool-call path — a `!` bang command runs a plain shell command and creates no service). The API also serves `web/` as static files, so `http://127.0.0.1:8080/` is the signup form (`web/index.html`).
    **Expected:** a service card `lab-api: ready pid=<n>`; `read proc://lab-api` shows status and log tail.
 2. Ask: *"Using eval (JS), open `http://127.0.0.1:8080/` in a browser tab named `signup` and show me `observe()`."* The cell omp should write (or type it yourself into an eval call):
 
@@ -85,14 +85,15 @@ Prerequisite: none beyond omp — headless Chromium is managed by omp (the build
      {"id":3,"role":"button","name":"Sign up","states":[]}]}
    ```
 
-3. Ask: *"In the same cell style: re-observe, fill the name and email fields via `tab.id(...)`, click the submit button, wait for `#banner` to be visible, and assert its text is exactly `Welcome aboard!`. Then `tab.screenshot({silent:true})` and print the path."* Reference cell (verified):
+3. Ask: *"In the same cell style: re-observe, fill the name and a **fresh, unique** email via `tab.id(...)`, click the submit button, wait for `#banner` to be visible, and assert its text is exactly `Welcome aboard!`. Then `tab.screenshot({silent:true})` and print the path."* The email must be new: the seeded `data/lab.sqlite` already contains `ada@example.com` (and 11 more `<first>@example.com` rows), and `POST /signup` with a duplicate returns 500 (lab issue #8), so the banner would read `Signup failed: internal error` instead. Reference cell:
 
    ```js
    const tab = await browser.open({ name: "signup", url: "http://127.0.0.1:8080/", wait_until: "load" });
    const obs = await tab.observe();
    const byName = (n) => obs.elements.find(e => e.name.trim() === n);
+   const email = `m14-${Date.now()}@example.com`;            // fresh: seeded users already use ada@example.com etc.
    await tab.id(byName("Name").id).fill("Ada Lovelace");
-   await tab.id(byName("Email").id).fill("ada@example.com");
+   await tab.id(byName("Email").id).fill(email);
    await tab.id(byName("Sign up").id).click();
    const banner = await tab.run(async ({ tab }, sel, expected) => {
      await tab.waitForSelector(sel, { visible: true, timeout: 5000 });          // ms
@@ -106,14 +107,14 @@ Prerequisite: none beyond omp — headless Chromium is managed by omp (the build
 
    The lab form's ids are `#name`, `#email`, `#submit`, `#banner`, so CSS selectors (`tab.fill("#name", …)`) work too; `observe()` + `tab.id` is the habit that survives pages you did not write. Python version: `demos/14.1-browser-signup.md` §4.
 
-   **Expected:** `Reused tab "signup" …` (step 2 left it open), then `banner: Welcome aboard!` and a path like `/tmp/omp-sshots-<hex>.webp` (observed on the build machine; with `browser.screenshotDir` set, the path is under that directory).
+   **Expected:** `Reused tab "signup" …` (step 2 left it open), then `banner: Welcome aboard!` and a path like `/tmp/omp-sshots-<hex>.webp` (observed on the build machine; with `browser.screenshotDir` set, the path is under that directory). Each successful signup inserts a row into the tracked `data/lab.sqlite`; when you are done, `git checkout -- data/lab.sqlite` (or `python3 tools/seed_db.py`) restores the seeded state.
 4. Ask omp to `read` the screenshot path.
    **Expected:** the image renders inline in the transcript and the banner is visible.
 5. Ask: *"Close the tab."* (`await tab.close()`).
    **Expected:** `Released managed tab "signup"`.
 6. Prove it was headless Chromium and not a relay: `omp config get browser.relay` → `false`.
 
-**Guided task:** *Background UI check.* Wrap the whole check from step 3 in an eval `agent()` so it runs as a background job while you keep working in the main session. Hints: `const h = await agent("Open http://127.0.0.1:8080/ in a browser tab named 'signup-bg', submit the signup form with a fresh email, and reply with the exact banner text and screenshot path.", { label: "ui-check" })` (Python: `h = await agent(..., label="ui-check")`); do **not** call `h.wait()` — an unwaited result auto-delivers like a backgrounded `task`; use a different tab name than the foreground (each child has its own eval executor, and the headless browser is project-shared). Checkpoints: (a) the cell returns immediately with `h.handle` = `agent://<id>`; (b) `Alt+A` shows `ui-check` running; (c) a delivery card arrives with the banner text. **Pass:** the delivered result contains `Welcome aboard!` and a screenshot path that exists (`read <path>` renders it).
+**Guided task:** *Background UI check.* Wrap the whole check from step 3 in an eval `agent()` so it runs as a background job while you keep working in the main session. Hints: `const h = await agent("Open http://127.0.0.1:8080/ in a browser tab named 'signup-bg', submit the signup form with a fresh email (never one already in data/lab.sqlite, e.g. m14-<timestamp>@example.com), and reply with the exact banner text and screenshot path.", { label: "ui-check" })` (Python: `h = await agent(..., label="ui-check")`); do **not** call `h.wait()` — an unwaited result auto-delivers like a backgrounded `task`; use a different tab name than the foreground (each child has its own eval executor, and the headless browser is project-shared). Checkpoints: (a) the cell returns immediately with `h.handle` = `agent://<id>`; (b) `Alt+A` shows `ui-check` running; (c) a delivery card arrives with the banner text. **Pass:** the delivered result contains `Welcome aboard!` and a screenshot path that exists (`read <path>` renders it).
 
 **Stretch:** Adopt your own logged-in Chrome: `omp browser-relay install`, load the unpacked extension, `omp config set browser.relay true`, then in a new session `browser.open({ name: "mine", app: { relay: true, target: "127.0.0.1:8080" } })` with the lab form already open in Chrome, and read `tab.title()`. **Pass:** the eval card says the tab was adopted through the relay (not "headless browser") and `tab.close()` leaves your Chrome tab open. Reset with `omp config set browser.relay false`.
 
@@ -126,6 +127,7 @@ Prerequisite: none beyond omp — headless Chromium is managed by omp (the build
 | `tab.waitForSelector("#banner") timed out after 5ms` | `timeout` is in **milliseconds** (observed) | pass `timeout: 5000` |
 | `evaluate` returns `{}` in Python | the string was an arrow function, not an expression | pass the expression (`"document.querySelector('#banner').textContent"`) or use `tab.run("return await page.$eval(...)")` |
 | `Reused tab "signup"` and stale form state | a prior cell errored before `tab.close()` | `await browser.close({ all: true })` then reopen |
+| banner reads `Signup failed: internal error` (`banner was "Signup failed: …"` thrown) | email already exists in `data/lab.sqlite` — seeded `ada@example.com` etc., or your own earlier run; the API returns 500 on duplicates (lab issue #8) | use a fresh email (`m14-${Date.now()}@example.com`); `git checkout -- data/lab.sqlite` to reseed |
 | stale id / ref error | page re-rendered or navigated after `observe()` | re-observe and act in the same cell |
 | selector rejected | Playwright pseudo (`:has-text`, `:visible`) | use CSS, `aria/`, `text/`, `xpath/`, `pierce/` |
 | `fill` fails on a dropdown | `<select>` needs `tab.select` | `await tab.select("#country", "NZ")` |

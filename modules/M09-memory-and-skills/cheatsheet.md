@@ -45,7 +45,7 @@ Check: `omp config get <key>` **from inside the repo**. Project: hand-edit `<rep
 | `checkpoint` | `goal` | `Checkpoint created.` `Goal: …` `Run your investigation, then call rewind…` |
 | `rewind` | `report` | `Rewind requested.` `Report captured for context replacement.` — applied at turn end |
 
-Approval tiers: `retain` `recall` `reflect` `memory_edit` `checkpoint` `rewind` = `read` (never prompt); `manage_skill` = `write`; `learn` = `write` when `skill` given or backend `local`, else `read`. Memory/checkpoint tools are *discoverable* → may render as `write xd://<tool>` under `tools.xdev`; `learn`/`manage_skill` are essential → always top-level.
+Approval tiers: `recall` `reflect` `memory_edit` `checkpoint` `rewind` = `read` (never prompt); `retain` = `read` unless an item has `scope: "global"` (offered only under `global`/`per-project-tagged` scoping) → `write`; `manage_skill` = `write`; `learn` = `write` when `skill` given, `scope: "global"` used, or backend `local`, else `read`. Memory/checkpoint tools are *discoverable* → may render as `write xd://<tool>` under `tools.xdev`; `learn`/`manage_skill` are essential → always top-level.
 
 ## Rules worth memorising
 

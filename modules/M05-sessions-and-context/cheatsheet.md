@@ -26,7 +26,7 @@
 |---|---|---|
 | `/resume [id\|@claude\|@codex]` | picker / switch / import | switch |
 | `/rename [title]` | set or auto-generate title | same |
-| `/move <path>` · `/wt` (`/worktree`) | relocate session to dir / new worktree | same, moved |
+| `/move <path>` · `/wt [<branch>]` (`/worktree`) | relocate session to dir / new worktree (default branch `wt/<YYYYMMDD-HHMMSS>`); both refuse while streaming or during `/btw` | same, moved |
 | `/fresh` | new provider stream state; transcript + context kept | same |
 | `/clear` | drop model context; append `reset_boundary`; history stays on disk | same |
 | `/new` | empty conversation, new id | new |
@@ -63,5 +63,5 @@ type = search · `Tab` current folder ↔ all projects · `Enter` · `Del` / `�
 | `contextPromotion.enabled` | `false` | model `contextPromotionTarget` before compacting |
 | `share.redactSecrets` / `share.store` / `share.serverUrl` | `true` / `blob` / `https://my.omp.sh/s` | |
 | `stream.redactPatterns` | `[]` | extra regexes for `/record` and `omp stream` |
-| `worktree.base` / `worktree.clone` / `worktree.cleanSource` | unset (`~/.omp/wt`) / `true` / `false` | |
+| `worktree.base` / `worktree.clone` / `worktree.cleanSource` | unset (`~/.omp/wt`) / `true` / `false` | base dir (`OMP_WORKTREE_DIR` wins) · copy-on-write clone for `/wt`, `pr_checkout`, bash `git worktree add` · clean source after `/wt` |
 | `statusLine.rightSegments` | `[session_name, token_total, cost, context_pct]` | where the % lives |

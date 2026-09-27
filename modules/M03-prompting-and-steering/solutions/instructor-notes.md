@@ -1,13 +1,13 @@
 # Module 3 — Instructor notes (not for learners)
 
-Built against `omp/18.3.1`. Fixture facts (from the lab build; confirm against `omp-course-lab/docs/ISSUES.md` #3 before teaching): `cli/__main__.py` declares the `orders` subcommand and its `--format` choices; `cli/commands.py` renders; expected CSV header `id,user_id,created_at,status,total_cents`; gated test `LAB_ISSUE=3 python3 -m unittest tests.test_issues`; full suite `python3 -m unittest discover -s tests`.
+Built against `omp/18.3.1`; audited against `omp/18.3.5` and the checked-in lab (2026-09-27). Fixture facts, confirmed against `omp-course-lab/docs/ISSUES.md` #3 and `tests/test_issues.py::Issue3CsvExport`: `cli/__main__.py::build_parser()` declares the `orders` subparser (today only `--month`; `--format {table,csv}`, default `table`, is added there); `cli/commands.py::cmd_orders()` renders the table and returns an exit code. The gated test asserts: exit 0; header row exactly `id,user_id,created_at,status,total_cents`; exactly 13 rows for `--month 2026-03` (12 orders + header — so **no summary line**); every `created_at` starts with `2026-03`; every `total_cents` is all digits; and `test_table_is_still_default` requires the default output to start with `id `. Gated test `LAB_ISSUE=3 python3 -m unittest tests.test_issues` → `FAILED (failures=1, skipped=18)` on `main`, `OK (skipped=18)` when fixed; full suite `python3 -m unittest discover -s tests` → `OK (skipped=20)`.
 
 ## What "good" looks like per exercise
 
 ### W — weak vs structured
 - The weak run usually still produces a working flag; that is fine and *expected*. The teaching point is the transcript: zero `bash` cards, header order chosen by the model, "you can run it with…" instead of a run. If a learner's weak run happens to run tests, ask them what in the prompt caused it (nothing) — it was model discretion, which is the problem.
 - Common structured-run failure: the model runs the gated test *after* editing but not before. Acceptable for the pass condition; point out that step 1 of Verification was skipped and have them add "Do not edit anything until you have shown the failing run."
-- If the `@docs/ISSUES.md` mention does not expand (token glued to punctuation, wrong cwd), the run reads the file with a `read` card instead — equivalent outcome.
+- If the `@docs/ISSUES.md` mention does not expand (path does not resolve from omp's cwd), the run reads the file with a `read` card instead — equivalent outcome.
 - Grading `notes/m3.md`: both sections present; Structured lists a passing `LAB_ISSUE=3` card after the edits; `git diff --stat` limited to `cli/` and `tests/`.
 
 ### 3.1 Guided (machine-checkable header)

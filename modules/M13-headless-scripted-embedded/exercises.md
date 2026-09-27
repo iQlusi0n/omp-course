@@ -10,20 +10,20 @@ Solutions and instructor checks: `solutions/`.
 
 **Goal:** a one-liner that asks omp headless "list the failing tests" and prints only the final answer.
 
-1. Run the tests once so you know the truth: `python -m pytest -q 2>&1 | tail -3`.
-   Expected: the summary line (the lab seeds at least one failing test in the module-13 checkpoint; if it is green, plant a failure by editing any assertion).
-2. `omp -p --no-session --mode json --tools read,grep,glob,bash "Run python -m pytest -q and list only the failing test ids, one per line." 2>/dev/null > notes/e1.jsonl`
+1. Run the tests once so you know the truth: `LAB_ISSUE=all python3 -m unittest tests.test_issues 2>&1 | tail -3`.
+   Expected: `FAILED (failures=N …)` — `main` is green on its own; the eight seeded issue tests only run (and fail) when `LAB_ISSUE=<n>` or `LAB_ISSUE=all` is set (`docs/ISSUES.md`).
+2. `omp -p --no-session --mode json --tools read,grep,glob,bash "Run LAB_ISSUE=all python3 -m unittest tests.test_issues and list only the failing test ids, one per line." 2>/dev/null > notes/e1.jsonl`
    Expected: `notes/e1.jsonl` has one JSON object per line; `jq -r .type notes/e1.jsonl | sort | uniq -c` shows `tool_execution_start` ≥ 1 (bash ran).
 3. `jq -rs '[.[] | select(.type=="message_end" and .message.role=="assistant")] | last | .message.content[] | select(.type=="text") | .text' notes/e1.jsonl`
    Expected: only the failing test ids.
 4. Fold 2+3 into `notes/failing.sh` (script body: the omp command piped into the jq filter). `bash notes/failing.sh`
    Expected: only the test ids on stdout, nothing on stderr (add `2>/dev/null`).
 
-**Pass:** `bash notes/failing.sh | wc -l` equals the number of failing tests in step 1 and `bash notes/failing.sh 2>&1 >/dev/null | wc -c` is `0`.
+**Pass:** `bash notes/failing.sh | wc -l` equals the number of failing tests from step 1 and `bash notes/failing.sh 2>&1 >/dev/null | wc -c` is `0`.
 
 ---
 
-## E2 (G, 20 min) — `ci/review.sh`: read-only review, exit 1 on P0
+## E2 (G, 20 min) — `ci/review.sh`: read-only review, exit 1 on P0 or a failing verdict
 
 **Goal:** `ci/review.sh` reviews the working diff with a read-only omp, using `--config ci/ci.yml` for approval and tool pinning, and exits non-zero on a P0 finding.
 
@@ -31,11 +31,11 @@ Hints:
 - Start from `solutions/ci-review.sh` and `solutions/ci.yml` if stuck, but write your own first: the pieces are `omp -p --mode json --no-session --config ci/ci.yml --tools read,grep,glob --max-time 5m "/review <ask for JSON>"`, then a parser for the last assistant `message_end`.
 - `ci.yml` needs `tools.approvalMode: always-ask` and a `tools.approval` deny list — keys in `omp://settings.md`.
 - Models sometimes fence JSON in ```` ``` ```` even when told not to; strip it.
-- omp exits `0` when it refuses a tool; your exit code must come from the parsed verdict. Fail closed on unparseable output.
+- omp exits `0` when it refuses a tool; your exit code must come from the parsed verdict (any `P0`, or `"verdict":"fail"`). Fail closed on unparseable output — and expect the model to wrap the JSON in prose sometimes, so extract the `{…}` rather than parsing the whole reply.
 
 Checkpoints:
 1. Clean tree → `bash ci/review.sh; echo $?` → `0` and a line saying 0 P0.
-2. Plant a P0 (e.g. `os.system("rm -rf " + input())` in `cli/__init__.py`) → exit `1` with the finding row.
+2. Plant a P0 (e.g. `os.system("rm -rf " + input())` in `cli/__init__.py`) → exit `1` with the finding row (or a `verdict=fail` line if the model rates it lower than P0).
 3. `jq -r 'select(.type=="tool_execution_start") | .toolName'` over the raw stream shows only `read`/`grep`/`glob`.
 4. `bash ci/review.sh --max-time 1` (or hard-code it) → exit `1`, "failing closed" message, no tree changes.
 5. `git status --porcelain` is empty after every run except your planted P0.
@@ -98,7 +98,7 @@ Steps (goal only): register `omp acp` as an agent server in the editor; open `om
 
 **Goal:** from Python, register a host tool `lab_issue(number:int)` returning the matching section of `docs/ISSUES.md`, then prompt the agent to use it.
 
-**Pass:** a `host_tool_call` frame with `toolName:"lab_issue"` is logged; your `host_tool_result` is accepted (no error response); the final assistant text summarizes issue #1's bug. Instructor notes in `solutions/README.md`.
+**Pass:** a `host_tool_call` frame with `toolName:"lab_issue"` is logged; your `host_tool_result` is accepted (no error response); the final assistant text names issue #1's bug — the CLI shows money 10× too large (`cli/format.py`). Instructor notes in `solutions/README.md`.
 
 ---
 

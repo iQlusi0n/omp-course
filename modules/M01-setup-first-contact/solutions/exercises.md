@@ -6,8 +6,8 @@ Verified on `omp/18.3.1`. Where a step was executed on the build machine, the ob
 
 - `omp --version` → `omp/18.3.1`. The `-v` alias is documented in `cli-reference.md`.
 - Login proof: `omp token <provider>` prints the credential and exits 0. When absent it prints `No active credential found for provider "<id>".` and `Configured providers: <list>`, exit 1 (observed).
-- The fix prompt, run headless against a stand-in lab with a one-line `a - b` → `a + b` bug, produced this tool sequence (from `--mode json`): `read docs/ISSUES.md` → `read api/math.py` → `edit api/math.py` → `bash python -m unittest …` (exit 127 on a machine without `python`) → `bash python3 -m unittest …` (OK). `git diff --stat`: `1 file changed, 1 insertion(+), 1 deletion(-)`.
-- Common failure: learner's shell has `python3` but no `python`. The model retries with `python3` on its own (observed), and says so. Accept either; the point is that a `bash` card with `OK` exists.
+- The fix prompt, run headless against a clean clone of `omp-course-lab` at `module-1-start` (audit pass, `omp/18.3.5`), produced this tool sequence (from `--mode json`): `read docs/ISSUES.md` → `read cli/format.py` → `edit cli/format.py` (`cents / 10` → `cents / 100`) → `bash python3 -m unittest discover -s tests` → `bash LAB_ISSUE=1 python3 -m unittest tests.test_issues; python3 -m cli orders --month 2026-03`. `git diff --stat`: `cli/format.py | 2 +-` / `1 file changed, 1 insertion(+), 1 deletion(-)`. Afterwards `python3 -m cli orders --month 2026-03 | tail -1` → `12 orders for 2026-03, total $1943.94`; `LAB_ISSUE=1 python3 -m unittest tests.test_issues` → `OK (skipped=18)`.
+- The full suite prints `Ran 48 tests … OK (skipped=20)` on `main`; the skips are the gated issue tests. `ResourceWarning: unclosed database` lines may appear — not failures. If a learner's shell has `python` as well as `python3`, either works; the point is that a `bash` card with `OK` exists.
 - If the diff has two files, the usual cause is the model "tidying" adjacent code. The prompt's "touch only the file that contains the bug" reduces this; Module 3 formalizes it.
 
 ## W2 — Terminal chord check *(docs)*
@@ -21,7 +21,7 @@ Reference command:
 ```sh
 omp -p --no-session "List the top-level directories and what each is for" > notes/m1.txt
 ```
-Observed: `grep -c 'api/'` → 2, `grep -c 'cli/'` → 1, `grep -c Working` → 0. `Working...` is on stderr; a learner who used `2>&1` will fail checkpoint 3 — that is the teaching moment.
+Observed against the real lab: `grep -c 'api/'` → 1, `grep -c 'cli/'` → 1, `grep -cF 'Working...'` → 0 — but a bare `grep -c Working` → **1**, because the answer quotes the lab README's course title *Working with omp*. The pass command therefore matches the literal spinner `Working...` (`-F`). `Working...` is on stderr; a learner who used `2>&1` will fail checkpoint 3 — that is the teaching moment.
 
 ## G2 — Remap a chord
 
@@ -66,15 +66,15 @@ The profile directory is created on first use. Keybindings are inherited from th
 
 ## S3 — JSON event stream
 
-Observed: `grep -c '"edit"' notes/m1-events.json` → 23 (the string appears in `tool_execution_start`, `_update`, `_end` and in message content). Any count ≥ 1 passes. Event types present in one run: `session`, `agent_start`, `turn_start`, `message_start`, `message_update`, `message_end`, `tool_execution_start`, `tool_execution_update`, `tool_execution_end`, `tool_stream_update`, `turn_end`, `agent_end`. The `tool_execution_start` events carry `toolName` and `args`.
+Observed on the real lab: `grep -c '"edit"' notes/m1-events.json` → 21 (the string appears in `tool_execution_start`, `_update`, `_end` and in message content). Any count ≥ 1 passes. Event types present in that run: `session`, `agent_start`, `turn_start`, `message_start`, `message_update`, `message_end`, `tool_execution_start`, `tool_execution_update`, `tool_execution_end`, `turn_end`, `agent_end`. The `tool_execution_start` events carry `toolName` and `args`; the `edit` one targets `cli/format.py`.
 
 ## Grading shortcuts
 
 ```sh
 # W1
-omp --version && omp token "$PROVIDER" >/dev/null && git -C omp-course-lab diff --stat | tail -1 | grep -q '1 file changed' && echo W1-PASS
+omp --version && omp token "$PROVIDER" >/dev/null && git -C omp-course-lab diff --stat | grep -q 'cli/format.py' && git -C omp-course-lab diff --stat | tail -1 | grep -q '1 file changed' && (cd omp-course-lab && LAB_ISSUE=1 python3 -m unittest tests.test_issues >/dev/null 2>&1) && echo W1-PASS
 # G1
-f=omp-course-lab/notes/m1.txt; test -s $f && grep -q 'api/' $f && grep -q 'cli/' $f && ! grep -q Working $f && echo G1-PASS
+f=omp-course-lab/notes/m1.txt; test -s $f && grep -q 'api/' $f && grep -q 'cli/' $f && ! grep -qF 'Working...' $f && echo G1-PASS
 # G3
 ! grep -q showSplash "$(omp config path)/config.yml" && test -s omp-course-lab/notes/m1-config.txt && echo G3-PASS
 # S2

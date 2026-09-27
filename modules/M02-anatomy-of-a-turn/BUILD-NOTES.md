@@ -34,6 +34,31 @@ Built against `omp/18.3.1` on the build machine (Python 3 only; no model credent
 - **`async.enabled` default** — not in settings.md's tables; verified `true` via `omp config list` (which prints effective values on this machine; the user config here does not set it). Stated as default with that provenance.
 - **Composer default shape** — `omp gallery` labels `band` "(Default)"; this machine's user config sets `composer.shape: box`, which is why `omp config list` shows `box`. Module states `band` as the default per the gallery label.
 
+## Wave 2 audit (verifier)
+
+Re-verified every command, flag, key, setting, default, path and URI scheme in README, exercises, cheatsheet, solutions and the six demos against `omp://` (keybindings, settings, tools/read|grep|glob|edit|write|bash|todo|ask|web_search|wait, bash-tool-runtime, blob-artifact-architecture, session, session-operations, tree, compaction, cli-reference, rpc), `omp --help`, `omp read|grep|gallery|ps --help`, `omp config list`, and `omp gallery --plain` renders.
+
+Smoke runs: `omp read` on lab files (tags, `[Showing lines …]` footer, structural-summary footer, tag change on blank-line append), `omp -p --mode json --no-session` (confirms `tool_execution_start` events), the lab suite (`Ran 48 tests … OK (skipped=20)`), the gated `LAB_ISSUE=2` test (fails on `main` with `test_first_page_has_ten_newest`), and the `python3 -m api` startup line.
+
+### Fixed
+
+- Lab alignment: every `python -m …` → `python3 -m …` (lab README/ISSUES.md use `python3`); issue #2 is now named as `api/server.py` (`_list_orders` offset) + `api/db.py` (`list_orders` LIMIT/OFFSET) with the gated test `LAB_ISSUE=2 python3 -m unittest tests.test_issues` as the pass condition (README 2.2 Guided, exercises G1, solutions, demos 2.2/2.5).
+- Demos 2.1/2.2/2.4 no longer show non-existent `api/users.py` / `api/orders.py` / `tests/test_issue2.py` — cards use the real `api/` tree, real line numbers, real test counts and the real server startup line (`omp-course-lab API v1 1.0 listening on http://127.0.0.1:8080 (db: …)`); demo 2.3 uses the real 17-line `cli/log.py` (tag `#BB9A`) and README 2.3 step 3 edits the logger name (the file has no level constant).
+- Spill trigger is now `python3 -c "for i in range(3000): print(i, 'x' * 40)"` (the DB dump is too small); the 2.2 grep-page stretch uses `.` over the repo (`def ` hits only 14 files, under the 20-file page).
+- Artifact directory path corrected to `~/.omp/agent/sessions/<encoded-cwd>/<timestamp>_<sessionId>/<N>.bash.log` (session.md + blob-artifact-architecture.md).
+- `web_search` error wording (demo 2.2): `provider: none` appears only when no candidate is available; credential-free engines (Parallel, DuckDuckGo…) sit in the default chain, so an all-failed run names the last provider instead.
+- Status line (README 2.1, demos 2.1/2.6): the `⟲` icon is described by its gallery states (`active compaction`/`armed compaction`) instead of colour/animation; composer sketches follow the `band` layout from `omp gallery --composer band` (status line on top, `╰─ Ask anything…` rule below).
+- README 2.6 follow-up row: dropped the "queued message backgrounds a running command" sentence — bash-tool-runtime.md attributes that to *steering* messages, not follow-ups.
+- Long README paragraphs (2.2 truncation, 2.3 why-this-exists) split so no line exceeds the 768-byte read column cap.
+
+### Removed (unverifiable)
+
+- `$code` runs Python locally from the composer (README 2.4, cheatsheet) — no `omp://` doc or `--help` text documents a `$` composer prefix (only the `user_python` extension event exists).
+- `Ctrl+O` expands the `!` bang-command block (README 2.4 troubleshooting, demo 2.4) — bash-tool-runtime.md documents the 20-line collapsed preview but no expand chord for `BashExecutionComponent`.
+- The `⟲` icon "pulses" during speculative compaction and "holds accent colour" when armed — not documented; `omp gallery --segment context_pct` renders identical text/colour for `active`/`armed` in a static frame.
+- The default status-line preset includes the git segment (`⑂ main`) — the segment exists in the gallery, but no doc lists which segments the `default` preset shows; README 2.1 now says "if your preset includes it".
+- `statusLine.contextLine` "controls where the context gauge lives" — only the key and its enum (`off|percentage|annotated|embedded`, default `embedded`) are verifiable via `omp config list`.
+
 ## Features covered vs Appendix C rows for Module 2
 
 - TUI cards, `Ctrl+O`, `Ctrl+Shift+O`, `Ctrl+T`, `Esc`, `/hotkeys` — 2.1 ✔
@@ -45,4 +70,4 @@ Built against `omp/18.3.1` on the build machine (Python 3 only; no model credent
 
 ## Lab dependencies used (Appendix A / LabRepo contract)
 
-`git checkout module-2-start`; `docs/ISSUES.md` issue #2 (two-file bug — files not hard-coded); `python -m api` on port 8080 with `GET /users/1`; `python -m unittest discover -s tests`; `api/__init__.py`, `cli/log.py` (`logger` object), `data/lab.sqlite`, `tools/seed_db.py`; `notes/` gitignored. If LabRepo renames `cli/log.py` or changes the port, update README 2.3 step 1/3 and 2.4 step 3.
+`git checkout module-2-start`; `docs/ISSUES.md` issue #2 (`api/server.py` `_list_orders`, `api/db.py` `list_orders`; gated test `LAB_ISSUE=2 python3 -m unittest tests.test_issues`); `python3 -m api` on 127.0.0.1:8080 with `GET /users/1`; `python3 -m unittest discover -s tests` (48 tests, 20 skipped); `api/__init__.py`, `api/db.py` (130 lines), `api/server.py` (177 lines), `cli/log.py` (17 lines, `logger` object, tag `#BB9A`), `data/lab.sqlite`, `tools/seed_db.py`; `notes/` gitignored. If the lab renames `cli/log.py` or changes the port, update README 2.3 steps 1–4, 2.4 step 3, demos 2.3/2.4.

@@ -53,14 +53,14 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
 **Try it (Walkthrough):**
 1. `cd omp-course-lab && git checkout module-6-start && mkdir -p .omp`.
    Expected: `.omp/` exists (it may already contain files from Module 4).
-2. Create `.omp/AGENTS.md` — copy `solutions/dot-omp/AGENTS.md` or write your own with: the layout, `python3 -m pytest -q` as the test command, a lint command, and the sentence "`generated/` is build output; never edit it by hand".
+2. Create `.omp/AGENTS.md` — copy `solutions/dot-omp/AGENTS.md` or write your own with: the layout, `python3 -m unittest discover -s tests` as the test command (the lab is stdlib-only; pytest is not installed), a lint command, and the sentence "`generated/` is build output written by `tools/seed_db.py` (every file starts with `# GENERATED — do not edit`); never edit it by hand".
    Expected: `cat .omp/AGENTS.md` shows your text; the last line is `@../docs/spec.md`.
 3. Start `omp` in the repo root and type `/extensions`.
    Expected: the dashboard lists `AGENTS.md` with level `project`, source native, state active.
 4. Ask: `What is the test command for this repo, and which directory must you never edit? Answer from your context only, do not read files.`
-   Expected: the reply names `python3 -m pytest -q` and `generated/` without any `read` card.
+   Expected: the reply names `python3 -m unittest discover -s tests` and `generated/` without any `read` card.
 5. Ask: `Quote the first heading of the architecture notes you were given.`
-   Expected: the reply quotes the first heading of `docs/spec.md` — proof that `@../docs/spec.md` expanded.
+   Expected: the reply quotes `# omp-course-lab — Service Specification (v1)`, the first heading of `docs/spec.md` — proof that `@../docs/spec.md` expanded.
 **Guided task:** Goal: prove the nearest-non-empty rule. Hints: `mkdir -p api/.omp && echo "# api-local" > api/.omp/AGENTS.md`, then start omp in `api/` and ask the same question as step 4. Checkpoints: (a) `/extensions` from `api/` shows only the `api/.omp/AGENTS.md`; (b) the answer no longer knows the test command; (c) `rm -r api/.omp` restores it. Pass condition: the two `/extensions` listings differ exactly in which `AGENTS.md` is active.
 **Stretch:** Goal: make a user-level `~/.omp/agent/AGENTS.md` with one personal preference (e.g. "reply in British English") and confirm it loads *in addition to* the project file (different scopes both survive). Pass: `/extensions` shows one `user` and one `project` context file.
 **Troubleshooting:**
@@ -237,7 +237,7 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
    Expected: omp runs the expanded template — the reply refers to version `1.2.0` (from `$1`), a `bash` card runs `git log …`, the answer is a fenced changelog block, and `git status` shows no `CHANGELOG.md` change.
 4. Run `/changelog 1.2.0 "since last week"`.
    Expected: the reply echoes the full argument string `1.2.0 since last week` (quotes stripped — `$ARGUMENTS`) while still treating `1.2.0` as the version (`$1`).
-**Guided task:** Goal: build `/failing-tests` that runs the suite and summarises only failures. Hints: template with no placeholder; instruct "run `python3 -m pytest -q`, then list each failing test with a one-line cause; if all pass say PASS". Checkpoint: `/failing-tests` after `git checkout module-6-start` produces a card with the pytest run. Pass condition: the reply contains either `PASS` or a bullet per failing test, and `/extensions` lists the command as active.
+**Guided task:** Goal: build `/failing-tests` that runs the suite and summarises only failures. Hints: template with no placeholder; instruct "run `python3 -m unittest discover -s tests`, then list each failing test with a one-line cause; if all pass say PASS". Checkpoint: `/failing-tests` after `git checkout module-6-start` produces a card with the unittest run (`Ran 48 tests … OK (skipped=20)` on a clean tree). Pass condition: the reply contains either `PASS` or a bullet per failing test, and `/extensions` lists the command as active.
 **Stretch:** Goal: create the same `changelog.md` under `~/.omp/agent/commands/` with a different description and show that `/extensions` marks the user copy as shadowed. Pass: completion text is the project description.
 **Troubleshooting:**
 
@@ -285,9 +285,9 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
    Expected: `omp read skill://release-checklist` in your shell prints the file; `omp read skill://release-checklist/report.md` prints the table.
 2. Restart omp; ask: `Which skills do you have available? Names and descriptions only.`
    Expected: `release-checklist` with its description, no `read` card.
-3. Ask: `Cut release 0.2.0 — follow your release skill.`
-   Expected: a `read` card for `skill://release-checklist`, then bash cards for `git status --porcelain` and the tests; no `git tag` executed.
-4. Type `/skill:release-checklist 0.2.0`.
+3. Ask: `Cut release 1.1.0 — follow your release skill.`
+   Expected: a `read` card for `skill://release-checklist`, then bash cards for `git status --porcelain` and `python3 -m unittest discover -s tests`; no `git tag` executed (the lab's `pyproject.toml` is at `version = "1.0.0"`, so 1.1.0 is a valid bump).
+4. Type `/skill:release-checklist 1.1.0`.
    Expected: the injected message names the skill and `[Skill directory: …/.omp/skills/release-checklist]`, then the same workflow.
 5. Ask: `read skill://release-checklist/report.md and fill it in for the run you just did`.
    Expected: the filled table.
@@ -387,7 +387,7 @@ Two facts govern everything in this module. First, **the native `.omp/` provider
 1. Copy `solutions/dot-omp/APPEND_SYSTEM.md` to `.omp/APPEND_SYSTEM.md` (asks for a `Verified:`/`Untested:` footer). Restart omp.
    Expected: no visible change at start.
 2. Ask: `Rename nothing; just run the test suite and report.`
-   Expected: the reply ends with `Verified: python3 -m pytest -q (exit 0)` and an `Untested:` line.
+   Expected: the reply ends with `Verified: python3 -m unittest discover -s tests (exit 0)` and an `Untested:` line.
 3. Start a second terminal: `omp --append-system-prompt "Reply in exactly one sentence."` and ask the same.
    Expected: one sentence; the flag replaced the file's text (flag wins over `APPEND_SYSTEM.md`).
 4. Ask in the same session: `What tools do you have? List names only.`

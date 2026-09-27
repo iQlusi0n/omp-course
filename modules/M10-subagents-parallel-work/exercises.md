@@ -1,8 +1,8 @@
 # Module 10 — Coursework
 
-Built against `omp/18.3.1`. Start state: `cd omp-course-lab && git checkout module-10-start`. All outputs the learner writes go under `notes/` (gitignored). Test command for the lab: `python3 -m unittest discover -s tests`.
+Built against `omp/18.3.5`. Start state: `cd omp-course-lab && git checkout module-10-start`. All outputs the learner writes go under `notes/` (gitignored). Test command for the lab: `python3 -m unittest discover -s tests`.
 
-Prerequisites on the learner machine: git, Python 3, a configured `smol` role model (`omp config get modelRoles.smol`) because `scout`, `sonic` and the custom `test-writer` resolve `@smol`; a `slow` role model for 10.7 reviewers (`@slow`). Nothing else.
+Prerequisites on the learner machine: git, Python 3, a configured `smol` role model (`omp config get modelRoles` shows the map) because `scout`, `sonic` and the custom `test-writer` resolve `@smol`; a `slow` role model for 10.7 reviewers (`@slow`). Nothing else.
 
 Tiers: **W** exact steps · **G** goal + hints + checkpoints · **S** goal only (notes in `solutions/instructor-notes.md`). Every exercise names an observable pass condition.
 
@@ -39,7 +39,7 @@ Tiers: **W** exact steps · **G** goal + hints + checkpoints · **S** goal only 
 
 **Hints:**
 - `omp agents unpack --dir /tmp/agents` shows the frontmatter style (`output` uses `properties` / `optionalProperties` / `elements`); a ready file is in `solutions/test-writer.md`.
-- `task.isolation.enabled` is `true` by default on 18.3.1; `isolated` appears per item only when plan mode is off. Default merge is `patch` with auto-apply; set `task.isolation.merge branch` if you want `omp/task/<id>` branches instead.
+- `task.isolation.enabled` is **off** by default: put `task.isolation.enabled: true` in `omp-course-lab/.omp/config.yml` (or `omp config set task.isolation.enabled true`) before dispatching; `isolated` then appears per item as long as plan mode is off. Default merge is `patch` with auto-apply; set `task.isolation.merge branch` if you want `omp/task/<id>` branches instead.
 - Put the test command in `context`; put the package in each `task`.
 - Isolated agents finish `parked` with no reviver — collect everything from `agent://<id>` and the Hub inspector (`patchPath` / `branchName`).
 
@@ -75,25 +75,25 @@ Tiers: **W** exact steps · **G** goal + hints + checkpoints · **S** goal only 
 
 ---
 
-## Exercise 4 (G, ~30 min) — `workpool()` lint-fix over 13 files vs. separate spawns
+## Exercise 4 (G, ~30 min) — `workpool()` lint-fix over 15 files vs. separate spawns
 
-**Goal:** from a Python eval cell, define a stdlib `@tool lint(path)` (unused imports, trailing whitespace, missing final newline), run a `workpool('sonic', name='lintfix', tools=['lint'])` over every `*.py` under `api/`, `cli/`, `tests/` (13 files; **never** `generated/`), then repeat the job as one batch `task` call with 13 `sonic` items, and compare wall time and cost. Write the comparison to `notes/m10.md`.
+**Goal:** from a Python eval cell, define a stdlib `@tool lint(path)` (unused imports, trailing whitespace, missing final newline), run a `workpool('sonic', name='lintfix', tools=['lint'])` over every `*.py` under `api/`, `cli/`, `tests/` (15 files at `module-10-start`: 4 + 5 + 6; **never** `generated/`), then repeat the job as one batch `task` call with 15 `sonic` items, and compare wall time and cost. Write the comparison to `notes/m10.md`.
 
 **Hints:**
-- `%load modules/M10-subagents-parallel-work/solutions/workpool-lint.py` gives you `lint`, `lab_files()`, `run_pool()`, `report()`.
+- `%load ../modules/M10-subagents-parallel-work/solutions/workpool-lint.py` (path relative to the lab root, where your session runs) gives you `lint`, `lab_files()`, `run_pool()`, `report()`.
 - `pool.push(*items)` returns `lintfix#1 …`; there is no `pool.wait()` — end the cell, let results auto-deliver; the aggregate job is named `lintfix`. Only call the zero-argument `wait` tool if you have nothing else to do.
-- The pool is bounded by `task.maxConcurrency` (16); `pool.status()` shows workers and context usage. A drained pool is closed — use a new name for a second run.
+- The pool is bounded by `task.maxConcurrency` (default 32); `pool.status()` shows workers and context usage. A drained pool is closed — use a new name for a second run.
 - Cost: `omp stats --summary` before/after each run, delta of `Total Cost` and `Requests`. Wall time: Hub header / per-row `active time`. Per-agent cost: Hub rows while live.
 - Reset between runs: `git checkout -- api cli tests`.
 - `task` items also accept `tools: ["lint"]` (kernel-defined tools are exposed to `task`, `agent()`, `workpool()` while `eval.tools.enabled` is on).
 
 **Checkpoints:**
 1. `display(tool.defined())` → `["lint"]`.
-2. `run_pool(lab_files())` prints `{"pool": "lintfix", "items": [...13 ids], "status": {...}}`.
+2. `run_pool(lab_files())` prints `{"pool": "lintfix", "items": [...15 ids], "status": {...}}`.
 3. Aggregate `lintfix` delivery arrives once; `report(...)` shows `lint after` = 0 for every file.
-4. Second run (batch `task`, 13 items) completes; `omp stats --summary` deltas recorded.
+4. Second run (batch `task`, 15 items) completes; `omp stats --summary` deltas recorded.
 
-**Pass:** `notes/m10.md` contains a table with two rows (`workpool`, `13 task items`) and columns `agents | requests | wall time | cost`, plus the per-file before/after table with all "after" values `0`.
+**Pass:** `notes/m10.md` contains a table with two rows (`workpool`, `15 task items`) and columns `agents | requests | wall time | cost`, plus the per-file before/after table with all "after" values `0`.
 
 ---
 

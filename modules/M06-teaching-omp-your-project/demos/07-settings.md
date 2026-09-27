@@ -27,7 +27,7 @@ $ printf 'tools:\n  approvalMode: always-ask\n' > /tmp/ci.yml
 $ PI_CONFIG_FILES=/tmp/ci.yml omp config get tools.approvalMode
 always-ask                                       # overlay > project
 $ omp config get tools.approvalMode --config /tmp/ci.yml
-Error: Unknown option '--config'.                # --config is for launch / acp / models only
+error: Unknown option '--config'. …              # --config is for launch / acp / models only
 
 $ OMP_PROFILE=m06smoke omp config path
 /home/you/.omp/profiles/m06smoke/agent

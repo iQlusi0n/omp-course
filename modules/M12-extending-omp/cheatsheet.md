@@ -33,7 +33,7 @@
 | Files | `.omp/mcp.json` > `~/.omp/agent/mcp.json` > other tools' configs > root `mcp.json`/`.mcp.json` |
 | stdio | `{ "command", "args", "env", "cwd" }` (`type` optional) |
 | http / sse | `{ "type": "http", "url", "headers" }` |
-| Shared | `enabled` `timeout` `instructions` `auth` `oauth` · file-level `disabledServers` (wins) / `enabledServers` |
+| Shared | `enabled` `timeout` `instructions` `auth` `oauth` · user-file `disabledServers` (wins) / `enabledServers` |
 | Secrets | `${VAR}` `${VAR:-default}` · value = env var name · `"!cmd"` (10 s, cached) |
 | `/mcp` | `add remove enable disable test reconnect reload reauth unauth resources prompts notifications list` |
 | Tools | `mcp__<server>_<tool>` sanitized · approval tier `write` |

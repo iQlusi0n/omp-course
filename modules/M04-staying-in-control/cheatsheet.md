@@ -48,13 +48,14 @@
 | Keys | `a` line · `A` whole file/text · `e` edit · `u` undo · `Enter`/`Shift+Enter`/`Escape` |
 | Exits | **Continue with LLM review** (submits `/review` with notes as focus) · **Paste annotations into prompt** |
 | Text-source result | pasted into composer, never auto-sent |
-| PR preview | `read pr://N` · `pr://owner/repo/N` · `pr://N/diff` · `?comments=0` · bare `pr://?state=open&limit=5` |
+| PR preview | `read pr://N` · `pr://owner/repo/N` · `pr://N/diff` · `?comments=0` · bare `pr://?state=open&limit=5` (needs `gh`) |
 
 ## Commit & conflicts (4.5)
 | Do | Command |
 |---|---|
 | Commit | `omp commit [--dry-run] [--push] [--no-changelog] [--legacy] [-c "context"] [-m model]` |
 | Needs model | else `No model available for commit generation`; roles tried: `commit`, then `smol` |
+| Scope | staged files → commits only those; nothing staged → stages everything. Does **not** conclude an in-progress merge (use `git commit`) |
 | Git UI | `omp git [REVISION] [-C dir]` |
 | Find conflicts | `read <file>:conflicts` → `⚠ N unresolved conflict… #1 L2-6` |
 | Inspect | `read conflict://1` · `conflict://1/ours` · `/theirs` · `/base` · `/both` |

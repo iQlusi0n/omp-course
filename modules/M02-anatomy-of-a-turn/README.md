@@ -31,7 +31,8 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 **Concepts:**
 - **Transcript** (top, scrolls into terminal history): your prompts, assistant prose, thinking blocks, and tool cards in the order they happened. Tool cards come in two shapes: *inline one-liners* (`🔍 Grep: …`, `🔍 Glob: …`, `ⓘ Proc …`) and *boxed cards* (`╭─── • Read … ╮`, `✎ Edit`, `$ cmd` with an `Output` section, `☑ Todo`, `✔ Ask`, `⌕ Web Search`). Boxed cards are collapsed by default to a short preview (bash: 10 visual lines; write: 6 lines; todo: 8 items) and show `⟦Ctrl+O: Expand⟧` when there is more.
 - **Composer** (bottom): the editor you type into. Its border/band carries the status line. The default composer shape is `band` ("Status Band"); `composer.shape` selects others (`box`, `claude`, `pi`, `borderless`, `rule`, `field`, `rail` — preview them with `omp gallery --surface composer`).
-- **Status line** segments (default preset `statusLine.preset: default`): `π` idle / `⠹ 1m` spinner + elapsed while a turn runs; `⬢ <model> · ◒ <thinking level>`; a mode chip when active (`🗺 Plan`, `🏃 Prewalk`, `👥 Vibe`); `⑂ <branch> *3 +2 ?1` git state; `◫ 62.0%/200K ⟲` context usage over the window. The trailing `⟲` is the **auto-compact icon**: it pulses while omp speculatively summarizes in the background and holds accent colour when a summary is armed and waiting for the threshold (Module 5 covers compaction). `statusLine.contextLine` (`embedded` by default) controls where the context gauge lives.
+- **Status line** segments (`statusLine.preset`, default `default`; every segment below is rendered by `omp gallery --surface segment`): `π` idle / `⠹ 1m` spinner + elapsed while a turn runs; `⬢ <model> · ◒ <thinking level>`; a mode chip when active (`🗺 Plan`, `🏃 Prewalk`, `👥 Vibe`); `⑂ <branch> *3 +2 ?1` git state; `◫ 62.0%/200K ⟲` context usage over the window. Which segments your preset shows is not listed in the docs — read your own band.
+- **Context gauge icon**: the trailing `⟲` belongs to the context gauge and has its own `active compaction` / `armed compaction` render states — omp summarizes speculatively in the background before the threshold (`compaction.asyncEnabled: true`; Module 5 covers compaction). `statusLine.contextLine` (default `embedded`; `off|percentage|annotated|embedded`) is the gauge's setting.
 - **Todo HUD**: a sticky panel that appears above the composer once the model calls the `todo` tool. `/todo expand` shows every phase and task; `/todo collapse` restores the bounded preview. Closed items fade after `tasks.todoClearDelay` (default `60` s; display-only).
 - **Pinned `Subagents` block**: appears above the editor while subagents run (Module 10). `display.pinnedAgents` is `collapsed` by default (`full` lists all, `off` hides).
 - **Keys you use every minute** (all default chords; action IDs in parentheses are what you remap in `~/.omp/agent/keybindings.yml`):
@@ -47,7 +48,7 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 
 **Try it (Walkthrough):**
 1. `cd omp-course-lab && git checkout module-2-start && omp`.
-   Expected: empty transcript; status line shows `π`, your model, `⑂ main` (or the tag name), and `◫ <low>%/<window>`.
+   Expected: empty transcript; status line shows `π`, your model, and `◫ <low>%/<window>` (a `⑂ main` git segment if your preset includes it).
 2. Type `/hotkeys` and press Enter.
    Expected: a list of action IDs with chords. Find `app.tools.expand` → `Ctrl+O` and `app.thinking.toggle` → `Ctrl+T`.
 3. Prompt: `Explain how api/ handles a request. Read only; do not edit anything.`
@@ -112,7 +113,9 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 
 *Reading the arguments.* The collapsed header already contains the arguments that matter: the path and selector for `read`, the pattern/scope/counts for `grep`, the command for `bash`. `Ctrl+O` shows the rest.
 
-*Truncation and `artifact://`.* Every tool result is bounded before the model sees it. The shared limits are 3 000 lines / 50 KB (`tools.artifactSpillThreshold` = 50 KB). When `bash` (or any streaming tool) crosses the threshold the full sanitized output is mirrored to a file in the session's artifact directory (`~/.omp/agent/sessions/<cwd>/<timestamp>_<id>/<N>.bash.log`) and the model-facing result keeps a head (`tools.artifactHeadBytes`, 20 KB) and a tail (`tools.artifactTailBytes` 20 KB / `tools.artifactTailLines` 500) with an elision marker between them. Over-wide lines are cut at `tools.outputMaxColumns` (768 bytes). The card shows a warning line naming the reason and `artifact://<id>`, and the model-facing text ends with `Read artifact://<id> for full output`. Artifact IDs are session-local integers; `read artifact://7`, `read artifact://7:1-200`, `read artifact://7:raw:1-3000` all work, and `grep <pattern> artifact://7` searches it. A whole-artifact read above 8 MiB is refused — page it. Artifacts survive `/resume` and are copied on `/fork`.
+*Truncation and `artifact://`.* Every tool result is bounded before the model sees it. The shared limits are 3 000 lines / 50 KB (`tools.artifactSpillThreshold` = 50 KB). When `bash` (or any streaming tool) crosses the threshold the full sanitized output is mirrored to a file in the session's artifact directory (`~/.omp/agent/sessions/<encoded-cwd>/<timestamp>_<sessionId>/<N>.bash.log`) and the model-facing result keeps a head (`tools.artifactHeadBytes`, 20 KB) and a tail (`tools.artifactTailBytes` 20 KB / `tools.artifactTailLines` 500) with an elision marker between them. Over-wide lines are cut at `tools.outputMaxColumns` (768 bytes).
+
+The card shows a warning line naming the reason and `artifact://<id>`, and the model-facing text ends with `Read artifact://<id> for full output`. Artifact IDs are session-local integers; `read artifact://7`, `read artifact://7:1-200`, `read artifact://7:raw:1-3000` all work, and `grep <pattern> artifact://7` searches it. A whole-artifact read above 8 MiB is refused — page it. Artifacts persist with the session (`/resume` reuses the directory) and `/fork` copies the directory into the new session.
 
 *How to ask omp to read one.* Plain English works: `Read artifact://7 and list every failing test name.` The model calls `read` with `path: artifact://7` (immutable, so no hashline header — you can't `edit` an artifact).
 
@@ -126,16 +129,17 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 3. Inside omp (`git checkout module-2-start`), prompt: `Find every place cli/ prints to stdout and list file:line. Read-only.`
    Expected: a `🔍 Grep: print\(` inline card with a folded `# cli/` tree, `*LINE│` match rows, and a `… N more matches` fold. Press `Ctrl+O` to see them all.
 4. Prompt: `Run the test suite and show me the output.`
-   Expected: a `$ python -m unittest discover -s tests` card with an `Output` section and a footer `⟦Wall: …s | Timeout: 300s⟧`. If a test fails the footer ends `| Exit: 1` and the last line is `Command exited with code 1`.
-5. Prompt: `Print the first 4000 lines of the SQLite schema and data with sqlite3 or python, whichever exists.` (Anything that produces > 50 KB works.)
+   Expected: a `$ python3 -m unittest discover -s tests` card with an `Output` section (`Ran 48 tests … OK (skipped=20)` on a clean `module-2-start`) and a footer `⟦Wall: …s | Timeout: 300s⟧`. If a test fails the footer ends `| Exit: 1` and the last line is `Command exited with code 1`.
+5. Prompt: `Run: python3 -c "for i in range(3000): print(i, 'x' * 40)"` (about 140 KB — anything > 50 KB works).
    Expected: the bash card's output is cut, a warning line names the truncation and an `artifact://<N>` id.
-6. Prompt: `Read artifact://<N>:1-40 and tell me what the first table is.`
+6. Prompt: `Read artifact://<N>:1-40 and tell me what the first line is.`
    Expected: a `• Read artifact://<N>:1-40` card with plain numbered lines (no `#TAG` — artifacts are immutable) and a correct answer.
 7. Prompt: `Create notes/m2-scratch.txt containing the word hello.`
    Expected: `✎ Write: notes/m2-scratch.txt · 1 lines`; `git status` shows nothing (`notes/` is gitignored).
 
-**Guided task:** Goal — fix lab issue #2 (the bug that spans two files) and account for every tool call. Hints — read `docs/ISSUES.md` first; ask for the smallest fix plus the relevant test; watch the Todo HUD if the model creates a plan; expand the `bash` test card before believing "tests pass". Checkpoints — (a) a `read` of `docs/ISSUES.md`; (b) at least one `grep` that finds the second file; (c) two `✎ Edit` cards; (d) a `$ python -m unittest …` card whose footer has no `Exit:`. Pass condition — both files appear in `git diff --stat`; `notes/m2.md` lists the tool sequence (tool name + one-line argument summary, in order); any truncated output was recovered via `read artifact://N` and the id is written in the notes.
-**Stretch:** Goal — force a grep page boundary. Prompt for a pattern that matches in more than 20 files (e.g. `def ` across the whole repo) and ask omp to continue to the next page. Pass condition — the first inline card ends with `Use skip=<N> for the next page` and the second `🔍 Grep:` card's expanded args show `skip: <N>`.
+**Guided task:** Goal — fix lab issue #2 (`GET /orders` first page is missing orders; the fix spans `api/server.py` and `api/db.py` — see `docs/ISSUES.md`) and account for every tool call. Hints — read `docs/ISSUES.md` first; the gated test `LAB_ISSUE=2 python3 -m unittest tests.test_issues` fails on `main` and passes once both halves are fixed; ask for the smallest fix plus that test run; watch the Todo HUD if the model creates a plan; expand the `bash` test card before believing "tests pass".
+Checkpoints — (a) a `read` of `docs/ISSUES.md`; (b) at least one `grep` (or `read`) that reaches the second file; (c) two `✎ Edit` cards; (d) a `$ LAB_ISSUE=2 python3 -m unittest tests.test_issues` card whose footer has no `Exit:`. Pass condition — `api/server.py` and `api/db.py` both appear in `git diff --stat`; `notes/m2.md` lists the tool sequence (tool name + one-line argument summary, in order); any truncated output was recovered via `read artifact://N` and the id is written in the notes.
+**Stretch:** Goal — force a grep page boundary. Prompt for a pattern that matches in more than 20 files (the lab tracks 36 text files, so `.` — any non-empty line — over the whole repo does it) and ask omp to continue to the next page. Pass condition — the first inline card ends with `Use skip=<N> for the next page` and the second `🔍 Grep:` card's expanded args show `skip: <N>`.
 **Troubleshooting:**
 
 | Symptom | Cause | Fix |
@@ -167,25 +171,27 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 
 ## Lesson 2.3 — Why edits are reliable: hashline              (~10 min)
 **You will be able to:** read a `[path#TAG]` header; explain why an edit was rejected as stale; recognise the "re-read, then edit" pattern in a transcript.
-**Why this exists:** The classic agent failure is editing a file it last saw ten minutes ago: the search string no longer matches, or worse, it matches in the wrong place. omp's default `edit` mode, **hashline**, makes every edit carry proof of what the model saw. Each `read`, `grep`, successful `edit`, and `write` returns a four-hex **snapshot tag** computed from the whole normalized file. An `edit` must quote that tag and refer to line numbers from that snapshot. If the file changed underneath (you saved in your editor, a formatter ran, another tool wrote it), the tag no longer matches and the edit is refused — and the model re-reads instead of guessing. You never have to think about it, but you will *see* it in the transcript, and you should know that a refused edit is the system working.
+**Why this exists:** The classic agent failure is editing a file it last saw ten minutes ago: the search string no longer matches, or worse, it matches in the wrong place. omp's default `edit` mode, **hashline**, makes every edit carry proof of what the model saw. Each `read`, `grep`, successful `edit`, and `write` returns a four-hex **snapshot tag** computed from the whole normalized file. An `edit` must quote that tag and refer to line numbers from that snapshot.
+
+If the file changed underneath (you saved in your editor, a formatter ran, another tool wrote it), the tag no longer matches and the edit is refused — and the model re-reads instead of guessing. You never have to think about it, but you will *see* it in the transcript, and you should know that a refused edit is the system working.
 **Demo:** [`demos/2.3-hashline.md`](demos/2.3-hashline.md) — the model-facing text of a read, the edit payload, the success receipt, then a stale-tag rejection after the learner edits the file by hand, and the automatic recovery.
 **Concepts:**
-- **Header**: `[api/users.py#1F2A]` then `12:def get_user(conn, user_id):`. The tag is four uppercase hex characters derived from the file's normalized content and recorded in the session **snapshot store** (256 paths × 4 versions, files ≤ 4 MiB). `grep` mints the same tags (`[PATH#TAG]` + `*12:` match rows), so the model can edit straight from a search hit.
+- **Header**: `[api/db.py#1F2A]` then `48:def get_user(user_id: int) -> dict | None:`. The tag is four uppercase hex characters derived from the file's normalized content and recorded in the session **snapshot store** (256 paths × 4 versions, files ≤ 4 MiB). `grep` mints the same tags (`[PATH#TAG]` + `*48:` match rows), so the model can edit straight from a search hit.
 - **Patch language** (you read it; the model writes it): one `[PATH#TAG]` section per file, then ops — `PUT 4.=4:` replace line 4 (`+TEXT` body rows are the final content), `PUT 10.=14:` replace a range, `PUT <1:` / `PUT >N:` insert before/after, `PUT >$:` append, `PUT N*:` replace the syntactic block starting at N (tree-sitter), `CUT N.=M` delete, `REM` delete file, `MV dest` rename. All numbers refer to the **original** snapshot, never to earlier hunks in the same call.
 - **What gets rejected**: unknown/absent tag; lines the model has not been shown (`re-read elided or undisplayed ranges before editing them`); a stale tag when the snapshot chain can't prove a unique safe result; overlapping ops; a byte-identical no-op (three repeats trip the loop guard). A stale tag *can* be recovered silently when the store proves the edit still lands uniquely — you'll see a `Warnings:` block on the receipt.
 - **Transcript signature of a stale edit**: `✘ Edit: <file>` (red) → `• Read <file>:<range>` → `✎ Edit: <file> ⟦+1/-1⟧`. That middle read is the point.
 - **No tag, no edit**: `:raw` reads, `artifact://`, `skill://`, `agent://` and other immutable resources deliberately omit the header. If you want the model to edit a file, don't have it read it `:raw`.
 - **Receipts**: a successful edit returns a fresh `[path#TAG]`, a short post-edit preview, and (in the card) a unified diff with `⟦+added/-removed⟧`. `write` also returns a fresh header so the next edit needs no re-read.
-- **Mention only**: `edit.mode` selects the wire contract — `hashline` (default), `apply_patch`, `patch`, `replace`; `PI_EDIT_VARIANT` overrides per process. Leave it alone. `edit.blockAutoGenerated` (default `true`) refuses files that look generated — the lab's `generated/` directory will trip it, which is what Module 6 uses.
+- **Mention only**: `edit.mode` selects the wire contract — `hashline` (default), `apply_patch`, `patch`, `replace`; `PI_EDIT_VARIANT` overrides per process. Leave it alone. `edit.blockAutoGenerated` (default `true`) refuses files that look generated (the guard reads the file header for generated-file markers) — the lab's `generated/` files carry `# GENERATED — do not edit`, which Module 6 uses.
 
 **Try it (Walkthrough):**
 1. Outside omp: `omp read cli/log.py` and note the `[cli/log.py#TAG]` header.
    Expected: four hex characters after `#`.
 2. Append a blank line to `cli/log.py` in your editor, save, and run `omp read cli/log.py` again.
    Expected: a different tag. (Same content → same tag; any change → new tag.)
-3. Inside omp, prompt: `In cli/log.py, rename the logger variable's level constant to DEBUG_LEVEL. Small edit only.`
-   Expected: `• Read cli/log.py` → `✎ Edit: cli/log.py ⟦+n/-n⟧`. Press `Ctrl+O` on the edit card: a unified diff.
-4. Without leaving omp, edit `cli/log.py` in another terminal (change any unrelated line) and save. Then prompt: `Now also rename it in the docstring of the same file.`
+3. Inside omp, prompt: `In cli/log.py, rename the logger from "lab.cli" to "lab.cli.v2". Small edit only.`
+   Expected: `• Read cli/log.py` → `✎ Edit: cli/log.py ⟦+1/-1⟧`. Press `Ctrl+O` on the edit card: a unified diff.
+4. Without leaving omp, edit `cli/log.py` in another terminal (change any unrelated line) and save. Then prompt: `Now also mention the new logger name in the module docstring.`
    Expected (one of two): either a `✘ Edit` card followed by a fresh `• Read cli/log.py` and a successful `✎ Edit`, or a successful edit whose expanded receipt contains a `Warnings:` block mentioning recovery. Both are correct.
 5. Prompt: `Read cli/log.py:raw and then change line 1.`
    Expected: the model re-reads without `:raw` before editing (a `:raw` read has no tag) — or explains it needs to.
@@ -222,7 +228,7 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 **Why this exists:** `bash` is the tool that touches the world, so its quirks are the ones you'll trip over first: output caps, a persistent shell (so `cd` and `export` stick), an automatic background hand-off after 60 s, and a supervised **service** mode for dev servers. omp also exposes the same shell to *you* without a model turn (`!cmd`), which is the fastest way to check what it just did.
 **Demo:** [`demos/2.4-bash-services.md`](demos/2.4-bash-services.md) — `!git status` from the composer; a test run that auto-backgrounds and delivers later; the lab API started as service `api` with a port-readiness check; `read proc://`, `read proc://api`, `write proc://api/kill`.
 **Concepts:**
-- **Two surfaces, one executor.** The model's `bash` tool and your `!cmd` both run through `executeBash()`. Only the tool path gets interception, approval, auto-background, and the boxed card renderer; your `!` commands render in a dedicated block that keeps the last 20 lines collapsed. `bash.enabled: false` removes the *model's* tool but not your `!`. (`$` runs Python locally the same way; Module 8.)
+- **Two surfaces, one executor.** The model's `bash` tool and your `!cmd` both run through `executeBash()`. Only the tool path gets interception, approval, auto-background, and the boxed card renderer; your `!` commands render in a dedicated block that keeps the last 20 lines collapsed. `bash.enabled: false` removes the *model's* tool but not your `!`.
 - **Persistent shell session.** Non-PTY tool calls reuse a native `Shell` keyed by session, so state persists across calls; the environment is hardened non-interactive (`PAGER=cat`, `GIT_EDITOR=true`, `TERM=dumb`, `NO_COLOR=1`, `CI=true`…). Concurrent calls never share one shell — extras run one-shot. A leading `cd <dir> && …` is rewritten into the structured `cwd` argument.
 - **In-process coreutils.** The native shell bundles a uutils-style command set (`jq` is the vendored `jaq`; `PI_DISABLE_UUTILS_BUILTINS` falls back to system binaries) and resolves `scheme://` paths — `cat artifact://7 | wc -l` works, `realpath local://x` prints the backing file. External programs never see virtual paths.
 - **Timeouts.** Default 300 s; `timeout: 0` disables; positive values clamp to 1–3600 and to `tools.maxTimeout` if set. A timeout returns a failed card with `details.timedOut`.
@@ -238,16 +244,16 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 2. `!cd api && pwd` then `!pwd`.
    Expected: the first prints `…/omp-course-lab/api`; the second prints the same — the shell session persists.
 3. Prompt: `Run the API as a service named api, ready on port 8080.`
-   Expected: a `$ python -m api` card whose footer reads `⟦Service: api | State: ready | Ready: yes | PID: <n>⟧`.
+   Expected: a `$ python3 -m api` card whose footer reads `⟦Service: api | State: ready | Ready: yes | PID: <n>⟧`.
 4. Prompt: `read proc://` (yes, literally).
    Expected: `ⓘ Proc jobs & services 0 jobs · 1 services` with `└─ ⟦service⟧ api ⟦ready⟧ pid <n> · up <t> · persistent`.
 5. Prompt: `read proc://api`.
-   Expected: `ⓘ Proc api ready · pid <n> · up <t>` followed by the server's log lines (a `Serving …8080` line).
+   Expected: `ⓘ Proc api ready · pid <n> · up <t>` followed by the server's log lines (its startup line is `omp-course-lab API v1 1.0 listening on http://127.0.0.1:8080 (db: …)`).
 6. `!curl -s localhost:8080/users/1`.
    Expected: JSON for user 1 — the service is really up.
 7. Prompt: `Stop the api service.`
    Expected: `⏹ Proc kill api exited · pid <n> · ran <t>`; a following `read proc://` shows `0 services`.
-8. Prompt: `Run: python -c "import time; time.sleep(70); print('done')"`.
+8. Prompt: `Run: python3 -c "import time; time.sleep(70); print('done')"`.
    Expected: after ~60 s the card ends `Backgrounded as job <id>; result will be delivered automatically.`; the `done` output arrives later as a separate delivery.
 9. `omp config set bashInterceptor.enabled true`, restart omp, prompt: `Use cat to show api/__init__.py.`
    Expected: a failed `$ cat api/__init__.py` card with `Blocked: Use the \`read\` tool instead of cat/head/tail…`, then a `• Read api/__init__.py` card. Set it back to `false` (or leave it on — many people do).
@@ -264,14 +270,14 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 | `name` parameter "not available" | `launch.enabled: false` or non-launch-capable session (print/RPC) | Enable the setting; use the TUI |
 | `pty requested but unavailable…` | `PI_NO_PTY=1` / `--no-pty`, or no UI (`-p`, RPC) | Run interactively without `--no-pty` |
 | `Blocked: Use the read tool…` | Interceptor on (you enabled it) and the target tool exists | That's the point; the model should switch tools. Disable only if a rule misfires |
-| `!` command shows only 20 lines | Collapsed preview of the bang block | `Ctrl+O` to expand; output above 50 KB spills to `artifact://` too |
+| `!` command shows only 20 lines | Collapsed preview of the bang block (last 20 logical lines) | Redirect to a file (`!cmd > notes/out.txt`) and `omp read` it, or let the model run it as a tool call (`Ctrl+O` expands tool cards); output above 50 KB spills to `artifact://` too |
 | Command hung on a pager or editor | You used `pty: true` (no hardening) | Non-PTY runs set `PAGER=cat`, `GIT_EDITOR=true`; drop `pty` |
 
 **Cheat sheet:**
 
 | Item | Value |
 |---|---|
-| Your shell, no model | `!cmd` (`$` = local Python) |
+| Your shell, no model | `!cmd` |
 | Timeout | default 300 s; `0` = none; clamp 1–3600; `tools.maxTimeout` ceiling |
 | Auto-background | `bash.autoBackground.enabled` (on), `thresholdMs` 60000; `async.enabled` (on) |
 | Jobs | `read proc://`, `read proc://<id>`, `write proc://<id>/kill`, `wait` |
@@ -297,7 +303,7 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 - **`/todo`**: `/todo expand` shows every phase/task in the HUD, `/todo collapse` restores the preview (both display-only). Manual edits through `/todo` are persisted as `user_todo_edit` entries and the model is told via a `<system-reminder>`. On `/resume`, completed/abandoned tasks are dropped from the live list. Subagents don't get `todo`; the parent owns the list. `todo.enabled: true`; `tasks.todoClearDelay` 60 s fades closed items in the HUD.
 
 **Try it (Walkthrough):**
-1. Prompt: `Before touching anything, ask me which of these you should do for issue #2: fix only the bug, fix and add a regression test, or fix and refactor the module. Use the ask tool with a recommended option.`
+1. Prompt: `Before touching anything, ask me which of these you should do for issue #2: fix only the bug, fix and run the gated LAB_ISSUE=2 test, or fix and refactor the module. Use the ask tool with a recommended option.`
    Expected: a boxed `Ask 1 questions` card with three `○` rows and one `(Recommended)`; the composer is replaced by the picker.
 2. Use ↑/↓ and Enter to pick the second option.
    Expected: the card becomes `✔ Ask …` with `◉` on your pick; the model continues with that choice.
@@ -349,7 +355,7 @@ Coursework is in [`exercises.md`](exercises.md); the one-page reference is [`che
 | `Ctrl+V` (`app.clipboard.pasteImage`) | Paste from clipboard, image preferred, text fallback | Linux `Ctrl+V`; macOS also `Cmd+V`; Windows also `Alt+V` (Windows Terminal may eat `Ctrl+V`). Large text pastes collapse to `[Paste #N, +M lines]`; `Ctrl+Shift+V`/`Alt+Shift+V` (`app.clipboard.pasteTextRaw`) pastes without collapsing. |
 | `Ctrl+R` (`app.history.search`) | Search prompt history | Persistent across sessions. |
 | `Ctrl+G` (`app.editor.external`) | Edit the draft in `$VISUAL`/`$EDITOR` | Save and quit to return. |
-| `Ctrl+Q`, `Ctrl+Enter` (`app.message.followUp`) | Queue a follow-up while a turn runs | Delivered after the current turn (`followUpMode: one-at-a-time` by default; `all` sends every queued message together). Both chords are bound because Windows Terminal swallows `Ctrl+Enter`. A queued message can also nudge a still-running command into the background early. |
+| `Ctrl+Q`, `Ctrl+Enter` (`app.message.followUp`) | Queue a follow-up while a turn runs | Delivered after the current turn (`followUpMode: one-at-a-time` by default; `all` sends every queued message together). Both chords are bound because Windows Terminal swallows `Ctrl+Enter`. |
 | `Alt+Up`, `Shift+Up` (`app.message.dequeue`) | Pull the queued message back into the editor | Edit or discard it. |
 | `Ctrl+C` then `Up` | Recall a cleared draft | `composer.recallClearedDrafts: true` by default; 100-entry in-memory history; not in `Ctrl+R`; lost on exit. Double `Ctrl+C` still exits. |
 | `Alt+R` (`app.retry`) | Retry the last failed assistant turn | Use after a provider error; Module 3 covers `/fresh` for a wedged stream. |

@@ -32,12 +32,12 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 - *Selector grammar (local files).* Suffix on the path: `:50-100` inclusive range, `:50` open-ended (default limit `read.defaultLimit = 300`), `:50+20` count, `:5-16,960-973` multiple ranges, `:raw` verbatim (no summary, no line prefixes), `:conflicts` (index unresolved merge markers as `conflict://N`), `:img` (rasterize a local `.svg`/`.svgz` as an image). Parseable code files of ≥ `read.summarize.minTotalLines = 100` lines read without a selector come back as a *structural summary* (declarations kept, bodies elided) with a footer naming the elided ranges — re-read those ranges, never guess. Prose (`.md`, `.txt`) is never summarized unless `read.summarize.prose = true`.
 - *Directories.* `read api/` renders a tree (depth 2, 12 children per directory).
 - *Documents.* `.pdf .doc .docx .ppt .pptx .xls .xlsx .rtf .epub` are converted to text; line selectors apply to the converted text (`docs/spec.pdf:1-40`). Each PDF page is marked `<!-- Page N -->`; embedded images become `read <pdf>:<id>.png` handles.
-- *Archives.* `fixtures/bundle.zip` lists members; `fixtures/bundle.zip:README.md` reads one; `fixtures/bundle.zip:config` lists a folder; `:README.md:1-5` slices. Containers: tar family, zip family (`.zip .jar .war .apk .whl .vsix …`), `.7z .rar .iso .deb .rpm .asar`, single-stream `.gz .xz .zst`.
+- *Archives.* `fixtures/bundle.zip` lists members (`README.md`, `data/`, `config.json`); `fixtures/bundle.zip:README.md` reads one; `fixtures/bundle.zip:data` lists a folder (`sample.csv`); `:README.md:1-5` slices. Containers: tar family, zip family (`.zip .jar .war .apk .whl .vsix …`), `.7z .rar .iso .deb .rpm .asar`, single-stream `.gz .xz .zst`.
 - *SQLite* (`.sqlite .sqlite3 .db .db3`, must have the SQLite header):
-  - `data/lab.sqlite` → tables with row counts
-  - `data/lab.sqlite:orders` → `CREATE TABLE …` plus 5 sample rows
+  - `data/lab.sqlite` → tables with row counts (`orders`, `schema_version`, `users`)
+  - `data/lab.sqlite:orders` → `CREATE TABLE …` plus 5 sample rows (columns `id user_id created_at status total_cents`)
   - `data/lab.sqlite:users:3` → one row by primary key
-  - `data/lab.sqlite:orders?limit=5&offset=0&order=amount:desc&where=amount>150` → filtered query (`limit` default 20, max 500; `where` rejects `;`, comments, `LIMIT`/`UNION`/`ATTACH`/`PRAGMA`)
+  - `data/lab.sqlite:orders?limit=5&offset=0&order=total_cents:desc&where=total_cents>5000` → filtered query (`limit` default 20, max 500; `where` rejects `;`, comments, `LIMIT`/`OFFSET`/`UNION`/`ATTACH`/`PRAGMA`)
   - `data/lab.sqlite?q=SELECT …` → raw SQL, ≤ 1000 rows, no other params allowed
 - *Notebooks.* `.ipynb` renders as editable `# %% [code] cell:N` text; `:raw` gives the JSON.
 - *Images.* Any image path is sent inline to a vision-capable model; `read shot.png?q=what is selected?` asks the `vision` role a question (`images.questionTimeoutMs = 300000`).
@@ -52,7 +52,7 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 **Try it (Walkthrough):**
 
 1. In `omp-course-lab`, start `omp` and type: `read docs/spec.pdf:1-40`
-   **Expected:** one `read` card whose body begins `<!-- Page 1 -->`; header `[docs/spec.pdf#XXXX]`; if the doc is longer than 40 lines the footer says `Use :41 to continue`.
+   **Expected:** one `read` card whose body begins `<!-- Page 1 -->`; header `[docs/spec.pdf#XXXX]`; the footer reads `[75 more lines in document. Use :44 to continue]` (a bounded range adds 3 trailing context lines, so lines 1–43 are shown; the converted PDF is 118 lines).
 2. Type: `read data/lab.sqlite:orders?limit=5`
    **Expected:** a Markdown table with 5 rows and a footer like `[N more rows; append :orders?limit=5&offset=5 to the database path to continue]`.
 3. Type: `read fixtures/bundle.zip:README.md`
@@ -94,8 +94,8 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 | PDF page text | `docs/spec.pdf:1-40` |
 | archive listing / member | `fixtures/bundle.zip` · `fixtures/bundle.zip:README.md` |
 | DB tables / schema+5 rows / row by PK | `data/lab.sqlite` · `:orders` · `:users:3` |
-| DB query / raw SQL | `:orders?limit=5&order=amount:desc&where=amount>150` · `data/lab.sqlite?q=SELECT …` |
-| notebook cells | `docs/analysis.ipynb` (`:raw` for JSON) |
+| DB query / raw SQL | `:orders?limit=5&order=total_cents:desc&where=total_cents>5000` · `data/lab.sqlite?q=SELECT …` |
+| notebook cells | `<any>.ipynb` (`:raw` for JSON) — the lab ships no notebook; use one of your own |
 | GitHub PR / issue / diff | `pr://42` · `issue://7` · `pr://42/diff/all` |
 | remote file | `ssh://host/etc/hostname` |
 | insert / update / delete DB row | `write data/lab.sqlite:users` · `:users:42` (empty content = delete) |
@@ -132,7 +132,7 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 2. Type: `In a second eval cell, display(sum(by_month.values())) — reuse the variable, do not reload.`
    **Expected:** a second `eval` card whose code is exactly one line and whose output is the total order count (no `sqlite3.connect` in the code).
 3. Type: `In eval, display(await tool.read({'path': 'data/lab.sqlite'})) to prove the tool bridge works.`
-   **Expected:** the card shows a JSON object with `text: "orders (N rows)\nusers (M rows)"` and `details.resolvedPath`.
+   **Expected:** the card shows a JSON object with `text: "orders (72 rows)\nschema_version (1 rows)\nusers (12 rows)"` and `details.resolvedPath`.
 4. Type: `In eval, run %pip install matplotlib` (requires `pip` in the kernel interpreter).
    **Expected:** a standalone `%pip` cell streaming pip output; no `bash` card.
 5. Type: `In eval, plot by_month as a bar chart with matplotlib and savefig('notes/orders.png'); do not call show().`
@@ -204,7 +204,7 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 
 *Semantic find*
 - Tool `find` (`query`, `grep_keywords: []`, `path`) and CLI `omp find "<query>" [path] [-k kw] [--hidden] [--json] [-q]`. Cascade: lexical scan → filename ranking → passage scoring → verification; hits print as `path:start-end  p  snippet` with a cost/time footer.
-- Prerequisite: the **`judge` model role** (`modelRoles.judge`, default `typesafe/jev-latest`, fallback chain `typesafe/jev-preview`, `@tiny`, `@smol`, `@default`). `find.enabled = auto` enables the tool **only when the judge resolves to a TypeSafe jev model** (`TYPESAFE_API_KEY` or `/login`); set `find.enabled on` to allow any judge model (slower, prompted), `off` to hide it.
+- Prerequisite: the **`judge` model role** (`modelRoles.judge`). The built-in judge chain is `typesafe/jev-latest`, `openrouter/~typesafe/jev-latest`, `tiny`, `smol`, `default`, then the active-session model; override with `modelRoles.judge` / `retry.fallbackChains.judge`. `find.enabled = auto` enables the tool **only when the judge resolves to a TypeSafe jev model** (`TYPESAFE_API_KEY` or `/login typesafe`); set `find.enabled on` to allow any judge model (slower, prompted), `off` to hide it.
 
 *Discoverable tools and `xd://`*
 - Tools are either *essential* (always in the model's tool list: `read`, `write`, `edit`, `bash`, `grep`, `glob`…) or *discoverable*. With `tools.xdev = true` (default) discoverable tools such as `lsp`, `ast_edit`, `debug`, `checkpoint`, `retain` are *mounted as devices*: `read xd://` lists them, `read xd://lsp` prints the device's input schema, and `write xd://lsp` with a JSON body calls it. The demo shows a stock session with exactly `xd://ast_edit`, `xd://debug`, `xd://lsp` mounted. `tools.xdevDocs = catalog` controls how much of that documentation goes into the system prompt.
@@ -225,13 +225,13 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 6. Type: `Fix any remaining get_user string occurrences with edit, then run python3 -m unittest discover -s tests.`
    **Expected:** a `bash` card ending `OK`.
 7. Enable structural search for this run: quit, write `notes/astgrep.yml` containing `astGrep:` / `  enabled: true`, then `omp --config notes/astgrep.yml` (or persist it with `omp config set astGrep.enabled true`). Type: `Use ast_grep with pattern print($$$A) on path cli.`
-   **Expected:** matches grouped under `# cli/`, each with a `meta: A=[…]` line; the count equals `grep -c "print(" cli/*.py` summed.
+   **Expected:** matches grouped under `# cli/` → `## commands.py`, each with a `meta: A=[…]` line; 10 matches, all in `cli/commands.py`. The two `print(` mentions in the `cli/log.py` docstring are *not* matched — they are prose, not call nodes, which is the point of AST search (`grep -c "print(" cli/commands.py` → 10).
 8. Type: `Use ast_edit with op pat=print($$$A) out=logger.debug($$$A) on paths ["cli"]. Do not apply yet.`
    **Expected:** a card beginning `Staged as a proposal — files NOT modified yet.` with `-N: print(...)` / `+N: logger.debug(...)` pairs; `git status` still clean.
 9. Type: `Apply the staged proposal by writing a one-sentence reason to xd://resolve.`
-   **Expected:** a `write` card to `xd://resolve` returning `Applied N replacements in M files.` (hashline mode also prints fresh `[path#TAG]` headers).
-10. Type: `grep for print( in cli, then run the tests; if logger is undefined in a file, add from cli.log import logger with edit and rerun.`
-    **Expected:** `grep` card `No matches found`; final `bash` card `OK`.
+   **Expected:** a `write` card to `xd://resolve` returning `Applied 10 replacements in 1 file.` (hashline mode also prints a fresh `[cli/commands.py#TAG]` header).
+10. Type: `grep for print( in cli, then run the tests; cli/commands.py does not import logger, so add from cli.log import logger with edit and rerun.`
+    **Expected:** `grep` card `No matches found`; the first test run fails with `NameError: name 'logger' is not defined`; after the `edit`, the final `bash` card ends `OK`.
 11. (If `find` is available — `omp config get find.enabled`, and the judge resolves) in a shell: `omp find -q "where are orders grouped by month" .`
     **Expected:** `N hit(s) for "…" · τ 0.20 · strongest first`, top hit in `api/`, footer with tokens/cost. If the tool is hidden: `omp config set find.enabled on` and retry (any chat model can judge, slower).
 
@@ -307,22 +307,22 @@ Every setting mentioned is shown with its default from `omp config list` on 18.3
 **Try it (Walkthrough):** (Python; `python -c "import debugpy"` must succeed)
 
 1. Reproduce: in a shell, `python bin/crash.py; echo exit=$?`
-   **Expected:** a traceback ending `AttributeError: 'NoneType' object has no attribute 'name'` inside `display_name`, `exit=1`. Note the line number of the failing statement — call it `L`.
+   **Expected:** a traceback ending `AttributeError: 'NoneType' object has no attribute 'name'` inside `display_name` (line 39: `return f"{user.name} <{user.email}>"`), `exit=1`. Call that line `L` (39 in this lab). The `None` comes from `find_user(99)` — `WANTED_IDS = [1, 2, 99, 3]`, so the third iteration of `main()` crashes.
 2. Type: `Use the debug tool: launch bin/crash.py with the debugpy adapter. Do not edit files.`
    **Expected:** a `debug` card `Session debug-1 / Adapter: debugpy / Status: stopped / Stop reason: entry / Location: …/bin/crash.py:1:1`.
 3. Type: `Set a source breakpoint at bin/crash.py line L, then continue.`
    **Expected:** `Breakpoints for …/bin/crash.py: - line L: verified`, then `Stop reason: breakpoint / Frame: display_name / Location: …:L:1`.
 4. Type: `Run stack_trace, then scopes, then variables for the Locals scope, then evaluate the offending variable with context watch.`
    **Expected:** `Stack trace:` with `display_name` on top and `main` below; `Scopes: - Locals: ref=N …`; `Variables: - user = None (NoneType)`; `Result: None / Type: NoneType`.
-5. Type: `Terminate the session, then fix the root cause in bin/crash.py (make the caller handle a missing user instead of dereferencing None), and run python bin/crash.py.`
-   **Expected:** `Debug session terminated.`; an `edit` card; a `bash` card with `exit 0` and no traceback.
+5. Type: `Terminate the session, then fix the root cause in bin/crash.py so that main() prints a placeholder line for a missing user instead of dereferencing None, and run python bin/crash.py.`
+   **Expected:** `Debug session terminated.`; an `edit` card; a `bash` card with `exit 0`, four report lines (one per id, id 99 marked as unknown) and no traceback — the fixture's docstring asks for "a report for every id" and exit 0.
 
 **Guided task:** `bin/crash.py` (seeded `None` deref) and `bin/crash.c` (seeded bad pointer): ask omp to attach a debugger, break at the failing line, report the offending variable, fix.
-- Hints (C): `cc -g -O0 -o bin/crash bin/crash.c`; `launch program=bin/crash` — omp auto-picks `gdb`/`lldb-dap` for an extensionless binary, or say `adapter: gdb`; with gdb you stop at `main` first; either set a breakpoint at the deref line or just `continue` and read the `Stop reason` (a SIGSEGV stop) then `stack_trace` + `variables` — the `struct user *` is `0x0`.
+- Hints (C): `cc -g -O0 -o bin/crash bin/crash.c`; `launch program=bin/crash` — omp auto-picks `gdb`/`lldb-dap` for an extensionless binary, or say `adapter: gdb`; with gdb you stop at `main` first; either set a breakpoint at the deref line (`bin/crash.c:45`, the line marked `/* BUG */`) or just `continue` and read the `Stop reason` (a SIGSEGV stop) then `stack_trace` + `variables` — the local `struct user *u` in `main` is `0x0`.
 - Checkpoints: (a) two separate debug sessions (Python, then C — `terminate` between them); (b) each shows a `variables` or `evaluate` card with the null value; (c) both programs re-run.
 - Pass: transcript shows `debug` cards with `scopes`/`variables` for **both** programs; `python bin/crash.py` and `./bin/crash` exit 0.
 
-**Stretch:** Reproduce the same Python bug with **print-debugging only** (`--tools read,edit,bash`) in a fresh session and compare: number of `edit` cards, number of reruns, whether the fix is the same. Then add a `condition` to the breakpoint (`user is None`) and show it is only hit on the failing input. Pass: `notes/m8-debug.md` lists both tool sequences; the conditional breakpoint card shows `verified` and the run with a valid id (`python bin/crash.py 1`) never stops.
+**Stretch:** Reproduce the same Python bug with **print-debugging only** (`--tools read,edit,bash`) in a fresh session and compare: number of `edit` cards, number of reruns, whether the fix is the same. Then set a breakpoint at `bin/crash.py:45` (the `print(...)` in `main`) with `condition: "user is None"` and show it skips the good ids: `bin/crash.py` takes no arguments, so use the loop — an unconditional breakpoint stops first with `user_id = 1`, the conditional one stops first with `user_id = 99`. Pass: `notes/m8-debug.md` lists both tool sequences; the conditional breakpoint card shows `verified`; the first `variables` card after `continue` shows `user_id = 99` and `user = None`.
 
 **Troubleshooting:**
 

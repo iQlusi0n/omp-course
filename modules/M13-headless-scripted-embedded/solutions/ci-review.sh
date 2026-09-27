@@ -4,7 +4,7 @@
 # Usage:  ci/review.sh [--model <id>] [--max-time <dur>]  (run from the repo root)
 # Env:    ANTHROPIC_API_KEY / OPENAI_API_KEY / ... (provider key; never put it in ci.yml)
 #         OMP_REVIEW_TARGET  optional: a `pr://<N>` to review instead of the working diff
-# Exit:   0 = no P0, 1 = at least one P0 (or omp failed / JSON unparseable => fail closed)
+# Exit:   0 = no P0 and verdict=pass, 1 = a P0 or verdict=fail (or omp failed / JSON unparseable => fail closed)
 #
 # Flags verified in omp://cli-reference.md; overlay keys in omp://settings.md.
 set -euo pipefail
@@ -63,7 +63,13 @@ for line in open(sys.argv[1], encoding="utf-8"):
 if last is None:
     print("review: no assistant message in stream", file=sys.stderr); sys.exit(1)
 text = "".join(c.get("text", "") for c in last["content"] if c.get("type") == "text").strip()
-text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text)  # models still fence sometimes
+# Models still fence the JSON and sometimes prefix prose despite "no prose, no code fence":
+# prefer a fenced block anywhere in the text, else the outermost {...} span.
+m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.S)
+if m:
+    text = m.group(1)
+elif "{" in text and "}" in text:
+    text = text[text.index("{"):text.rindex("}") + 1]
 try:
     verdict = json.loads(text)
 except json.JSONDecodeError:
@@ -73,5 +79,5 @@ for f in findings:
     print(f"{f.get('severity','?'):3} {f.get('file','?')}:{f.get('line','?')}  {f.get('title','')}")
 p0 = [f for f in findings if f.get("severity") == "P0"]
 print(f"review: {len(findings)} finding(s), {len(p0)} P0, verdict={verdict.get('verdict')}")
-sys.exit(1 if p0 else 0)
+sys.exit(1 if p0 or verdict.get("verdict") == "fail" else 0)
 PY

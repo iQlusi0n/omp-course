@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| **Built against** | `omp --version` → `omp/18.3.1` (2026-09-25) |
+| **Built against** | `omp --version` → `omp/18.3.1` (2026-09-25); audited 2026-09-27 against `omp/18.3.5` (all facts re-verified, no behavior differences found for this module) |
 | **Level / time** | basic · ~1.5 h (5 lessons + coursework in `exercises.md`) |
 | **Prerequisites** | Module 1 (install, auth) and Module 2 (reading cards, `Ctrl+O`, `@path`, `!cmd`, `Ctrl+Q`) |
 | **Start state** | `cd omp-course-lab && git checkout module-3-start` |
-| **Fixture** | issue #3 in `docs/ISSUES.md` — *CLI: `orders` has no `--format csv`* (files: `cli/__main__.py`, `cli/commands.py`; gated test `LAB_ISSUE=3 python3 -m unittest tests.test_issues`) |
+| **Fixture** | issue #3 in `docs/ISSUES.md` — *CLI: `orders` has no `--format csv` (export for spreadsheets)* (files: `cli/__main__.py`, `cli/commands.py`; gated test `LAB_ISSUE=3 python3 -m unittest tests.test_issues`, which fails on `main` with `FAILED (failures=1, skipped=18)` and passes with `OK (skipped=18)`) |
 | **Goal** | Turn vague requests into verified outcomes; steer mid-turn instead of restarting. |
 
 Everything in this module is either a prompt-writing habit (no omp feature involved) or one of these omp surfaces: thinking level (`Shift+Tab`, `Ctrl+T`, `--thinking`, `ultrathink`), mid-turn control (`Esc`, steer, `Ctrl+Q` follow-ups, `/pause`), side questions (`/btw`), and stream recovery (`/fresh`). Every default in this module is **on** unless a lesson says otherwise.
@@ -39,12 +39,13 @@ Card drawings in this module and in `demos/` are schematic (`›` = your message
 - **The prompt used throughout this module** (copy into `notes/prompt-issue3.md` so you can `@` it later):
 
   ```text
-  Implement issue #3 from @docs/ISSUES.md: add `--format csv` to the `orders` CLI command.
+  Implement issue #3 from @docs/ISSUES.md: add `--format {table,csv}` (default `table`) to the `orders` CLI command.
 
   Outcome:
-  - `python3 -m cli orders --month 2026-03 --format csv` prints CSV to stdout with the header
-    `id,user_id,created_at,status,total_cents`, then one row per order.
-  - The existing default output of `orders` is unchanged.
+  - `python3 -m cli orders --month 2026-03 --format csv` prints CSV to stdout, written with the `csv` module:
+    header `id,user_id,created_at,status,total_cents`, then one row per order, `total_cents` as an integer,
+    no summary line.
+  - The existing default (table) output of `orders` is unchanged.
 
   Acceptance:
   - `LAB_ISSUE=3 python3 -m unittest tests.test_issues` passes.
@@ -84,8 +85,8 @@ Card drawings in this module and in `demos/` are schematic (`›` = your message
 | Symptom | Cause | Fix |
 |---|---|---|
 | Structured run has no `bash` card for the tests | Verification section missing or phrased as a suggestion ("you may want to test") | Use imperative, numbered steps: "Run … and show the output." |
-| `@docs/ISSUES.md` stays literal in the sent message | Token not preceded by space/line start, or path wrong relative to cwd | Start the token after a space; check `!ls docs` |
-| Test card shows `ModuleNotFoundError` | omp ran from a different cwd | Add "run from the repo root" to Verification; check the card's `cwd` line |
+| `@docs/ISSUES.md` stays literal in the sent message | The path did not resolve to a file from omp's cwd | Check `!ls docs`; start omp from the lab root |
+| Test card shows `ModuleNotFoundError` | omp ran the command from a different cwd | Add "run from the repo root" to Verification |
 | Gated test passes in step 3 for the weak run | The weak prompt happened to do it right | Fine — record it. Compare the *transcripts*, not just the diff: did a verifying card exist? |
 | Final message says "tests pass" but no card | The model reported from memory | Lesson 3.5; for now: "Run `<cmd>` now and show the output." |
 
@@ -173,7 +174,7 @@ Card drawings in this module and in `demos/` are schematic (`›` = your message
 - **Default:** `defaultThinkingLevel: high` (`omp config get defaultThinkingLevel`). Enum in settings: `minimal|low|medium|high|xhigh|max|auto`.
 - **Cycle for this session:** `Shift+Tab` (`app.thinking.cycle`). The prompt border color changes per level (theme tokens `thinkingOff` … `thinkingMax`) and the status line shows the level as an icon on the model name; set `statusLine.compactThinkingLevel: false` to get a ` · <level>` text suffix instead. The level is part of session state: `/dump` output lists "Active model/thinking level", and a resumed session restores it.
 - **Set for one run:** `omp --thinking low`. Per-model suffix: `omp --model <selector>:low` (suffix `off|minimal|low|medium|high|xhigh|max`).
-- **See it:** `Ctrl+T` (`app.thinking.toggle`) shows/hides thinking blocks in the transcript. Display only: `--hide-thinking` / `hideThinkingBlock: false` hide the text; they do **not** turn thinking off — `--thinking off` does.
+- **See it:** `Ctrl+T` (`app.thinking.toggle`) shows/hides thinking blocks in the transcript. Display only: `--hide-thinking` / `hideThinkingBlock: true` hide the text; they do **not** turn thinking off — `--thinking off` does.
 - **Budgets:** `thinkingBudgets.<level>` token budgets (`minimal 1024`, `low 2048`, `medium 8192`, `high 16384`, `xhigh 32768`, `max 32768`). Leave them alone unless a provider bill tells you otherwise.
 - **`auto`:** a classifier picks a level per turn, capped by `providers.autoThinkingMaxEffort` (default `xhigh`, so only `ultrathink` reaches `max`).
 - **`ultrathink`** (magic keyword, on by default): a standalone lowercase prose word anywhere in your prompt. It adds a hidden, user-attributed "reason carefully, multi-step" notice for **that turn only**. If the session is on `auto`, it also selects the highest effort the model supports for that turn. On a fixed level it does *not* change the level — only the notice is added. Matching rules: exact lowercase (`Ultrathink` does not trigger); standalone (`ultrathink,` yes; `ultrathink.ts`, `ultrathink()` no); ignored inside code fences, inline code, and HTML comments. The composer highlights a recognized keyword with an animated gradient — no gradient, no trigger.
@@ -206,7 +207,7 @@ Card drawings in this module and in `demos/` are schematic (`›` = your message
 |---|---|---|
 | `Shift+Tab` does nothing | Terminal does not send Shift+Tab (kbd protocol, Module 1) or the key is remapped | `/hotkeys` to see the live chord; remap `app.thinking.cycle` in `~/.omp/agent/keybindings.yml` |
 | No thinking block ever appears | Level `off`, blocks hidden, or model has no visible reasoning | `Ctrl+T`; check `omp config get hideThinkingBlock`; raise the level |
-| `ultrathink` has no gradient | Capitalized, glued to punctuation/letters, or inside backticks | Lowercase, standalone word in prose |
+| `ultrathink` has no gradient | Capitalized, glued to letters/digits/`_`/`-`/`/`/a file extension/call syntax (`ultrathink()`), or inside backticks | Lowercase, standalone word in prose (sentence punctuation and quotes may touch it) |
 | Gradient shows but no effect | `magicKeywords.enabled` or `.ultrathink` is `false` (gradient stays even when disabled) | `omp config get magicKeywords.enabled` |
 | Turn is slow/expensive after `ultrathink` on `auto` | It selected the model's top effort | Expected; use it for hard turns only |
 
@@ -304,7 +305,7 @@ Card drawings in this module and in `demos/` are schematic (`›` = your message
 - **Three questions per result.** (1) *Which command proves it?* Find the `bash` card; `Ctrl+O` expands it. Error-marked + `Command exited with code <n>` = it failed, whatever the prose says. (2) *Does the diff match the claim?* Ask: `Summarize the diff per file: path — what changed — why. Then paste git diff --stat.` Compare with your own `!git diff --stat`. (3) *Was anything cut?* A card with a truncation footer (`[raw output: artifact://<id>]` or a truncation note with an artifact id) holds more than you see — ask omp to `read artifact://<id>` and report the tail, or the specific error.
 - **No card → no credit.** Reply: `You said the tests pass but I see no test run. Run <cmd> now and show the output.` Then check the exit.
 - **Keep tool activity visible while reviewing.** `Ctrl+Shift+O` (`app.tools.toggleVisibility`) hides all tool cards — great for reading prose, terrible for auditing. Toggle it back before judging.
-- **Cheap cross-checks from the composer:** `!git diff --stat`, `!git status --short`, `!python3 -m unittest discover -s tests`. They run in your shell, appear as your own execution blocks, and cost no model tokens.
+- **Cheap cross-checks from the composer:** `!git diff --stat`, `!git status --short`, `!python3 -m unittest discover -s tests`. They run in your shell without a model turn and appear as your own execution blocks. They are recorded in the transcript (a `bashExecution` message) and go to the model with your next prompt, so keep their output short.
 - **Watch for the word "should".** "This should work", "tests should pass" — unverified. Ask for the run.
 - Module 4 adds `/review` and `/annotate` for structured review; this lesson is the manual habit they build on.
 
@@ -347,7 +348,7 @@ Card drawings in this module and in `demos/` are schematic (`›` = your message
 | Own cross-check | `!git diff --stat`, `!git status --short` |
 | No card | "Run `<cmd>` now and show the output." |
 
-**Source:** omp://tools/bash.md (exit codes, truncation, `artifact://` footer), omp://keybindings.md (`app.tools.expand`, `app.tools.toggleVisibility`), omp://bash-tool-runtime.md (`!cmd` execution component)
+**Source:** omp://tools/bash.md (exit codes, truncation, `artifact://` footer), omp://keybindings.md (`app.tools.expand`, `app.tools.toggleVisibility`), omp://bash-tool-runtime.md (`!cmd` execution component), omp://session.md and omp://compaction.md (`bashExecution` message role is conversation input)
 
 ---
 

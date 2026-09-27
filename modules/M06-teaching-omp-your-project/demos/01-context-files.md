@@ -20,12 +20,12 @@ $ omp
 > What is the test command for this repo, and which directory must you never
 > edit? Answer from your context only, do not read files.
 
-The test command is `python3 -m pytest -q`. The `generated/` directory is
+The test command is `python3 -m unittest discover -s tests`. The `generated/` directory is
 build output and must never be edited by hand.
 
 > Quote the first heading of the architecture notes you were given.
 
-"# omp-course-lab specification"          ← came from docs/spec.md via @../docs/spec.md
+"# omp-course-lab — Service Specification (v1)"   ← came from docs/spec.md via @../docs/spec.md
 ```
 
 Then, from a subdirectory with its own non-empty `.omp/`:

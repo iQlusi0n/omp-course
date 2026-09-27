@@ -22,4 +22,6 @@ cd .. && open modules/M01-setup-first-contact/README.md
 
 Built with omp itself: one orchestrating session, one `course-builder` subagent per module in isolated worktrees, then a `course-verifier` pass that re-checked every command, key, and setting against the bundled `omp://` docs and the binary. See `.omp/agents/` and `COURSE-OUTLINE.md` Appendix D.
 
-omp version used for verification: see each module's README header.
+**omp version.** Modules were written against `omp/18.3.1` and every command, key, setting and default was re-audited on `omp/18.3.5` (the binary updated mid-build). Where a demo says "captured on 18.3.1" that is literal; no behavioral difference was found between the two. Each module's `BUILD-NOTES.md` lists what was verified live, what is doc-derived, and what was removed as unverifiable.
+
+**Known limits of the build machine** (see per-module `BUILD-NOTES.md`): no desktop, Chrome relay, LSP server, C compiler, debugger, or second collaborator was available, so 8.4 (C/DAP), 14.2 (computer use), 14.3 (collab) and interactive TUI overlays are documented from `omp://` docs and binary strings rather than live captures. Everything shell- or `omp -p`-reachable was executed.

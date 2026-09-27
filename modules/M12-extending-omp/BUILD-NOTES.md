@@ -53,3 +53,37 @@ Observed evidence (all on 18.3.1):
 ## Cleanup performed on the build machine
 
 Throwaway artifacts (`/tmp/m12ext/*`, temp project dir, mock provider, `m12build` profile's `models.yml`/`config.yml`, marketplace registrations, project-scoped plugin install) were removed or uninstalled; nothing outside `modules/M12-extending-omp/` was written in the course repo.
+
+## Audit (wave 2, `omp/18.3.5` on PATH)
+
+Every omp command, flag, key, setting, path, URI scheme and default in `README.md`, `exercises.md`, `cheatsheet.md`, `demos/` and `solutions/README.md` was re-checked against `omp://` (extensions.md, extension-loading.md, hooks.md, custom-tools.md, mcp-config.md, mcp-runtime-lifecycle.md, mcp-server-tool-authoring.md, approval-mode.md, marketplace.md, skills/authoring-marketplaces.md, plugin-manager-installer-plumbing.md, gemini-manifest-extensions.md, context-files.md, settings.md, skills.md, slash-command-internals.md, cli-reference.md, rpc.md, keybindings.md, tools/read.md, session-operations-export-share-fork-resume.md, skills/examples/*), `omp plugin --help`, `omp install --help`, and `omp config get`. The binary on PATH during the audit was **18.3.5**, not 18.3.1; the README header records both.
+
+Re-executed during the audit (no model calls):
+
+- `python3 -c 'import ast; ast.parse(open("solutions/mcp/lab_mcp_server.py").read())'` — parses; `json.load` on `solutions/my-marketplace/.omp-plugin/marketplace.json`, `solutions/mcp/mcp.json`, `solutions/hello-extension/package.json` — valid.
+- `lab_mcp_server.py` piped JSON-RPC: `initialize` → `2025-11-25`; `tools/call sqlite_tables` on the lab's `data/lab.sqlite` → `orders: 72 rows / schema_version: 1 rows / users: 12 rows`; unknown method → `-32601`.
+- Scratch project with `.omp/mcp.json` from `solutions/mcp/mcp.json` (lab-fs entry): `omp read mcp://lab-fs://listing` → `lab.sqlite`; `LAB_DATA_DIR=docs …` → the four `docs/` files; `omp read mcp://nope` → `No MCP server has resource "nope"` + available list.
+- `omp --mode rpc --no-ui --no-session` with `solutions/hello-extension` in `.omp/extensions/` plus `broken.ts`: `available_commands_update` contains `hello`; stderr `Failed to load extension …/broken.ts: Extension does not export a valid factory function`.
+- `omp plugin marketplace add/discover/install --scope project/uninstall/marketplace remove` on `solutions/my-marketplace` under a throwaway profile: same output as `demos/12-4-marketplace.md`; `omp read skill://lab-conventions` printed the skill; `installed_plugins.json` ended as `{"version": 2, "plugins": {}}`; registry landed in `~/.omp/profiles/<name>/marketplaces.json`.
+
+### Fixed
+
+1. 12.1 `ExtensionCommandContext`: `compact` is on every handler's `ExtensionContext` (omp://extensions.md § 2), not command-only; moved out of the command-only list.
+2. 12.1 "Where omp looks" header claimed edits need no restart while the troubleshooting row said they do; reworded to the documented fact (`?mtime` cache-buster on import; modules are imported at startup).
+3. 12.2 `bash.patterns` sentence: dropped the "covers `bash` but not `eval`" clause (not in omp://approval-mode.md).
+4. 12.3 browser-MCP filter: listed the exact names omp://mcp-config.md gives (`playwright`, `puppeteer`, `browserbase`, `browser-tools`, `browser-use`, `browser`, package/URL references) instead of `browser*`; Exa wording now matches omp://mcp-runtime-lifecycle.md (filtered, keys extracted for the native Exa integration).
+5. 12.3 shape: noted that `disabledServers`/`enabledServers` are read from the active profile's **user** file (omp://mcp-config.md "User-level enable and disable overrides"); cheatsheet "file-level" → "user-file".
+6. 12.5 foreign-source table: `.claude/` now lists `.claude/commands/**/*.md` (+ `foo:bar` alias) and `.codex/commands/*.md` (user beats project) per omp://slash-command-internals.md; skills are attributed to the provider rather than to an undocumented path.
+7. 12.1 log path marked "observed on disk, not documented".
+8. Lab fixture: `solutions/my-marketplace/.../SKILL.md` and `demos/12-4-marketplace.md` said `python -m unittest …`; the lab README's command is `python3 -m unittest discover -s tests`.
+9. Demo 12.3 now says its `data/`/`docs/` listings come from a scratch directory, not the lab's.
+
+### Removed (unverifiable)
+
+- 12.5 table: `.claude/skills`, `.claude/hooks/pre|post`, `.codex/skills` as concrete discovery paths. omp://skills.md lists the `claude`/`codex` providers as skill sources but names no directory; omp://hooks.md only says the native `pre|post` layout "mirrors" `.claude/hooks/`, and omp://extension-loading.md says hook factories are discovered from native roots only.
+- 12.2: "`bash.patterns` … covers commands the model runs through `bash` but not through `eval`".
+- 12.3: "Exa servers are folded into the native `web_search` integration" (doc says keys are extracted for the native Exa integration; no `web_search` claim).
+
+### Version note
+
+`omp --version` on the audit machine is `18.3.5`; all facts above were re-read on that build. Behaviours observed by the builder on 18.3.1 that were re-run here matched.

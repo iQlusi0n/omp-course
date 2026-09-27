@@ -2,23 +2,23 @@
 
 | | |
 |---|---|
-| **Built against** | `omp/18.3.1` (`omp --version`) |
+| **Built against** | `omp/18.3.5` (`omp --version`) |
 | **Prerequisites** | Module 8 (eval kernels, `local://`, `artifact://`). Module 4 for `/review`. |
 | **Practice repo** | `omp-course-lab` — `git checkout module-10-start` |
 | **Goal** | Fan work out, watch it, steer it, and get typed results back. |
 | **Lessons** | 10.1 `task` · 10.2 Hub & steering · 10.3 Custom agents · 10.4 Isolation · 10.5 Orchestration from code · 10.6 Vibe mode · 10.7 Parallel review |
 
-**Default-off / default-on settings you will touch in this module** (verified with `omp config list` on 18.3.1, no `task.*` overrides in `~/.omp/agent/config.yml`):
+**Default-off / default-on settings you will touch in this module** (verified with `omp config get` on 18.3.5 from a directory with no `.omp/config.yml` — a project or user override shadows these; `omp config get <key>` in your repo shows the effective value):
 
 | Key | Default | Meaning |
 |---|---|---|
 | `async.enabled` | `true` | Spawns return immediately as background jobs; results auto-deliver. |
 | `task.batch` | `true` | `task` takes `{ context, tasks[] }` (one subagent per item). |
-| `task.maxConcurrency` | `16` | Session-wide cap on simultaneously running subagents. |
+| `task.maxConcurrency` | `32` | Session-wide cap on simultaneously running subagents. |
 | `task.maxRecursionDepth` | `2` | How deep subagents may spawn subagents. |
 | `task.enableEffort` | `false` | **Off.** Exposes per-item `effort` (`lo`/`med`/`hi`). |
 | `task.enableLsp` | `false` | **Off.** Subagents get no `lsp` tool unless enabled. |
-| `task.isolation.enabled` | `true` | `isolated: true` per item runs the subagent in a copy of the checkout. |
+| `task.isolation.enabled` | `false` | **Off.** Enable with `task.isolation.enabled: true` in `.omp/config.yml` (or `omp config set`) so items accept `isolated: true` (Lesson 10.4). |
 | `task.isolation.merge` | `patch` | Integrate isolated changes as a patch (`branch` = commit to `omp/task/<id>`). |
 | `task.isolation.apply` | `true` | Apply successful isolated changes to the parent checkout automatically. |
 | `task.agentIdleTtlMs` | `420000` | Idle subagents are parked to disk after 7 min; `0` keeps them live. |
@@ -37,13 +37,13 @@
 **Why this exists:** A single agent session has one context window and one pair of hands. Mapping three directories, reviewing three commits, or fixing ten files serially burns your main context on details you will never need again. `task` spawns child sessions that start blank (they do **not** inherit your conversation), do bounded work, and hand back a compact result — optionally validated against a JSON Schema so the parent can read fields instead of prose. With `async.enabled` (default on) every spawn is a background job, so the parent keeps working and results arrive when they arrive.
 **Demo:** `demos/10.1-batch-scouts.md`
 **Concepts:**
-- **Batch shape** (`task.batch: true`, default): one call = `{ "context": "<shared background>", "tasks": [ item, item, … ] }`. `context` is **required** and is rendered into every child's system prompt (`CONTEXT` section). Each item: `{ name?, agent?, task, outputSchema?, schemaMode?, isolated?, effort? }`. Names must be unique within the call (case-insensitive); omitted names become generated *AdjectiveNoun* ids.
+- **Batch shape** (`task.batch: true`, default): one call = `{ "context": "<shared background>", "tasks": [ item, item, … ] }`. `context` is **required** and is rendered into every child's system prompt (`CONTEXT` section). Each item: `{ name?, agent?, task, solutionSpace, outputSchema?, schemaMode?, isolated?, effort? }`. `solutionSpace` is a one-line statement of how open-ended the child's problem is (e.g. `one fix: rename, names given`); it feeds the child's `auto` thinking classifier. The schema marks it required, but a call that omits it still spawns (the `task` text is classified instead). Names must be unique within the call (case-insensitive); omitted names become generated *AdjectiveNoun* ids.
 - **Flat shape** (`task.batch: false`): one spawn per call, `{ agent?, task, … }`; share background by writing it once to a `local://ctx.md` file that each task text references (children share the parent's `local://` root).
 - **Bundled agents** (`omp agents unpack --dir /tmp/agents` dumps their definitions):
 
   | Agent | Model role | Tools | Use for |
   |---|---|---|---|
-  | `scout` | `@smol`, thinking `medium` | `read find grep glob web_search` (+`yield`) — **read-only**, `read-summarize: false` | Investigation, mapping, "where is X" |
+  | `scout` | `@smol`, thinking `medium` | `read find grep glob web_search` (+`yield`) — **read-only** | Investigation, mapping, "where is X" |
   | `reviewer` | `@slow` | `read find grep glob bash lsp web_search ast_grep`; `spawns: scout` | Bug-finding review of a diff (Lesson 10.7) |
   | `security-reviewer` | *(session model)* | `read find grep glob lsp ast_grep` — read-only | Evidence-backed vulnerability sweep |
   | `task` | `@task`, thinking `auto`, `spawns: "*"` | full toolset | General multi-step work that edits files |
@@ -54,7 +54,7 @@
 - **Results and where they live:** every child writes `<id>.md` (full output) and `<id>.jsonl` (its session) under your session's artifacts dir. `read agent://<id>` → full output. `read agent://<id>/modules/0/path` → JSON extraction from a structured result (slash path = extraction; a nested child is dot-qualified: `agent://<id>.<child>`). Output is capped at 500 000 bytes / 5 000 lines (`PI_TASK_MAX_OUTPUT_BYTES` / `PI_TASK_MAX_OUTPUT_LINES`).
 - **`outputSchema`** (per item, JSON Schema): the child must finish through the hidden `yield` tool; its payload is validated. Precedence: per-item `outputSchema` → agent frontmatter `output` → parent session schema. `schemaMode` is `permissive` (default; warns after retries) or `strict` (fails). `scout`, `reviewer` and `security-reviewer` already ship an `output` schema, so their results are JSON even without `outputSchema`.
 - **`effort`** (`"lo" | "med" | "hi"`): exists only when `task.enableEffort: true` (default **off**). Maps to the resolved model's lowest/middle/highest effort, clamped by `task.maxEffort` (default `max`). Overrides the agent's `thinkingLevel`, including `auto`.
-- **Limits:** `task.maxConcurrency` (16) is a session-wide semaphore — a 30-item batch queues 14. `task.maxRecursionDepth` (2) hides `task` from children at the limit. `task.softRequestBudget` (200 requests) injects a wrap-up notice, force-stops at 1.5×. `task.maxRuntimeMs` (0 = off) is a hard wall clock. `task.agentIdleTtlMs` (7 min) parks idle children to disk.
+- **Limits:** `task.maxConcurrency` (32) is a session-wide semaphore — a 40-item batch queues 8. `task.maxRecursionDepth` (2) hides `task` from children at the limit. `task.softRequestBudget` (200 requests) injects a wrap-up notice, force-stops at 1.5×. `task.maxRuntimeMs` (0 = off) is a hard wall clock. `task.agentIdleTtlMs` (7 min) parks idle children to disk.
 - **Plan mode** (M4): children get a read-only tool subset (`read grep glob web_search`, +`ast_grep` if declared), no spawns, and `isolated` is rejected.
 - **What children inherit:** workspace tree, skills, `AGENTS.md`/context files, the shared `local://` root, the approved-plan reference when one exists, `async.enabled`. **Not** your conversation. Write task text as if for a new hire with no chat history.
 - **Model chips:** type `^` in the composer, pick a model; the chip becomes a session-local pseudonym `m1`, `m2`, … that `task`, eval `agent()` and `workpool()` accept as `agent` (bundled `task` template pinned to that model).
@@ -74,7 +74,7 @@
 4. Prompt: *"read history://ApiScout"*.
    **Expected:** a concise transcript: the child's tool calls (`glob`, `read`, `grep`) and its final `yield`.
 5. `omp config get task.maxConcurrency` in a second terminal.
-   **Expected:** `16`.
+   **Expected:** `32` (unless your project or user config overrides it — the printed value is the effective one).
 
 **Guided task:** From the lab root, dispatch **one** batch call that mixes agent types: a `scout` that lists every place `cli/` calls `print()` (with `outputSchema` `{ "type":"object","required":["callsites"],"properties":{"callsites":{"type":"array","items":{"type":"string"}}}}`) and a `sonic` that appends a line `# M10 marker` to `notes/m10.md` (create the file if missing). *Hints:* give both items distinct `name`s; put the repo description in `context`, not in each `task`; `sonic` has full tools so its task text must say exactly one file to touch. *Checkpoints:* (a) the spawn text says ``using scout, sonic`` (deduped agent types); (b) `read agent://<ScoutName>/callsites` returns an array; (c) `git status` shows only `notes/m10.md` changed (gitignored, so `git status --ignored`). **Pass:** both async results arrive; the callsites array is non-empty; only `notes/m10.md` changed.
 
@@ -84,20 +84,20 @@
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| ``Unknown agent "Scout". Available: …`` | Agent names are exact and case-sensitive | Use `scout`; `read history://` to see which agents exist |
+| ``Unknown agent "Scout". Available: …`` | Agent names are exact and case-sensitive | Use `scout`; the error's `Available:` list names every discoverable agent |
 | Call rejected: missing `context` | Batch shape requires shared `context` | Add a non-empty `context` string; or set `task.batch false` for the flat shape |
 | Item rejected: duplicate name | Names are unique per call, case-insensitive | Rename (`ApiScout`, `ApiScout2`) or omit names |
 | Results never arrive; turn ended | Normal with `async.enabled` — delivery is asynchronous | Keep working; `read proc://` to inspect; use the `wait` tool only when blocked |
 | `SYSTEM WARNING: Subagent exited without calling yield tool after 3 reminders.` | Child ended without `yield` (often a weak model) | Re-run with a stronger agent (`task`) or a smaller task; the raw output is still in `agent://<id>` |
 | `effort` "not a valid parameter" | `task.enableEffort` is off (default) | `omp config set task.enableEffort true`, restart the session |
 | Child edited files you did not expect | Subagents run in `yolo` approval regardless of your mode | Use `scout` (read-only) for investigation; `isolated: true` (Lesson 10.4) for edits |
-| 17th item sits at `queued` | `task.maxConcurrency` = 16 semaphore | Wait, or raise `task.maxConcurrency` (live setting; affects queued spawns) |
+| 33rd item sits at `queued` | `task.maxConcurrency` = 32 semaphore | Wait, or raise `task.maxConcurrency` (live setting; affects queued spawns) |
 
 **Cheat sheet:**
 
 | Thing | Value |
 |---|---|
-| Batch call | `{ "context": "...", "tasks": [ { "name", "agent", "task", "outputSchema", "schemaMode", "isolated" } ] }` |
+| Batch call | `{ "context": "...", "tasks": [ { "name", "agent", "task", "solutionSpace", "outputSchema", "schemaMode", "isolated" } ] }` |
 | Bundled agents | `scout` (RO) · `reviewer` · `security-reviewer` (RO) · `task` · `sonic` |
 | Read output | `read agent://<id>` · `read agent://<id>/key/0` · `read agent://<id>.<child>` |
 | Transcript | `read history://<id>` · bare `read history://` lists agents |
@@ -191,7 +191,7 @@
   | `output` | schema | Structured result contract (bundled files use `properties` / `optionalProperties` / `elements` / `metadata` keys — copy that shape). Beaten by per-item `outputSchema`. |
   | `blocking` | bool | `true` makes the parent wait inline even with `async.enabled`. No bundled agent sets it. |
   | `autoloadSkills` | list | Parent-session skill names injected before the first prompt; unknown names ignored. |
-  | `read-summarize` | bool | `false` ⇒ verbatim `read` instead of structural summaries (`scout` ships with it false). |
+  | `read-summarize` | bool | `false` ⇒ verbatim `read` instead of structural summaries. The discovery doc says `scout` ships with it disabled; the unpacked 18.3.5 `scout.md` does not carry the key, so set it explicitly in your own file. |
   | `prewalk` | `true` / selector | Start on `model`, hand off to `@smol` (or the given selector) at first edit/write. Module 11. |
   | `advisor` | `true` / selector | Pair the child with an advisor. Module 11. |
 - **Settings that override frontmatter:** `task.agentModelOverrides` (`{ "test-writer": "@smol" }`) beats `model`; `task.disabledAgents` (`["sonic"]`) makes a name fail preflight with the enabled alternatives listed; `task.agentPrewalk` / `task.agentAdvisor` (set from `/agents`) beat `prewalk` / `advisor`; `task.agentCompactionThresholdOverrides`, `task.agentServiceTierOverrides` are per-agent exact-name records.
@@ -212,7 +212,7 @@
 5. `omp config set task.disabledAgents '["test-writer"]'`; dispatch again.
    **Expected:** the tool returns a preflight error naming the disabled agent and listing enabled alternatives; no subagent runs. Reset with `omp config reset task.disabledAgents`.
 
-**Guided task:** Create `.omp/agents/scout.md` that copies the bundled `scout` (from `omp agents unpack --dir /tmp/agents`) but deletes the `read-summarize` line and changes `description` to start with `PROJECT OVERRIDE:`. Dispatch a `scout`. *Hints:* the tool description is memoized per cwd — dispatch by name anyway; `read history://<id>` shows the system prompt is the project copy (its first lines). *Checkpoints:* discovery is first-wins by exact name; `Scout.md` (capital S) would **not** override. **Pass:** `read history://<id>` shows the `PROJECT OVERRIDE:` description; delete the file and re-dispatch → bundled behaviour returns.
+**Guided task:** Create `.omp/agents/scout.md` that copies the bundled `scout` (from `omp agents unpack --dir /tmp/agents`) but adds a `read-summarize: false` line and changes `description` to start with `PROJECT OVERRIDE:`. Dispatch a `scout`. *Hints:* the tool description is memoized per cwd — dispatch by name anyway; `read history://<id>` shows the system prompt is the project copy (its first lines). *Checkpoints:* discovery is first-wins by exact name; `Scout.md` (capital S) would **not** override. **Pass:** `read history://<id>` shows the `PROJECT OVERRIDE:` description; delete the file and re-dispatch → bundled behaviour returns.
 
 **Stretch:** Define `.omp/agents/lead.md` with `spawns: test-writer, scout` and `tools: read, grep, glob, write` (no `edit`, no `bash`) and dispatch it with the task *"delegate: one test-writer per package (api/, cli/), then summarise their results"*. **Pass:** `read history://Lead` shows a `task` call whose items are `test-writer`; `agent://Lead.TwApi`-style nested ids resolve; `Lead` itself never called `edit` (it had none).
 
@@ -249,7 +249,7 @@
 **Why this exists:** Two subagents editing the same working tree race each other — one's `edit` sees the other's half-finished file, tests run against a mixture, and `git status` becomes noise. Isolation gives each child its own materialised workspace (copy-on-write clone or overlay where the filesystem supports it, recursive copy as a last resort), captures its changes, and integrates them into your checkout as a patch or a branch — atomically, after the child finishes.
 **Demo:** `demos/10.4-isolation.md`
 **Concepts:**
-- **Enable:** `task.isolation.enabled` (default **`true`** on 18.3.1 — see `BUILD-NOTES.md`; the outline expected off). When true **and plan mode is off**, every task item accepts `isolated: true`. Isolation requires a git repository (``Isolated task execution requires a git repository.``).
+- **Enable:** `task.isolation.enabled` (default **`false`**). Turn it on for the lab by adding `task.isolation.enabled: true` to `omp-course-lab/.omp/config.yml` (the lab ships an empty `.omp/` — create the file; or `omp config set task.isolation.enabled true` for your user config), then start `omp` from the lab root: the `isolated` item field is part of the `task` tool schema, which is built when the session starts. When true **and plan mode is off**, every task item accepts `isolated: true`. Isolation requires a git repository (``Isolated task execution requires a git repository.``).
 - **Backend:** `isolation.backend` = `auto` (default) | `apfs` | `btrfs` | `zfs` | `reflink` | `overlayfs` | `projfs` | `block-clone` | `rcopy`. `auto` walks the candidate list and falls back (Linux: kernel overlay → `fuse-overlayfs` → clones → recursive copy); the result reports `fellBack` / `fallbackReason`. Legacy values `worktree`, `fuse-overlay`, `fuse-projfs` migrate to `rcopy`, `overlayfs`, `projfs`.
 - **Integration:** `task.isolation.merge` = `patch` (default): the child's root diff is captured to `<id>.patch` in the session artifacts and applied to your checkout only if it applies cleanly; otherwise the `.patch` is left for manual handling. `branch`: the child's work is committed on `omp/task/<id>` in a temporary worktree and cherry-picked into your checkout; your dirty tree is stashed first — a stash-pop conflict does **not** undo the cherry-picks (reported as `stashConflict`). Nested git repos are diffed and merged separately.
 - **`task.isolation.apply`** (default `true`): set `false` to keep the patch/branch artifacts without touching your checkout — the review-before-merge workflow. `task.isolation.commits` = `generic` | `ai` (commit message style for nested-repo changes).
@@ -260,8 +260,8 @@
 - **Plan mode** rejects `isolated`, `apply`, `merge` per spawn.
 
 **Try it (Walkthrough):**
-1. `omp config get task.isolation.enabled` and `omp config get task.isolation.merge`.
-   **Expected:** `true` and `patch`.
+1. Add `task.isolation.enabled: true` to `omp-course-lab/.omp/config.yml` (create the file if missing), then `omp config get task.isolation.enabled` and `omp config get task.isolation.merge` from the lab root.
+   **Expected:** `true` and `patch` (from another directory the first prints `false` — the default).
 2. In the lab (clean tree, on `main`), prompt: *"One batch, two `sonic` items, both `isolated: true`: IsoA appends `# iso A` to `api/__init__.py`; IsoB appends `# iso B` to `cli/__init__.py`."*
    **Expected:** ``Spawned 2 background agents using sonic.``; when both results arrive, `git status` shows both files modified in **your** checkout, `git diff` shows one line each. `Alt+A` → inspector for IsoA shows a `patch` path and status `parked`.
 3. `omp config set task.isolation.apply false`, `git checkout -- .`, repeat step 2 with names IsoC/IsoD.
@@ -279,7 +279,7 @@
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `isolated` "not a valid parameter" | `task.isolation.enabled` is false, or plan mode is on | `omp config set task.isolation.enabled true`; leave plan mode |
+| `isolated` "not a valid parameter" | `task.isolation.enabled` is off (default `false`), or plan mode is on | `task.isolation.enabled: true` in `.omp/config.yml` / `omp config set task.isolation.enabled true`; leave plan mode |
 | `Isolated task execution requires a git repository.` | cwd is not inside a git repo | `git init` or run from the lab root |
 | Patch not applied, `.patch` left | Patch did not apply cleanly against your current tree | `git apply --3way <path>`; resolve; or re-run after committing your own edits |
 | Child `parked`, `write agent://` fails | Isolated agents have no reviver | Spawn a new agent; `history://<id>` still works |
@@ -292,7 +292,7 @@
 | Thing | Value |
 |---|---|
 | Per item | `"isolated": true` (batch or flat shape); eval: `agent(..., isolated=True, apply=?, merge=?)` |
-| Settings | `task.isolation.enabled` (true) · `isolation.backend` (auto) · `task.isolation.merge` (patch\|branch) · `task.isolation.apply` (true) · `task.isolation.commits` (generic\|ai) |
+| Settings | `task.isolation.enabled` (**false**; set true in `.omp/config.yml`) · `isolation.backend` (auto) · `task.isolation.merge` (patch\|branch) · `task.isolation.apply` (true) · `task.isolation.commits` (generic\|ai) |
 | Artifacts | `<id>.patch` (patch mode) · branch `omp/task/<id>` (branch mode) · `patchPath`/`branchName` in result & Hub inspector |
 | Worktrees | `omp worktree [list\|clear\|add]`, `--dry-run`, `--all`, `--json`; base `~/.omp/wt` (`worktree.base`, `OMP_WORKTREE_DIR`) |
 
@@ -321,7 +321,7 @@
 - **Magic keywords** (lowercase, standalone prose; not inside code spans/fences; `orchestrate,` matches, `orchestrated` / `orchestrate()` do not; applies to that turn only):
   - `orchestrate` — multi-agent contract: scope, delegate substantial independent work in parallel, verify each phase, continue to completion.
   - `workflowz` — deterministic multi-subagent workflow built on the eval kernel's `agent()`, `completion()`, handles, `wait()`, `workpool()`; injected only when **both** `eval` and `task` are active. Setting key: `magicKeywords.workflow`.
-  - `jevify` — bulk-classification contract for the kernel's `judge()` helper (freeze question/rubric/threshold, judge everything in one batch, read only what is flagged); needs `eval`. Docs for `judge` live at `xd://eval/judge` inside the kernel.
+  - `jevify` — bulk-classification contract for the kernel's `judge()` helper (freeze question/rubric/threshold, judge everything in one batch, read only what is flagged); needs `eval`.
   - Global switch `magicKeywords.enabled`; per-keyword `magicKeywords.ultrathink|orchestrate|workflow|jevify` (all default `true`).
 
 **Try it (Walkthrough):**
@@ -331,7 +331,7 @@
    **Expected:** the cell prints `agent://<id>` immediately (no blocking). Shortly after, an async result arrives; `Alt+A` shows a `sonic` row.
 3. Prompt: *"Same kernel: `display(h.wait())`."*
    **Expected:** the child's output (the lint list). Because the child ran `lint`, your kernel served a call while the cell was in `wait()`.
-4. Prompt: *"Same kernel: create `pool = workpool('sonic', name='lintfix', context='omp-course-lab; fix ONLY what lint reports; run lint again until empty; touch no other file', tools=['lint'])`, push one item per Python file under api/, cli/ and tests/ (13 files; never `generated/`), then `display(pool.status())`."*
+4. Prompt: *"Same kernel: create `pool = workpool('sonic', name='lintfix', context='omp-course-lab; fix ONLY what lint reports; run lint again until empty; touch no other file', tools=['lint'])`, push one item per Python file under api/, cli/ and tests/ (15 files; never `generated/`), then `display(pool.status())`."*
    **Expected:** `status()` shows ≤ `task.maxConcurrency` workers and N items; the pinned `Subagents` block and `Alt+A` list the pool's workers. Ending your turn lets results flow; the aggregate `lintfix` result arrives once when the pool drains.
 5. Prompt: *"`display(read('agent://lintfix'))` then `git diff --stat`."*
    **Expected:** the aggregate output; `git diff --stat` shows only the pushed files changed.
@@ -394,7 +394,7 @@
 5. Type `/vibe`.
    **Expected:** mode exits; `vibe_list` no longer exists; `Alt+A` shows both workers `aborted`; `read history://Fixer` still works.
 
-**Guided task:** Use `/vibe` to make a `fast` worker implement the seeded bug fix for issue #1 (from `docs/ISSUES.md`) while a `good` worker writes the regression test for it; then `vibe_send` the good worker the fast worker's diff (paste from `read agent://<id>`) for review. *Hints:* workers never see the director's conversation — every brief must name files and acceptance criteria; the director verifies by `read`ing touched files. *Checkpoints:* `vibe_list` shows both `idle` after their turns; the test fails before the fix and passes after. **Pass:** the lab's Python test suite passes; `git diff --stat` touches only the issue-#1 files and one test file.
+**Guided task:** Use `/vibe` to make a `fast` worker implement the seeded bug fix for issue #1 (from `docs/ISSUES.md`: `cli/format.py`, `money(1234)` must return `$12.34`) while a `good` worker writes a regression test for it; then `vibe_send` the good worker the fast worker's diff (paste from `read agent://<id>`) for review. *Hints:* workers never see the director's conversation — every brief must name files and acceptance criteria; the director verifies by `read`ing touched files. *Checkpoints:* `vibe_list` shows both `idle` after their turns; the new test fails before the fix and passes after. **Pass:** `python3 -m unittest discover -s tests` and `LAB_ISSUE=1 python3 -m unittest tests.test_issues` both exit 0; `git diff --stat` touches only `cli/format.py` and one test file.
 
 **Stretch:** Route tiers through roles: set `task.agentModelOverrides` to `{ "sonic": "@fast_worker", "task": "@good_worker" }` and add both roles in `modelRoles`; re-enter `/vibe`, spawn one of each, and confirm the resolved models in `vibe_list`. **Pass:** `vibe_list` shows the two role-backed models; reset the overrides afterwards.
 
@@ -484,4 +484,4 @@
 ---
 
 ## Module checkpoint
-You are done with Module 10 when `exercises.md` W + all three G tasks pass. Continue to Module 11 (guardrails: prewalk, advisor, TTSR) which builds on `task.agentPrewalk` / `task.agentAdvisor` from Lesson 10.3, or Module 14 (browser/desktop), which uses `agent()` fan-out from Lesson 10.5.
+You are done with Module 10 when `exercises.md` W + all four G tasks pass. Continue to Module 11 (guardrails: prewalk, advisor, TTSR) which builds on `task.agentPrewalk` / `task.agentAdvisor` from Lesson 10.3, or Module 14 (browser/desktop), which uses `agent()` fan-out from Lesson 10.5.

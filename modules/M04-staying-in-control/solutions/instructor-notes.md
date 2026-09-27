@@ -34,31 +34,28 @@ LAB_ISSUE=5 python3 -m unittest tests.test_issues
 ```
 If the email sub-item was implemented anyway: either the annotation was added to the wrong section, or the learner picked "Paste"/left plan mode without approving and then prompted normally. Ask them to `/plan-review` (only works while still in plan mode) or to show the annotation text in `notes/m4-plan.md`.
 
-Terminal chord problems: `Alt+Shift+P` needs the Kitty keyboard protocol (Module 1). Fallback taught: `plan.defaultOnStartup: true` (`omp config set plan.defaultOnStartup true`) — remember to reset it afterwards.
+Terminal chord problems: `Alt+Shift+P` may not reach omp on terminals that do not forward the chord (Module 1). Fallback taught: `plan.defaultOnStartup: true` (`omp config set plan.defaultOnStartup true`) — remember to reset it afterwards.
 
 Session naming: after approval the session is auto-named from the plan title only if the session had no name yet (session-tree-plan.md). A learner who `/rename`d earlier will not see it; not a failure.
 
 ## 4-G2 (annotate → review → commit)
 
 - Both notes must be visible in `notes/m4-review.md` verbatim; the review report should reference them (the overlay passes them as operator focus to `/review`).
-- `omp commit --dry-run` must leave `git status` dirty. Then ≥ 2 commits with distinct scopes: check `git log --oneline -3`. Because `omp commit` stages the whole tree (observed with `--legacy`: "Staging all changes…"), the practical way to get two scoped commits is two passes: implement/commit `api/`, then `cli/`; or `git stash push -- cli/` before the first `omp commit`.
+- `omp commit --dry-run` must leave `git status` dirty. Then ≥ 2 commits with distinct scopes: check `git log --oneline -3`. Observed on this build: with files staged, `omp commit` commits only the staged changes and leaves the rest unstaged; with nothing staged it stages everything (`--legacy` always prints `Staging all changes…`). So `git add api/` → `omp commit`, then `git add cli/` → `omp commit` yields the two scoped commits.
 - `No model available for commit generation` → no provider, or `commit`/`smol` roles resolve to nothing; `omp commit -m <model>` or `/login`.
 - Changelog: if the lab has no `CHANGELOG.md`, `--no-changelog` is irrelevant; if it does, expect an entry.
 
 ## 4-S1 (conflict-lab)
 
-Reference resolution (adapt to the actual seeded conflicts in `api/server.py` and `cli/__main__.py`):
-1. `read api/server.py:conflicts` → `#1`; `read cli/__main__.py:conflicts` → `#2` (ids are global per session, so the second file continues numbering).
+The lab's documented flow is `git switch -c scratch main && git merge conflict-lab` → `ours = HEAD` (main content), `theirs = conflict-lab`. Both files have exactly one block (`SERVICE_NAME` in `api/server.py` L18-22, `DESCRIPTION` in `cli/__main__.py` L17-21 — competing one-line edits, so `@both` is wrong here). Tests do not pin either string, so any resolution passes the suite.
+
+Reference resolution:
+1. `read api/server.py:conflicts` → `#1`; `read cli/__main__.py:conflicts` → `#2` (verified: ids continue across files within one session; from the shell each `omp read` starts at `#1` again).
 2. Inspect `conflict://1/ours` and `/theirs`.
-3. Combined literal resolution for the server block (example shape — keep both branches' behaviors):
-   ```
-   write conflict://1
-   <literal lines merged from both sides>
-   @theirs        ← optional: append the other side's block verbatim when additive
-   ```
-4. `write conflict://*` with `2: @theirs`.
-5. Re-read both `:conflicts` → none. Tests green. `omp commit -c "merge main into conflict-lab: #1 combined both; #2 kept theirs because …"`.
-Pitfalls: writing to `conflict://1/ours` (read-only scope → ToolError); `@base` without diff3 (`git config merge.conflictStyle diff3` before merging fixes it); reusing an id after resolution (invalidated → re-read).
+3. Literal combined resolution for one block, e.g. `write conflict://1` with content `SERVICE_NAME = "omp-course-lab orders API v1"`.
+4. `write conflict://*` with `2: @theirs` (or `write conflict://2` with `@theirs`). Verified result text: `Resolved N conflicts across M files:` + a `Snapshots:` block.
+5. Re-read both `:conflicts` → `No unresolved git merge conflicts in <file>.` Tests green. `git add api/server.py cli/__main__.py`, then **`git commit`** (not `omp commit`: observed on this build it creates a single-parent commit and leaves `MERGE_HEAD`; `git status` then still says "you are still merging"). A model-written message can be drafted with `omp commit --dry-run -c "…"` and pasted into `git commit -m`.
+Pitfalls: writing to `conflict://1/ours` (read-only scope → ToolError); `@base` without diff3 (`git config merge.conflictStyle diff3` before merging fixes it); reusing an id after resolution (invalidated → re-read); concluding the merge with `omp commit` (single parent).
 
 Pass check:
 ```bash

@@ -1,6 +1,6 @@
 # Demo 12.3 — MCP server from `.omp/mcp.json` (~60 s)
 
-Recorded on omp 18.3.1 with the Python `lab-fs` server (`solutions/mcp/lab_mcp_server.py`, no Node required). The `npx` `filesystem` server behaves the same way with `mcp__filesystem_*` tool names; it was not runnable on the build machine (no Node) and is shown only in the config.
+Recorded on omp 18.3.1 with the Python `lab-fs` server (`solutions/mcp/lab_mcp_server.py`, no Node required) against a scratch `data/` and `docs/` (hence the `README.md` and two-file `docs/` listing below); in `omp-course-lab`, `data/` holds only `lab.sqlite` and `docs/` has four files. The `npx` `filesystem` server behaves the same way with `mcp__filesystem_*` tool names; it was not runnable on the build machine (no Node) and is shown only in the config.
 
 `.omp/mcp.json`:
 

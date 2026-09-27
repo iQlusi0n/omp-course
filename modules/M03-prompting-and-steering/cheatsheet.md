@@ -15,15 +15,15 @@
 |---|---|
 | `bash` card, error-marked, ends `Command exited with code <n>` | the command failed, whatever the prose says |
 | No `bash` card behind "tests pass" | unverified → "Run `<cmd>` now and show the output." |
-| Card footer `[raw output: artifact://<id>]` | output cut → "Read artifact://<id> …" |
+| Truncation note naming `artifact://<id>` (or a `[raw output: artifact://<id>]` footer) | output cut → "Read artifact://<id> …" |
 | `Ctrl+O` / `Ctrl+Shift+O` | expand card / hide-show all cards |
-| `!git diff --stat`, `!git status --short` | your own cross-check, no model tokens |
+| `!git diff --stat`, `!git status --short` | your own cross-check; no model turn, but the output is recorded and sent with your next prompt |
 
 ## Thinking
 | Action | Key / flag / setting |
 |---|---|
 | Cycle level (session) | `Shift+Tab` (`app.thinking.cycle`) |
-| Show/hide blocks (display only) | `Ctrl+T` (`app.thinking.toggle`); `--hide-thinking`; `hideThinkingBlock: false` |
+| Show/hide blocks (display only) | `Ctrl+T` (`app.thinking.toggle`); `--hide-thinking`; `hideThinkingBlock: true` (default `false`) |
 | Level for a run | `--thinking off\|minimal\|low\|medium\|high\|xhigh\|max\|auto`; `--model <sel>:<level>` |
 | Default level | `defaultThinkingLevel: high` |
 | Level as text in status line | `statusLine.compactThinkingLevel: false` (default `true` = icon) |

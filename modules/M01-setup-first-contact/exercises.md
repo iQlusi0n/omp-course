@@ -39,18 +39,24 @@ Prerequisite: a provider account (OAuth: Anthropic, OpenAI Codex, GitHub Copilot
    ```
    **Expected:** nothing from `git status --short`; the TUI opens with an empty composer.
 6. Paste this prompt and press `Enter`:
-   > Read `docs/ISSUES.md` and locate issue #1. Inspect the code it points at for one small bug. Make the smallest safe fix — touch only the file that contains the bug. Then run `python -m unittest discover -s tests` and show me the result.
+   > Read `docs/ISSUES.md` and locate issue #1. Inspect the code it points at for one small bug. Make the smallest safe fix — touch only the file that contains the bug. Then run `python3 -m unittest discover -s tests` and show me the result.
 
-   **Expected:** in order: a `read` card (`docs/ISSUES.md`), one or more `read`/`grep`/`glob` cards, one `edit` card, one `bash` card containing `unittest`, then a final message reporting the tests pass.
+   **Expected:** in order: a `read` card (`docs/ISSUES.md`), a `read` card for `cli/format.py` (issue #1 names that file; more `read`/`grep`/`glob` cards are fine), one `edit` card, one `bash` card containing `unittest`, then a final message reporting the tests pass.
 7. Press `Ctrl+O`.
-   **Expected:** tool output expands; the `bash` card shows unittest's `OK`.
+   **Expected:** tool output expands; the `bash` card shows `Ran 48 tests … OK (skipped=20)` (the skips are the `LAB_ISSUE`-gated tests).
 8. Exit with `Ctrl+C` `Ctrl+C`, then:
    ```sh
    git diff --stat
    ```
-   **Expected:** exactly one file changed.
+   **Expected:** `cli/format.py | 2 +-` and `1 file changed`.
+9. Confirm the fix against the issue's own repro:
+   ```sh
+   python3 -m cli orders --month 2026-03 | tail -1
+   LAB_ISSUE=1 python3 -m unittest tests.test_issues
+   ```
+   **Expected:** `12 orders for 2026-03, total $1943.94`, then `OK` (was `FAILED (failures=2, …)` before the fix).
 
-**Pass:** `omp --version` printed a version; `omp token <provider>` exits 0; `git diff --stat | tail -1` says `1 file changed`.
+**Pass:** `omp --version` printed a version; `omp token <provider>` exits 0; `git diff --stat | tail -1` says `1 file changed` and the file is `cli/format.py`; `LAB_ISSUE=1 python3 -m unittest tests.test_issues` ends in `OK`.
 
 If the diff touches more than one file: `git checkout -- <extra file>` and read Lesson 1.5's troubleshooting — the prompt's "touch only the file that contains the bug" is doing real work.
 
@@ -79,17 +85,18 @@ If the diff touches more than one file: `git checkout -- <extra file>` and read 
 **Hints:**
 - Print mode is `-p`; the answer goes to stdout and the progress spinner (`Working...`) goes to stderr.
 - `>` redirects only stdout. `2>&1` would drag `Working...` into the file.
+- Match the spinner with its three dots (`grep -F 'Working...'`): the lab README names the course *Working with omp*, so the answer legitimately contains the word `Working`.
 - `--no-session` keeps this throwaway run out of your session list.
 - The lab's `notes/` directory exists and is gitignored.
 
 **Checkpoints:**
 1. The command returns to the prompt with exit 0 (`echo $?`).
 2. `wc -l notes/m1.txt` is greater than 5.
-3. `grep -c Working notes/m1.txt` prints `0`.
+3. `grep -cF 'Working...' notes/m1.txt` prints `0`.
 
 **Pass:**
 ```sh
-test -s notes/m1.txt && grep -q 'api/' notes/m1.txt && grep -q 'cli/' notes/m1.txt && ! grep -q Working notes/m1.txt && echo PASS
+test -s notes/m1.txt && grep -q 'api/' notes/m1.txt && grep -q 'cli/' notes/m1.txt && ! grep -qF 'Working...' notes/m1.txt && echo PASS
 ```
 prints `PASS`.
 
@@ -150,7 +157,7 @@ prints `PASS`.
 
 **Goal:** Re-run the W1 fix prompt from a clean checkout in print mode with `--mode json`, saving events to `notes/m1-events.json`, and locate the `edit` tool call in the stream.
 
-**Pass:** after `git checkout -- . && git checkout module-1-start` and the run, `git diff --stat | tail -1` says `1 file changed` **and** `grep -c '"edit"' notes/m1-events.json` ≥ 1.
+**Pass:** after `git checkout -- . && git checkout module-1-start` and the run, `git diff --stat | tail -1` says `1 file changed` (the file is `cli/format.py`) **and** `grep -c '"edit"' notes/m1-events.json` ≥ 1.
 
 ---
 

@@ -17,9 +17,9 @@ Check `grep -c reset_boundary` = 1 in the *original* file, and that the `/new` f
 ## G1 — Auto-compaction + handoff
 
 - With `compaction.thresholdTokens: 30000`, reading `docs/spec.md` + `api/` + `cli/` (Appendix A: < 3k LOC total) may still land under 30k tokens. If so, have the learner also read `data/lab.sqlite:orders?limit=200` and `fixtures/bundle.zip` members, or lower the threshold to 20000. Do not go below `compaction.keepRecentTokens` (20000) — nothing would be summarizable.
-- Which method runs depends on the model: Anthropic Opus/Sonnet 4.6+ and OpenAI Responses models take the `remote` lane; other models fall to `snapcompact` (needs image input) then `handoff`/`shake`/`soft`. The divider text differs (`📷 compacted` for image frames). Any of them passes.
+- Which method runs depends on the model: the `remote` lane needs provider-native server compaction (OpenAI Responses compact; Anthropic compaction beta on Opus 4.6+/Sonnet 4.6+/Fable/Mythos 5 via the official endpoint); other models fall to `snapcompact` (needs image input) then `handoff`/`shake`/`soft`. The divider is the same `── 📷 compacted · ctrl+o ──` in every case; what `Ctrl+O` reveals differs (image frames vs. handoff document vs. `artifact://` references vs. prose). Any of them passes.
 - `/handoff` immediately after an auto-compaction reports `Nothing to hand off (already compacted)` — the learner must do a turn or two of work first. This is expected; it is in the hints.
-- `/tree` `Alt+A` shows `compaction` rows; in the default filter they are hidden.
+- `/tree` lists `compaction` entries on the active path (search `compact`; `Alt+A` shows all bookkeeping entries too).
 - Pass evidence: two `"type":"compaction"` lines in the JSONL (`grep -c '"type":"compaction"'`).
 
 ## G2 — Export vs share
@@ -38,7 +38,7 @@ Recording path is under `<tmpdir>/omp-recordings/`; on macOS `$TMPDIR` is per-us
 
 ## S2 — Worktree
 
-`/wt` prompts for branch/path (not exercised on the build machine; behaviour from binary changelog strings and `omp worktree --help`). `omp worktree list` must show the entry; `omp worktree clear --dry-run` must list it without removing.
+`/wt [<branch>]` takes an optional branch name and otherwise generates `wt/<YYYYMMDD-HHMMSS>` (handler read from the binary; not exercised on the build machine). The worktree lands under `worktree.base` / `~/.omp/wt`, so `omp worktree list` must show the entry; `omp worktree clear --dry-run` must list it without removing.
 
 ## S3 — Methods
 

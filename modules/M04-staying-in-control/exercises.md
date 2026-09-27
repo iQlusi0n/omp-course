@@ -64,9 +64,9 @@ Hints:
 - Approve with the option that keeps your context unless the session is already large.
 
 Checkpoints:
-1. During planning, the transcript contains only `read`/`grep`/`glob` (and possibly `web_search`/`task`) cards — no `edit`, no `write` to files.
+1. During planning, the transcript contains only `read`/`grep`/`glob` (and possibly `web_search`/`task`) cards — no `edit`, no `write` to repo paths (the plan's own `write local://<slug>-plan.md` and `write xd://propose` are expected).
 2. The overlay shows ≥ 3 sections; sub-item (c) carries your annotation text.
-3. After approval, the session is auto-named from the plan title (visible in the terminal title / status line).
+3. After approval, the session is auto-named from the plan title (terminal title and editor border colour refresh; only if the session had no name yet).
 4. `git diff --stat` touches `api/` and `cli/` (and tests) but nothing email-related; `grep -ri "email" cli/ api/` shows no new hits.
 
 **Pass condition:** implementation omits the annotated item (checkpoint 4) and `python3 -m unittest discover -s tests` passes. Write the section titles and your annotation to `notes/m4-plan.md`.
@@ -81,7 +81,7 @@ Hints:
 - `/annotate code-review` → choose the working-copy diff. `a` adds a line note; `A` a whole-file note.
 - Choose **Continue with LLM review** (not "Paste annotations") to launch `/review` with your notes as focus.
 - After fixes, `omp commit --dry-run` first; then `omp commit -c "<one line of context>"`. If the model refuses (`No model available for commit generation`), log in or pass `-m <model>`.
-- For a second, separately scoped commit, commit in two passes: commit the `api/` change first (`omp commit -c "api only"`), then the `cli/` change. Observed on 18.3.1: `omp commit --legacy` prints `Staging all changes…` before reading the diff, i.e. it stages the whole working tree — so isolate scopes by committing between edits (or `git stash` the other part), not by partial staging. Always check `--dry-run` output for what it intends to include.
+- For a second, separately scoped commit, stage only what belongs to it: `git add api/` → `omp commit -c "api only"`, then `git add cli/` → `omp commit -c "cli only"`. Observed on this build: with files staged, `omp commit` commits only the staged changes; with nothing staged it stages everything (`--legacy` always prints `Staging all changes…`). Check `--dry-run` output for what it intends to include.
 
 Checkpoints:
 1. Overlay shows two notes on two different lines (or one line + one file-level).
@@ -95,11 +95,11 @@ Checkpoints:
 
 ## 4-S1 — Stretch: resolve `conflict-lab` via `conflict://*`
 
-Goal: `git checkout conflict-lab && git merge main` conflicts in `api/server.py` and `cli/__main__.py`. Resolve every block with `conflict://` writes — never by editing markers by hand — and get the tests green.
+Goal: `git switch -c scratch main && git merge conflict-lab` (the lab's documented flow) conflicts in `api/server.py` and `cli/__main__.py` — one marker block each, around the `SERVICE_NAME` / `DESCRIPTION` strings. Resolve both with `conflict://` writes — never by editing markers by hand — and get the tests green.
 
-Constraints: use `read <file>:conflicts` first for both files; resolve at least one block with `@ours`, at least one with `@theirs`, and at least one with literal content that combines both sides; finish with `read <file>:conflicts` showing none.
+Constraints: use `read <file>:conflicts` first for both files (expect `#1` and `#2`, ids continue across files in one session); resolve one block with a side token (`@ours` or `@theirs`) and the other with literal content that combines both sides' wording; finish with `read <file>:conflicts` showing none for both files.
 
-**Pass condition:** `git grep -n '<<<<<<<\|>>>>>>>' -- api cli` prints nothing; `python3 -m unittest discover -s tests` exits 0; `git log -1` is the merge commit (message via `omp commit -c "…"`).
+**Pass condition:** `git grep -n '<<<<<<<\|>>>>>>>' -- api cli` prints nothing; `python3 -m unittest discover -s tests` exits 0; `git log -1 --format=%P` shows two parents — conclude the merge with `git commit` (observed on this build: `omp commit` makes a single-parent commit and leaves `MERGE_HEAD`; draft the message with `omp commit --dry-run -c "…"` if you want a model-written one).
 
 ---
 

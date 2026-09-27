@@ -1,5 +1,5 @@
 // Module 10 — Lesson 10.5: the same lint-fix pool from the JavaScript eval kernel (Bun).
-// Load:  %load modules/M10-subagents-parallel-work/solutions/workpool-lint.js
+// Load (from the omp-course-lab root):  %load ../modules/M10-subagents-parallel-work/solutions/workpool-lint.js
 // JS helpers are async and take ONE trailing options object (omp://tools/eval.md):
 //   tool(fn, { name?, description?, parameters? })          fn receives one args object
 //   await workpool(agentName?, { name, context, tools })     -> WorkPool { name, agent, limit, push, status, peek, close }

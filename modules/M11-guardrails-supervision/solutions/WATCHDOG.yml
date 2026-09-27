@@ -21,8 +21,10 @@ advisors:
     enabled: true
     tools: [read, grep]
     instructions: |
-      Watch `api/` request handlers. Every error path must return a non-2xx status and a
-      JSON body with an `error` field. Raise `concern` for a 200-on-failure.
+      Watch `api/` request handlers. Every error path must return the status the error
+      deserves — 400 for bad input, 404 for a missing row, 409 for a duplicate, 500 for
+      anything unexpected — with a JSON body carrying an `error` field. Raise `concern` for a
+      2xx-on-failure or for a catch-all that maps every exception to 400.
 
   - name: Fixer
     enabled: false
@@ -30,4 +32,5 @@ advisors:
     # these tools mutate the workspace and still go through your approval mode.
     tools: [read, grep, glob, bash]
     instructions: |
-      You may run `python3 -m unittest` to prove or disprove a suspicion before advising.
+      You may run `python3 -m unittest discover -s tests` (or `LAB_ISSUE=8 python3 -m unittest
+      tests.test_issues`) to prove or disprove a suspicion before advising.

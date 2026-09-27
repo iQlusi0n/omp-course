@@ -25,10 +25,37 @@ Built against `omp/18.3.1` (Linux x64) on 2026-09-25. Build machine: Python 3 on
 
 ## Dropped as unverifiable
 
-- Any claim about `/wt` argument syntax (prompt vs inline args) — not in docs or help; the lesson says "read its prompt".
+- `/wt` argument syntax was originally dropped; the wave-2 audit read the handler from the binary (`inlineHint: "[<branch>]"`, default `wt/<YYYYMMDD-HHMMSS>`, `Branch '…' already exists` / `Cannot create a worktree while streaming.` / `Moved to worktree … on branch …` strings) and the lesson now states it as **[observed in binary]**. Still not exercised live.
 - Exact `/move` semantics beyond "relocates the session, refuses during `/btw`" — from omp://slash-command-internals.md only.
 - Keybinding action ids for `/tree` / `/fork` (`app.session.tree`, `app.session.fork`) appear in omp://tree.md and omp://session-tree-plan.md but not in omp://keybindings.md's common table; only `app.session.tree` is mentioned in the README, attributed to tree.md.
 
 ## Lab fixture references used
 
-`module-5-start` tag, `notes/`, `api/`, `cli/main.py`, `tests/`, `docs/spec.md`, `data/lab.sqlite`, `fixtures/bundle.zip`, `.env.example` `labtok_…`, issue #7 (red-herring investigation) — all per Appendix A; no other lab details assumed.
+`module-5-start` tag, `notes/`, `api/`, `cli/__main__.py`, `tests/`, `docs/spec.md`, `data/lab.sqlite`, `fixtures/bundle.zip`, `.env.example` `labtok_…`, issue #7 (red-herring investigation) — all per Appendix A / `omp-course-lab/README.md`; no other lab details assumed.
+
+## Wave-2 audit (2026-09-27)
+
+Binary on PATH at audit time: `omp/18.3.5` (README header keeps the 18.3.1 build line and notes the re-audit). Every command, flag, key, setting key, default, path and message in this module was re-checked against `omp://` docs (session.md, session-switching-and-recent-listing.md, session-operations-export-share-fork-resume.md, tree.md, session-tree-plan.md, compaction.md, handoff-generation-pipeline.md, stream.md, settings.md, cli-reference.md, slash-command-internals.md, keybindings.md, environment-variables.md, models.md), `omp --help`, `omp worktree|gc|play|clip|share|tiny-models|config --help`, `omp config get/list` (all 33 setting defaults quoted in the module), UI strings extracted from the binary, and one `-p --session-dir` smoke run (title slot / header v3 / entry types confirmed on 18.3.5).
+
+Fixed in place:
+
+- `cli/main.py` → `cli/__main__.py` (README 5.4 step 1, exercises W1) — the lab has no `cli/main.py`.
+- `/wt` now documented as `/wt [<branch>]` with the generated-branch pattern and refusal messages (README 5.1, cheat sheet, exercises S2, solutions S2); `/move` refusal while streaming added.
+- `worktree.clone` scope corrected to the binary's description (`/wt`, `github pr_checkout`, bash `git worktree add`; falls back to plain checkout).
+- Terminal-id env fallback list corrected to the documented set/order (`ZELLIJ_PANE_ID`, `TMUX_PANE`, `CMUX_SURFACE_ID`, `KITTY_WINDOW_ID`, `WEZTERM_PANE`, `TERM_SESSION_ID`, `WT_SESSION`).
+- 5.2 step 2 expectation: breadcrumb has *at least* two lines (a third bookkeeping line was observed).
+- `statusLine.contextLine` described per its schema description (how the composer border line reflects context usage; enum `off|percentage|annotated|embedded`).
+- `omp config set` always writes the global config (settings.md); project scoping needs a hand-edited `.omp/config.yml` (README 5.5 step 1, exercises G1).
+- 5.3 Stretch pass condition: status line shows the session *title*, not an id.
+- 5.5 troubleshooting: manual `/compact` "session too small" is not fixed by lowering `thresholdTokens` (thresholds govern automatic maintenance).
+- Compaction divider: the documented divider is `── 📷 compacted · ctrl+o ──` regardless of method (compaction.md "Display transcript"); method identification now relies on the expanded summary (README 5.5, exercises G1/S3, solutions G1).
+- `/tree` compaction rows: `compaction` is not among the entry types the `default` filter hides (tree.md), so the "hidden by default, press Alt+A" claim was replaced by "search `compact`; `Alt+A` shows everything".
+- 5.6 guided hint rewritten from doc: export embeds entries + current leaf; pre-`/clear` history retained; compactions rendered chronologically.
+- `doubleEscapeAction` enum: omp://settings.md lists only `rewind|none`; `omp config list` shows `rewind|tree|none` and omp://session-tree-plan.md documents the `tree` behaviour — binary wins, lesson unchanged.
+
+### Removed (unverifiable)
+
+- "or a plain `compacted` divider when a text method ran" / "the divider text differs (`📷 compacted` for image frames)" — no doc or binary string supports a method-specific divider.
+- "compaction entries are hidden by the default `/tree` filter" — not in tree.md's hidden list.
+- "`Ctrl+O`-style expansion exists in the HTML for compactions and branch summaries" — HTML export behaviour for expandable dividers is not documented.
+- "`/wt` needs a clean way to name the branch — read its prompt" — `/wt` takes an inline optional branch; no prompt exists in the handler.

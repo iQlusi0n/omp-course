@@ -1,6 +1,6 @@
 # Module 10 — instructor notes (solutions)
 
-Built against `omp/18.3.1`. Everything below was checked against `omp://tools/task.md`, `omp://task-agent-discovery.md`, `omp://agent-hub.md`, `omp://tools/eval.md`, `omp://python-repl.md`, `omp://tools/wait.md`, `omp://vibe-mode.md`, `omp://magic-keywords.md`, `omp config list`, `omp agents unpack`, and live kernel introspection. The helper snippets (`workpool-lint.py`, `workpool-lint.js`) had their non-agent parts executed on the build machine; the agent-spawning parts follow the documented API verbatim.
+Built against `omp/18.3.5`. Everything below was checked against `omp://tools/task.md`, `omp://task-agent-discovery.md`, `omp://agent-hub.md`, `omp://tools/eval.md`, `omp://python-repl.md`, `omp://tools/wait.md`, `omp://vibe-mode.md`, `omp://magic-keywords.md`, `omp config list`, `omp agents unpack`, and live kernel introspection. The helper snippets (`workpool-lint.py`, `workpool-lint.js`) had their non-agent parts executed on the build machine; the agent-spawning parts follow the documented API verbatim.
 
 ## W — three scouts with `outputSchema`
 
@@ -58,11 +58,11 @@ Equivalent from the composer without the Hub: `write proc://<B>/kill` (no conten
 
 ## G3 — `workpool()` lint pass vs. separate spawns (`notes/m10.md`)
 
-Files: `api/**/*.py` (4) + `cli/**/*.py` (5) + `tests/**/*.py` (4) = 13 ≥ 10; **never** `generated/` (RULES fixture) and not `tools/` (mock provider must keep working).
+Files at `module-10-start`: `api/**/*.py` (4) + `cli/**/*.py` (5) + `tests/**/*.py` (6, including `support.py` and `test_issues.py`) = 15 ≥ 10; **never** `generated/` (RULES fixture) and not `tools/` (mock provider must keep working). `lab_files()` globs at run time, so the count follows the checkout.
 
 Run A (pool): `%load` `solutions/workpool-lint.py`, `pool, before = run_pool(lab_files())`, end the turn, wait for the `lintfix` aggregate delivery, then `write('notes/m10.md', report(lab_files(), before))`.
 
-Run B (separate spawns): `git checkout -- api cli tests`, then one batch `task` call with 13 `sonic` items (one file each, `context` = the same pool context, and *no* `lint` tool unless the learner passes `tools: ["lint"]` per item — `task` items accept `tools` too, per `omp://tools/eval.md` §Kernel-defined tools).
+Run B (separate spawns): `git checkout -- api cli tests`, then one batch `task` call with 15 `sonic` items (one file each, `context` = the same pool context, and *no* `lint` tool unless the learner passes `tools: ["lint"]` per item — `task` items accept `tools` too, per `omp://tools/eval.md` §Kernel-defined tools).
 
 Measurement:
 - Wall time: Hub header / per-row `active time`, or the learner's stopwatch between spawn and last delivery.
@@ -72,8 +72,8 @@ Expected shape of the table (numbers vary by model):
 
 | approach | agents | requests | wall time | cost |
 |---|---|---|---|---|
-| `workpool('sonic')` 13 items | ≤ `task.maxConcurrency` workers, batched follow-ups | lower | similar | lower |
-| 13 `sonic` task items | 13 | higher (13 fresh contexts) | similar (both bounded by `task.maxConcurrency`=16) | higher |
+| `workpool('sonic')` 15 items | ≤ `task.maxConcurrency` workers, batched follow-ups | lower | similar | lower |
+| 15 `sonic` task items | 15 | higher (15 fresh contexts) | similar (both bounded by `task.maxConcurrency`=32) | higher |
 
 The pool wins on requests/cost because idle workers take follow-up batches with their context warm; with `eval.workpool.freshAgents: true` the two runs converge — a good discussion point.
 

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Built against** | `omp --version` → `omp/18.3.1` (`omp v18.3.1`) |
+| **Built against** | `omp --version` → `omp/18.3.1` (`omp v18.3.1`); re-audited on `omp/18.3.5` (see `BUILD-NOTES.md`) |
 | **Prerequisites** | Module 4 (approval modes, `/review`). A configured model (`omp models` lists at least one). |
 | **Lab checkpoint** | `git checkout module-13-start` in `omp-course-lab` |
 | **Learner machine extras** | 13.3 needs Bun ≥ 1.3.14. 13.4 needs an ACP-capable editor (Zed or any ACP client). 13.5 needs `jq` and, for `pr://`, the GitHub CLI `gh` logged in. |
@@ -178,7 +178,7 @@ graph LR
 **Try it (Walkthrough):**
 1. `printf '{"id":"s1","type":"get_state"}\n' | omp --mode rpc --no-ui --no-session --no-tools`
    **Expected:** three lines — `ready`, `available_commands_update`, and the `response` for `s1` with `data.model`, `data.isSettled: true`. Exit `0` after stdin EOF.
-2. Run the shipped client: `python3 modules/M13-headless-scripted-embedded/solutions/rpc_client.py --tools read,grep,glob "Reply with exactly the word: hello"`
+2. Run the shipped client (from `omp-course-lab`): `python3 ../modules/M13-headless-scripted-embedded/solutions/rpc_client.py --tools read,grep,glob "Reply with exactly the word: hello"`
    **Expected:** stderr shows `[ready]`, `[state]`, `[ack]`, `[prompt_result] status=completed sessionSettled=True`, `[exit] omp exited 0`; stdout `hello`; exit `0`.
 3. Abort: `python3 …/rpc_client.py --tools read,grep,glob --abort-after 1.5 "Write a 1500 word essay about rivers, streaming it as you go."`
    **Expected:** a partial essay on stdout, then `[abort] success=True` and `[prompt_result] status=aborted`; exit `0`.
@@ -292,7 +292,7 @@ graph LR
 **Try it (Walkthrough):** *(on a machine with Bun; skip on the Python-only lab box)*
 1. `cd omp-course-lab && bun add @oh-my-pi/pi-coding-agent`
    **Expected:** package installed; `bun --version` ≥ 1.3.14.
-2. `cp modules/M13-headless-scripted-embedded/solutions/sdk-readonly.ts notes/ && bun notes/sdk-readonly.ts "List the files under api/ in one line"`
+2. `cp ../modules/M13-headless-scripted-embedded/solutions/sdk-readonly.ts notes/ && bun notes/sdk-readonly.ts "List the files under api/ in one line"`
    **Expected:** stderr `[tools] read, grep, glob`, `[sessionFile] undefined`, `[tool] glob` (or `read`); stdout streams the answer; `[agent_end] terminal`.
 3. `bun notes/sdk-readonly.ts "Create notes/sdk.txt containing done"`
    **Expected:** the model reports it has no write tool; `ls notes/sdk.txt` → no such file.
@@ -356,9 +356,9 @@ graph LR
 4. Create `notes/acp-yolo.yml` containing `tools:\n  approvalMode: yolo`, change the editor's agent command to `omp acp --config <abs path>/notes/acp-yolo.yml`, reconnect, repeat step 2.
    **Expected:** no permission dialog; the edit lands.
 
-**Guided task:** keep yolo but re-gate one tool: add `tools:\n  approval:\n    bash: prompt` to the same overlay and ask the agent to run `python -m pytest -q`. Hints: approval-mode.md "ACP sessions" last two paragraphs; per-tool `prompt`/`deny` survive yolo. Checkpoints: (a) `edit` still needs no dialog; (b) `bash` produces a permission request. Pass condition: both observed in the editor.
+**Guided task:** keep yolo but re-gate one tool: add `tools:\n  approval:\n    bash: prompt` to the same overlay and ask the agent to run `python3 -m unittest discover -s tests`. Hints: approval-mode.md "ACP sessions" last two paragraphs; per-tool `prompt`/`deny` survive yolo. Checkpoints: (a) `edit` still needs no dialog; (b) `bash` produces a permission request. Pass condition: both observed in the editor.
 
-**Stretch:** run the guided-task overlay (yolo + `tools.approval.bash: prompt`) through print mode instead (`omp -p --no-session --config notes/acp-yolo.yml "run python -m pytest -q and report the summary line"`) and explain, in `notes/acp-vs-print.md`, why the bash call is *refused* there but *prompted* in ACP. Pass: the note names the missing surface (no UI in print mode → a `prompt` policy cannot be satisfied) and cites approval-mode.md.
+**Stretch:** run the guided-task overlay (yolo + `tools.approval.bash: prompt`) through print mode instead (`omp -p --no-session --config notes/acp-yolo.yml "run python3 -m unittest discover -s tests and report the summary line"`) and explain, in `notes/acp-vs-print.md`, why the bash call is *refused* there but *prompted* in ACP. Pass: the note names the missing surface (no UI in print mode → a `prompt` policy cannot be satisfied) and cites approval-mode.md.
 
 **Troubleshooting:**
 
@@ -409,19 +409,19 @@ graph LR
   ```
 
   What a blocked call looks like inside the JSON stream (a `tools.approval.bash: prompt` policy under `-p`, captured on 18.3.1): `tool_execution_end … "isError": true`, result text `Tool "bash" requires approval but no interactive UI available.` — the model then reports the error and the run still exits `0`.
-- **Skeleton of `ci-review.sh`** (the shipped file adds arg parsing and a `pr://` mode):
+- **Skeleton of `review.sh`** (the shipped `solutions/ci-review.sh` adds arg parsing and a `pr://` mode):
 
   ```bash
   omp -p --mode json --no-session --no-extensions --no-skills \
       --config ci/ci.yml --tools read,grep,glob --max-time 10m \
       "/review Respond with ONLY a JSON object … {\"findings\":[…],\"verdict\":\"pass|fail\"}" > "$RAW" 2>/dev/null \
     || { echo "omp failed — failing closed" >&2; exit 1; }
-  python3 - "$RAW" <<'PY'      # last assistant message_end → strip ``` → json.loads → exit 1 on any P0
+  python3 - "$RAW" <<'PY'      # last assistant message_end → pull the JSON object out of any fence/prose → exit 1 on any P0 or verdict=fail
   …
   PY
   ```
-- **`/review` runs headless.** `omp -p "/review …"` resolves the working diff itself (bundled review command) and any trailing text is appended to its prompt — that is where you specify the JSON verdict format. There is no documented native JSON output for `/review`; the shipped script asks for `{"findings":[{severity,file,line,title}],"verdict"}` and strips the code fence the model sometimes adds anyway.
-- **Verdict from content, not exit code.** omp exits `0` after a refused tool or an empty review. Parse the last assistant `message_end` from `--mode json`, then exit `1` on any `P0` (or on unparseable output — fail closed).
+- **`/review` runs headless.** `omp -p "/review …"` resolves the working diff itself (bundled review command) and any trailing text is appended to its prompt — that is where you specify the JSON verdict format. There is no documented native JSON output for `/review`; the shipped script asks for `{"findings":[{severity,file,line,title}],"verdict"}` and pulls the JSON object out of the reply even when the model wraps it in a code fence or prefixes prose (both observed despite "no prose, no code fence").
+- **Verdict from content, not exit code.** omp exits `0` after a refused tool or an empty review. Parse the last assistant `message_end` from `--mode json`, then exit `1` on any `P0` or on `verdict: "fail"` (or on unparseable output — fail closed).
 - **PRs:** `read pr://<N>` (or `pr://<owner>/<repo>/<N>`) gives the PR view (`?comments=0` to drop comments); `pr://<N>/diff` lists changed files, `pr://<N>/diff/<i>` one file, `pr://<N>/diff/all` the full unified diff. The same URIs work from the shell: `omp read pr://12/diff/all`. Needs `gh` authenticated; results are cached in `~/.omp/cache/github-cache.db` (`github.cache.*` settings). `ci-review.sh` switches to a `pr://` target with `OMP_REVIEW_TARGET=pr://12`.
 - **Secrets via environment.** Provider keys are read from env (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, …; `omp --help` lists them) or `--api-key`. Put them in the CI secret store, never in `ci.yml` or the repo. The lab's `.env.example` `labtok_…` token exists so you can check the bot never echoes it.
 - **MCP in CI:** print mode waits for configured MCP servers up to `OMP_MCP_TIMEOUT_MS`; set `OMP_MCP_REQUIRE_READY=1` to fail fast, or avoid MCP in the bot profile.
@@ -434,7 +434,7 @@ graph LR
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }          # full history so /review can diff against the base branch
-      - run: <install omp per omp.sh>      # see Module 1 for install paths
+      - run: curl https://omp.sh/install | sh   # see Module 1 for install paths
       - run: bash ci/review.sh --max-time 5m
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # or OPENAI_API_KEY, …
@@ -443,28 +443,28 @@ graph LR
   ```
 
 **Try it (Walkthrough):**
-1. `mkdir -p ci && cp modules/M13-headless-scripted-embedded/solutions/{ci-review.sh,ci.yml} ci/ && chmod +x ci/ci-review.sh`
-   **Expected:** `ci/ci-review.sh`, `ci/ci.yml` exist.
-2. Clean tree: `bash ci/ci-review.sh --max-time 3m; echo EXIT=$?`
+1. `mkdir -p ci && cp ../modules/M13-headless-scripted-embedded/solutions/ci-review.sh ci/review.sh && cp ../modules/M13-headless-scripted-embedded/solutions/ci.yml ci/ && chmod +x ci/review.sh`
+   **Expected:** `ci/review.sh`, `ci/ci.yml` exist.
+2. Clean tree: `bash ci/review.sh --max-time 3m; echo EXIT=$?`
    **Expected:** `review: 0 finding(s), 0 P0, verdict=pass`, `EXIT=0` (the working diff is empty).
 3. Plant a P0: append `os.system("rm -rf " + input())` (with `import os`) to `cli/__init__.py`, rerun.
-   **Expected:** a `P0  cli/__init__.py:<line>  …` row, `review: … P0, verdict=fail`, `EXIT=1`.
+   **Expected:** `EXIT=1` — normally a `P0  cli/__init__.py:<line>  …` row and `verdict=fail`. Models are not deterministic here: on the audit run the reviewer listed the lab's seeded issues as `P1` rows and still returned `verdict=fail` (see `BUILD-NOTES.md`); the script goes red either way.
 4. Watch the fences: `omp -p --mode json --no-session --config ci/ci.yml --tools read,grep,glob "/review Respond with one line." 2>/dev/null | jq -r 'select(.type=="tool_execution_start") | .toolName' | sort | uniq -c`
    **Expected:** only `read`, `grep`, `glob` rows.
-5. Deadline path: `bash ci/ci-review.sh --max-time 1; echo EXIT=$?`
+5. Deadline path: `bash ci/review.sh --max-time 1; echo EXIT=$?`
    **Expected:** `review: omp exited 1 (deadline or startup failure) — failing closed`, `EXIT=1`.
 6. `git checkout cli/__init__.py`.
    **Expected:** step 2 passes again.
 
-**Guided task:** wire it to a PR. Push a branch with the P0 from step 3, open a PR, then `OMP_REVIEW_TARGET=pr://<N> bash ci/ci-review.sh`. Hints: `omp read pr://<N>/diff/all` first to confirm `gh` works; the script's prompt for PR targets tells the model to read that URI. Checkpoints: (a) `omp read pr://<N>` renders the PR; (b) the run's `tool_execution_start` frames show a `read` of `pr://<N>/diff/all`; (c) exit `1`. Pass condition: (c), and after fixing the P0 on the branch, exit `0`.
+**Guided task:** wire it to a PR. Push a branch with the P0 from step 3, open a PR, then `OMP_REVIEW_TARGET=pr://<N> bash ci/review.sh`. Hints: `omp read pr://<N>/diff/all` first to confirm `gh` works; the script's prompt for PR targets tells the model to read that URI. Checkpoints: (a) `omp read pr://<N>` renders the PR; (b) the run's `tool_execution_start` frames show a `read` of `pr://<N>/diff/all`; (c) exit `1`. Pass condition: (c), and after fixing the P0 on the branch, exit `0`.
 
-**Stretch:** put it in a workflow (`.github/workflows/review.yml` or your CI's equivalent) that installs omp, exports the provider key from the CI secret store, runs `ci/ci-review.sh --max-time 5m`, and posts the finding rows as a PR comment. Pass: one red run on the P0 branch, one green run after the fix, and `grep -r labtok_ $CI_LOG` finds nothing.
+**Stretch:** put it in a workflow (`.github/workflows/review.yml` or your CI's equivalent) that installs omp, exports the provider key from the CI secret store, runs `ci/review.sh --max-time 5m`, and posts the finding rows as a PR comment. Pass: one red run on the P0 branch, one green run after the fix, and `grep -r labtok_ $CI_LOG` finds nothing.
 
 **Troubleshooting:**
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `review: could not parse JSON verdict` | model answered in prose | keep the schema line in the prompt; a stronger `--model`; the script already strips ``` fences |
+| `review: could not parse JSON verdict` | model answered in prose with no JSON object | keep the schema line in the prompt; a stronger `--model`; the script already extracts a fenced or prose-wrapped JSON object |
 | Bot edits files | a tool got through | check all four fences: `--tools`, `ci.yml` deny list, `--no-extensions`, and that no `--yolo` is on the command line (flags beat overlays) |
 | `pr://` read fails | `gh` not authenticated / wrong repo | `gh auth status`; use `pr://owner/repo/N` |
 | Stale PR content | github cache | `github.cache.softTtlSec` / `hardTtlSec` settings, or wait for TTL |
@@ -482,7 +482,7 @@ graph LR
 | hygiene | `--no-session --no-extensions --no-skills [--profile ci-bot]` |
 | review | `omp -p --mode json "/review <verdict format>"` |
 | PR | `pr://N`, `pr://N/diff`, `pr://N/diff/<i>`, `pr://N/diff/all`, `omp read pr://N` |
-| verdict | last assistant `message_end` → JSON → exit 1 on P0 |
+| verdict | last assistant `message_end` → JSON → exit 1 on P0 or `verdict: fail` |
 | bigger | `robomp serve` (webhooks → RPC session per issue → PR) |
 
 **Source:** omp://cli-reference.md, omp://settings.md, omp://approval-mode.md, omp://tools/read.md, omp://tools/github.md, omp://environment-variables.md, omp://user-facing-packages.md

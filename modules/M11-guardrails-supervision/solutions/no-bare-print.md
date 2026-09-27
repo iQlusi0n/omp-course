@@ -6,4 +6,4 @@ interruptMode: tool-only
 ---
 New code under `cli/` must not call `print(...)` directly.
 
-Route output through the module's existing output helper (search `cli/` for the function that writes to `sys.stdout` and reuse it). If none exists in the file you are editing, write to `sys.stdout.write(...)` with an explicit newline so the output path stays testable.
+Route output through `cli/log.py`'s `logger` (`from cli.log import logger` → `logger.debug(msg)`); it writes bare messages to stdout, so the CLI tests stay green. For error text keep using `sys.stderr.write(...)` as `cli/__main__.py` does.

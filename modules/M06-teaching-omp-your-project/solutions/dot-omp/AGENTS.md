@@ -3,14 +3,14 @@
 Small Python (stdlib-only) HTTP service + CLI used by the omp course. No third-party packages.
 
 ## Layout
-- `api/` — HTTP service on `http.server`, SQLite-backed (`data/lab.sqlite`). `api/__init__.py` re-exports the public functions.
+- `api/` — HTTP service on `http.server`, SQLite-backed (`data/lab.sqlite`). `api/__init__.py` re-exports the public functions (e.g. `get_user`).
 - `cli/` — argparse client for the API.
 - `web/` — static signup form (HTML + small JS).
-- `generated/` — build output. **Never edit by hand**; change the generator input and regenerate.
+- `generated/` — build output written by `tools/seed_db.py` (every file starts with `# GENERATED — do not edit`). **Never edit by hand**; change the generator and re-run `python3 tools/seed_db.py`.
 - `tests/` — test suite. `notes/` — learner scratch output, gitignored.
 
 ## Commands
-- Test: `python3 -m pytest -q` (if pytest is missing: `python3 -m unittest discover -s tests`)
+- Test: `python3 -m unittest discover -s tests` (stdlib `unittest`; pytest is not installed)
 - Lint: `python3 -m compileall -q api cli`
 - Run API: `python3 -m api --port 8080`
 

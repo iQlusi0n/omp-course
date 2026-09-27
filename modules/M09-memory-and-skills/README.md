@@ -5,12 +5,12 @@
 | **Built against** | `omp --version` → `omp/18.3.1` |
 | **Prerequisite** | Module 6 (settings layering, skills, `skill://`) |
 | **Practice repo** | `omp-course-lab` at `git checkout module-9-start` |
-| **Fixtures used** | issue #6 (misleading error message), issue #7 (red-herring investigation) — see `omp-course-lab/docs/ISSUES.md` |
+| **Fixtures used** | issue #6 (`"database is locked"` when `DATABASE_URL` uses the `sqlite:///` form — a misleading error; fix in `api/db.py`), issue #7 (`order_count` includes cancelled orders — an investigation with seeded red herrings; fix in `api/db.py`) — see `omp-course-lab/docs/ISSUES.md`. Gated tests: `LAB_ISSUE=6` / `LAB_ISSUE=7 python3 -m unittest tests.test_issues`. |
 | **Coursework** | `exercises.md` · answers in `solutions/` · one-page `cheatsheet.md` |
 
 **Goal:** Make omp remember across sessions and turn lessons into reusable skills.
 
-**Everything in this module is off by default.** Four settings gate every feature below, and all four ship as off/false on omp 18.3.1 (verified with `omp config get`):
+**Everything in this module is off by default.** Three settings gate every feature below and ship as off/false on omp 18.3.1 (verified with `omp config get`); a fourth, already on, is listed because Module 6 flagged it:
 
 | Setting | Default | Unlocks |
 |---|---|---|
@@ -39,7 +39,7 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
 
 ## Lesson 9.1 — Backends              (~15 min)
 **You will be able to:** pick a memory backend and state which tools, files, and `memory://` URLs it gives you; enable it project-locally or globally; inspect it with `/memory`.
-**Why this exists:** A fresh omp session knows nothing about yesterday. Module 6 fixed the *stable* facts (`AGENTS.md`, rules, skills), but the things you discover while working — "integration tests need `DATABASE_URL`", "the flaky test is a red herring" — evaporate at `/new`. A memory backend gives omp a place to keep that residue. omp ships several, and they differ in *where* data lives (files, local SQLite, a remote server) and in *which tools* the model gets. Choosing wrong means asking for `recall` and getting nothing, so this lesson is about the decision table first and the switch second.
+**Why this exists:** A fresh omp session knows nothing about yesterday. Module 6 fixed the *stable* facts (`AGENTS.md`, rules, skills), but the things you discover while working — "the tests copy the DB and set `DATABASE_URL` themselves", "that `database is locked` message is a lie" — evaporate at `/new`. A memory backend gives omp a place to keep that residue. omp ships several, and they differ in *where* data lives (files, local SQLite, a remote server) and in *which tools* the model gets. Choosing wrong means asking for `recall` and getting nothing, so this lesson is about the decision table first and the switch second.
 **Demo:** `demos/9.1-backends.md` — enabling `mnemopi` in the lab repo, then `/memory stats` and `/memory view`.
 **Concepts:**
 - `memory.backend` — enum `off | local | hindsight | mnemopi | sharpshooter`, default **`off`** (`omp config get memory.backend` → `off`). Three ways to select:
@@ -95,7 +95,7 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
   Under `mnemopi` the `root` form does not resolve; under `hindsight` the id form returns a corrective pointer. These URLs are session-side: the shell `omp read memory://…` reports `Unknown protocol: memory://`.
 - **`/memory` subcommands:** `view` (current injection payload) · `stats` (backend statistics) · `diagnose` · `queue` (pending deltas awaiting consolidation) · `sync` (run consolidation now) · `clear`/`reset` (delete active backend data; Mnemopi: every scoped DB + WAL/SHM) · `enqueue`/`rebuild` (force consolidation/retention; Mnemopi: retains the current session, flushes extraction, runs sleep/consolidation for rows older than 12 h; local: marks work for the next startup) · `mm …` (Hindsight only; unsupported in ACP mode).
 - **How the tools render.** `retain`/`recall`/`reflect`/`memory_edit` are *discoverable* tools. With `tools.xdev` (observed `true` on 18.3.1) they may be presented as devices — the card can read `write xd://recall` instead of a top-level `recall` card, and `read xd://` lists the mounted devices. Passing `--tools=recall,retain,reflect` keeps them top-level. Either rendering is the same tool.
-- **Approval.** All four memory tools declare `approval = "read"`, so they never prompt in any approval mode (Module 4), even though `retain`/`memory_edit` write to disk.
+- **Approval.** `recall`, `reflect` and `memory_edit` declare `approval = "read"`, so they never prompt in any approval mode (Module 4), even though `memory_edit` writes to disk. `retain` is `read` too, except a call with a `scope: "global"` item is `write` (that option is only offered under `global`/`per-project-tagged` scoping — never under the default `per-project`).
 - **Subagents (M10 preview).** They alias the parent's memory state for explicit `recall`/`retain`/`reflect` calls but run no auto-recall/auto-retain loops of their own; the `local` pipeline skips them entirely.
 
 **Try it (Walkthrough):**
@@ -165,7 +165,7 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
 
   | You say | Tool the model reaches for | What you get back |
   |---|---|---|
-  | "Remember that …", "Store this for future sessions: …", "Keep a note that …" | `retain` | `N memory stored.` |
+  | "Remember that …", "Store this for future sessions: …", "Keep a note that …" | `retain` | `1 memory stored.` / `N memories stored.` |
   | "What do you remember about …?", "Have we hit this before?", "Search your memory for …" | `recall` | bullet list with ids |
   | "Based on what you remember about this repo, how should I …?" (needs an *answer*, not a list) | `reflect` | `Based on recalled memories:` + context |
   | "That memory is wrong — update it to say …" | `read memory://<id>` then `memory_edit update` | `Memory <id> updated …` |
@@ -183,18 +183,18 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
   New rows land in the **working** store. Mnemopi's sleep/consolidation (run by `/memory enqueue`, and only for unconsolidated working rows older than half the 24-hour working-memory TTL = 12 h) promotes eligible rows; normal shutdown never does. Every row reports its store — `working`, `episodic`, or `fact` — in `memory://<id>` frontmatter and in `memory_edit` results. `update`/`forget` work on working rows only; `invalidate` works on working *and* episodic rows; fact-table rows are read-only. This is why an id that `recall` showed you yesterday may answer `not_found` to `update` today — use `invalidate`.
 - **Auto vs explicit.** `mnemopi.autoRecall` (first turn, `<memories>` block) and `mnemopi.autoRetain` (episodes) run without you asking. Explicit tool calls are per-session work on the same scoped bank; an explicit `recall` does not rewrite the injected `<memories>` block. Subagents alias the parent state for explicit calls but run no auto loops of their own.
 - **Durability.** Normal exit gives the retain/flush drain 1.5 s and does not promote fresh rows; already-written working rows are durable. `/memory enqueue` is the strong boundary: forces retention of the current session, flushes pending extraction, consolidates rows older than 12 h.
-- **Approval:** all four are `approval = "read"` — no prompt in any mode.
+- **Approval:** `recall`/`reflect`/`memory_edit` are `approval = "read"`; `retain` is `read` unless an item carries `scope: "global"` (then `write`). Under `per-project` scoping nothing here ever prompts.
 
 **Try it (Walkthrough):** (backend `mnemopi` from Lesson 9.1; cwd `omp-course-lab/`)
-1. `remember that this repo's integration tests need DATABASE_URL set`
+1. `remember that this repo's tests copy data/lab.sqlite to a temp file and point DATABASE_URL at the copy (tests/support.py, class TempDB)`
    Expected: a `retain` card (or `write xd://retain`) whose result reads `1 memory stored.`
 2. `/new`
    Expected: an empty conversation, same project, same bank.
-3. `how do I run integration tests here?`
+3. `how do the tests in this repo pick their database?`
    Expected: a `recall` and/or `reflect` card; the result bullet contains `DATABASE_URL` and an `(id: …)`; the answer repeats the fact. Note the id.
 4. `read memory://<that id>`
    Expected: a `read` card with YAML frontmatter (`id`, `bank`, `store`, `memory_type: fact`, `importance: 0.75`, `source: coding-agent-retain`) and the full content.
-5. `that memory should also say the URL must point at a scratch database — update it`
+5. `that memory should also say that the sqlite:/// URL form from .env.example only works once issue #6 is fixed in api/db.py — before that, only a plain path works. Update it.`
    Expected: the model re-reads `memory://<id>` (or uses the full row it already has), then a `memory_edit` card with `op: update` and result `Memory <id> updated in bank <bank> (working).`
 6. `/memory stats`
    Expected: bank statistics reflecting at least one stored memory.
@@ -236,7 +236,7 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
 **Demo:** `demos/9.3-learn-skill.md` — solving fixture #6, then `learn` + managed skill, then reading it in a new session.
 **Concepts:**
 - **`autolearn.enabled`** (default `false`). Turning it on registers **`manage_skill`** regardless of backend, and **`learn`** only when `memory.backend` is `local`, `mnemopi`, or `hindsight`. Both are `loadMode = "essential"` — always top-level, never `xd://`. It also arms a *nudge*: after a turn that used ≥ `autolearn.minToolCalls` (5) tools, omp reminds the model to capture lessons. With `autolearn.autoContinue: false` (default) the reminder rides your next turn; `true` spends tokens on an extra capture turn at stop.
-- **`learn({ memory, context?, skill? })`** — stores the lesson **first**, then optionally writes a skill. Per backend: `local` → normalises and appends to `~/.omp/agent/memories/<encoded-cwd>/learned.md` (newest-first, deduplicated, secret-redacted, ≤ 100 bullets, `memory` ≤ 2,000 chars, `context` ≤ 400) — injected starting with the **next** session, so the current prompt-cache prefix is untouched; `mnemopi` → a `fact` row, `importance 0.8`, `source: coding-agent-learn`; `hindsight` → queued. Result: `Lesson stored.` / `Lesson queued for retention.`, plus `Created managed skill "<name>".` when `skill` is given. `skill = { action: create|update, name, description, body }` (body is Markdown **without** frontmatter). Approval is dynamic: `write` if `skill` is present or the backend is `local`; otherwise `read`.
+- **`learn({ memory, context?, skill? })`** — stores the lesson **first**, then optionally writes a skill. Per backend: `local` → normalises and appends to `~/.omp/agent/memories/<encoded-cwd>/learned.md` (newest-first, deduplicated, secret-redacted, ≤ 100 bullets, `memory` ≤ 2,000 chars, `context` ≤ 400) — injected starting with the **next** session, so the current prompt-cache prefix is untouched; `mnemopi` → a `fact` row, `importance 0.8`, `source: coding-agent-learn`; `hindsight` → queued. Result: `Lesson stored.` / `Lesson queued for retention.`, plus `Created managed skill "<name>".` when `skill` is given. `skill = { action: create|update, name, description, body }` (body is Markdown **without** frontmatter). Approval is dynamic: `write` if `skill` is present, if an item has `scope: "global"` (Mnemopi `global`/`per-project-tagged` scoping only), or if the backend is `local`; otherwise `read`.
 - **`manage_skill({ action, name, description?, body? })`** — `create` (exclusive; fails if it exists), `update` (must exist), `delete`. `approval = "write"`. Unlike `learn`, it **refreshes the active skill list immediately**, so the running session can use the skill.
 - **Where managed skills live:** `~/.omp/agent/managed-skills/<name>/SKILL.md` (default agent dir; a `--profile` moves it). Name is trimmed, lowercased, must match `[a-z0-9][a-z0-9-]{0,63}`; description collapsed to one line; whole file ≤ 64,000 bytes; frontmatter (`name`, `description`) is generated for you.
 
@@ -245,17 +245,17 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
   ```markdown
   ---
   name: lab-issue-6-misleading-error
-  description: Diagnose the misleading '<text>' error in omp-course-lab
+  description: Diagnose the misleading 'database is locked' error in omp-course-lab
   ---
-  ## When you see '<text>'
-  1. Do not trust the file the message names.
-  2. Check <X> first.
-  3. Fix <file>:<line>; re-run <command>.
+  ## When python3 -m cli says 'database is locked'
+  1. Do not look for locks, WAL files or a running server.
+  2. Print DATABASE_URL; a sqlite:/// prefix or a missing file is the cause.
+  3. Fix api/db.py db_path()/connect(); re-run LAB_ISSUE=6 python3 -m unittest tests.test_issues.
   ```
 
   Rejections you can hit: `Invalid skill name "…"`, `Managed skill "<name>" needs a non-empty description.`, `… needs a non-empty body.`, `Managed skill is <bytes> bytes; the limit is 64000.`, plus symlink/hard-link safety errors on `update`.
 - **The autolearn nudge, end to end.** Turn ends → if it used ≥ `autolearn.minToolCalls` tools, omp queues a reminder → with `autoContinue: false` the reminder rides your *next* prompt (no extra tokens until you send one); with `true`, omp runs one capture turn immediately → the model decides whether anything is worth a `learn` (memory-only) or `learn` + `skill` / `manage_skill` (procedure) → skills land in `managed-skills/`, lessons in the backend. You stay in control: with `autoContinue` off, nothing is written until you send another turn, and you can say "don't capture anything".
-- **How they surface next session:** skill discovery runs the `omp-managed` provider (priority 5, dead-last) **unconditionally** — even with autolearn off — so the skill appears in the system prompt's skill list, is readable with `read skill://<name>`, and gets a `/skill:<name>` command when `skills.enableSkillCommands` is on. A same-named *authored* skill (`<repo>/.omp/skills/<name>/SKILL.md`, `~/.omp/agent/skills/<name>/SKILL.md`, `.agents/skills/`, plugins…) always wins; `learn`/`manage_skill create` against such a name returns an error with `shadowed: true` and writes nothing. Note the two user-level directories: `~/.omp/agent/skills/` is *yours* (authored, native provider, priority 100); `~/.omp/agent/managed-skills/` is the *model's* (managed, priority 5).
+- **How they surface next session:** skill discovery runs the `omp-managed` provider (priority 5, dead-last) **unconditionally** — even with autolearn off — so the skill appears in the system prompt's skill list, is readable with `read skill://<name>`, and gets a `/skill:<name>` command when `skills.enableSkillCommands` is on. A same-named *authored* skill (`<repo>/.omp/skills/<name>/SKILL.md`, `~/.omp/agent/skills/<name>/SKILL.md`, plugin skills, or any other higher-priority provider) always wins; `learn`/`manage_skill create` against such a name returns an error with `shadowed: true` and writes nothing. Note the two user-level directories: `~/.omp/agent/skills/` is *yours* (authored, native provider, priority 100); `~/.omp/agent/managed-skills/` is the *model's* (managed, priority 5).
 - **Do not confuse with "Memory Guidance".** That block is the `local` backend's injected `memory_summary.md` + `learned.md` lessons. Managed skills are not part of it; they arrive through skill discovery. With `mnemopi`, lessons arrive through `<memories>`/recall instead.
 - **When to use which:** fact → `learn` without `skill` (or plain `retain`); repeatable multi-step procedure → `learn` with `skill` (lesson + playbook in one call) or `manage_skill` when you want it usable *now*. Docs: use `learn` sparingly — one precise lesson beats several vague ones.
 
@@ -267,9 +267,9 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
    ```
    Restart omp; `omp config get autolearn.enabled` from the repo → `true`.
    Expected: on the next prompt the model can call `learn` and `manage_skill` (ask "which learning/skill tools do you have?" if unsure).
-2. Open `docs/ISSUES.md` and work issue #6 with omp until the root cause is clear (the error text points the wrong way — that is the fixture).
-   Expected: a fix and a one-sentence explanation of why the error message misleads.
-3. `learn this: state the misleading error, the real cause, and the check to run first. Make it one durable lesson.`
+2. Reproduce issue #6: `DATABASE_URL=sqlite:///data/lab.sqlite python3 -m cli users 1` → `error: database is locked (is another process using data/lab.sqlite?)` (exit 2). Then work it with omp until the root cause is clear: nothing is locked — `api/db.py::db_path()` hands the whole `sqlite:///…` string to `sqlite3.connect`, and `connect()` swallows the real `OperationalError` and raises the invented "locked" message.
+   Expected: a fix in `api/db.py` (`db_path`, `connect`) so that `LAB_ISSUE=6 python3 -m unittest tests.test_issues` passes, plus a one-sentence explanation of why the message misleads.
+3. `learn this as one durable lesson: in omp-course-lab, "database is locked" from python3 -m cli is invented by api/db.py connect(); the real cause is DATABASE_URL being passed to sqlite3.connect unchanged, so check the DATABASE_URL value (sqlite:/// prefix, missing file) before hunting for locks.`
    Expected: a `learn` card with `memory` filled and no `skill`; result `Lesson stored.`
 4. `now turn the diagnosis steps into a managed skill named lab-misleading-error with a one-line description and a numbered procedure`
    Expected: a `manage_skill` card (`action: create`) with result `Created managed skill "lab-misleading-error" (managed-skills/lab-misleading-error/SKILL.md).`
@@ -287,7 +287,7 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
 | Symptom | Cause | Fix |
 |---|---|---|
 | No `learn` tool although autolearn is on | `memory.backend` is `off` | `learn` needs `local`/`mnemopi`/`hindsight`; `manage_skill` alone works with `off` |
-| `Invalid skill name "…"` | Name has uppercase after trimming, spaces, or > 64 chars | Use `[a-z0-9][a-z0-9-]{0,63}` |
+| `Invalid skill name "…"` | After trim + lowercase the name still contains characters outside `[a-z0-9-]` (e.g. `_`, spaces), starts with `-`, or is > 64 chars | Use `[a-z0-9][a-z0-9-]{0,63}` (uppercase is folded, not rejected) |
 | `Managed skill "<name>" needs a non-empty body.` | Body trimmed to empty | Provide Markdown body without frontmatter |
 | Created via `learn`, but `skill://<name>` says not found in the same session | `learn` writes for a later discovery refresh | `/new` or restart; or use `manage_skill` (refreshes immediately) |
 | `create` fails: file already exists | Exclusive-create semantics | Use `update` |
@@ -364,12 +364,12 @@ Source: omp://memory.md, omp://mnemosyne-memory-backend.md, omp://tools/retain.m
    Expected: `true`.
 2. Note the `context_pct` value on the status line (right side) before you begin.
    Expected: a small number on a fresh session.
-3. `Set a checkpoint with the goal "find the real cause of issue #7 in docs/ISSUES.md". Investigate thoroughly — read the code and run the tests. When you know the answer, rewind with a report that names the real cause, the red herring you ruled out, and the file:line to change. Do not fix anything yet.`
-   Expected: a `checkpoint` card first (`Checkpoint created.` / `Goal: …`), then many `read`/`grep`/`bash` cards, then a `rewind` card (`Rewind requested.` / `Report captured for context replacement.`), then the turn ends.
+3. `Set a checkpoint with the goal "find the real cause of issue #7 in docs/ISSUES.md (order_count includes cancelled orders)". Investigate thoroughly — read the code and run the tests. When you know the answer, rewind with a report that names the real cause, the red herring(s) you ruled out, and the file:line to change. Do not fix anything yet.`
+   Expected: a `checkpoint` card first (`Checkpoint created.` / `Goal: …`), then many `read`/`grep`/`bash` cards, then a `rewind` card (`Rewind requested.` / `Report captured for context replacement.`), then the turn ends. The lab seeds three red herrings — the "default to 0" comment in `cli/commands.py`, the "check the seed" note in `api/server.py`, and `tools/seed_db.py` — while the real cause is one function in `api/db.py` (`count_orders`).
 4. Look at `context_pct` again.
    Expected: lower than during the investigation — the exploration left the active branch.
 5. `What did the investigation conclude? Quote the report.`
-   Expected: the answer reproduces the report (it is in the retained `rewind-report` message); no `rewind` is called again.
+   Expected: the answer reproduces the report (it is in the retained `rewind-report` message); no `rewind` is called again. The report points at `api/db.py`, not at any of the three seeded red herrings. Shell check that nothing was fixed: `LAB_ISSUE=7 python3 -m unittest tests.test_issues` still fails and `git status` is clean.
 6. `/tree`, press `Alt+A`, type `rewind`.
    Expected: the bookkeeping entries (`branch_summary` / `custom` `rewind-report`) at the branch point; the abandoned investigation branch is visible alongside. `Esc` to close without moving.
 

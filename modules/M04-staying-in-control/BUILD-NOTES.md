@@ -25,12 +25,34 @@ Built against `omp/18.3.1` (Linux x64). Build machine: Python 3 only, no provide
 - Per-tool approval for `computer` → Module 14.
 - ACP approval routing → Module 13.
 
-## Lab facts used (from LabRepo, not yet in `omp-course-lab/` at build time)
+## Lab facts used (verified against `omp-course-lab/` — README.md, docs/ISSUES.md, a throwaway clone)
 - Test: `python3 -m unittest discover -s tests`; gated: `LAB_ISSUE=N python3 -m unittest tests.test_issues`.
-- Issue #4: `stats` CLI subcommand (`python3 -m cli stats`); edits `cli/commands.py`, `cli/__main__.py`, tests, README.
-- Issue #5: order cancellation — `DELETE /orders/<id>`, `python3 -m cli cancel <id>`, sub-item (c) "email the customer" out of scope.
-- `conflict-lab` conflicts in `api/server.py` and `cli/__main__.py`.
-If the lab changes these, update README.md (header table, 4.1 step 4, 4.2 step 2, 4.3 steps 2–3, 4.5 steps 4–6) and exercises.md.
+- Issue #4: `stats` CLI subcommand (`python3 -m cli stats`); files `cli/__main__.py`, `cli/commands.py`, `tests/`, `README.md`.
+- Issue #5: order cancellation — (a) `DELETE /orders/<id>`, (b) `python3 -m cli cancel <id>`, (c) "email the customer" deliberately out of scope; files `api/server.py`, `api/db.py`, `cli/__main__.py`, `cli/commands.py`.
+- `conflict-lab`: lab README's flow is `git switch -c scratch main && git merge conflict-lab`; conflicts in `api/server.py` (`SERVICE_NAME`, `#1 L18-22`) and `cli/__main__.py` (`DESCRIPTION`, `#2 L17-21`), one block each, competing one-line edits; tests pin neither string. (The reverse `git checkout conflict-lab && git merge main` also conflicts but is not the lab's documented flow — module text now uses the lab's.)
+
+## Wave-2 audit (omp binary on PATH reports `omp/18.3.5`; docs re-read at that version)
+Every command, flag, key, setting, path, scheme and default in this module was re-checked against `omp://` docs, `omp --help` / `omp <cmd> --help`, `omp config get`, and live runs. The README header still says `omp/18.3.1` to match the rest of the course; the orchestrator should decide whether to bump every module.
+
+### Fixed
+- 4.2: `deny`/`prompt` segment matching — dropped the invented split list (`&&`, `||`, `;`, `|`, `&`, subshells, newlines), which is documented for `bashInterceptor`, not `bash.patterns`; now "complete command and each shell command segment" (tools/bash.md).
+- 4.3: dropped "steering asides are folded into context" from the learner-facing list (true only for extension/SDK `deliverAs: "aside"` messages, extensions.md/sdk.md — not a learner concept); plan-mode indicator expectation reworded (no doc describes the composer/status rendering); auto-name surfaces are terminal title + editor border colour (session-tree-plan.md).
+- 4.4: `/review` no longer described as running the `reviewer` agent family (undocumented link; `reviewer`/`security-reviewer` are bundled task agents per tools/task.md, mentioned separately); the >1,000-char condensing warning belongs to `/annotate session`, not `last`; `pr://` failure cause is `gh` missing/unauthenticated (observed: `GitHub CLI (gh) is not installed`).
+- 4.5: conflict drill uses the lab's documented merge direction (`ours = HEAD`, `theirs = conflict-lab`); `omp read api.py:conflicts` → `api/server.py:conflicts`; demo Part B replaced with real output from the lab merge; in-session bulk-write result text replaced with the real `Resolved 2 conflicts across 2 files: … Snapshots:` output (verified with `omp -p --no-session`); ids continue across files within a session (`#1`, `#2`) — verified live.
+- 4.5 / 4-G2 / 4-S1 / instructor notes — **`omp commit` observed behaviour on 18.3.5** (throwaway clone, provider configured): with files staged it commits only the staged changes; with nothing staged it stages everything (`--legacy` always prints `Staging all changes…`); during an in-progress merge it creates a **single-parent** commit and leaves `MERGE_HEAD` (`git status`: "All conflicts fixed but you are still merging"). Guidance now: scope commits with `git add`; conclude merges with `git commit`. The previous "stages the whole tree, so commit in two passes" hint and "`git log -1` is a merge commit via `omp commit`" pass condition were wrong and are replaced.
+- 4-S1 constraints asked for three differently-resolved blocks; the lab has two. Now: one side token, one literal combination.
+- 4.6: stale hashline tags "will reject" softened to "fail unless snapshot recovery can prove a safe result" (tools/edit.md); `/fork` expectation made observable (second session file; `/resume` lists two).
+- 4.5 stretch rewritten for the lab's one-line string conflicts (was "function contains lines from both branches").
+
+### Removed (unverifiable)
+- "Kitty keyboard protocol" as the cause of `Alt+Shift+P` not arriving (README 4.3 troubleshooting, instructor notes 4-G1) — no `omp://` doc names the keyboard protocol; replaced with "terminal does not forward the chord".
+- `q` as the quit key of `omp git` (README 4.5 step 3) — `omp git --help` and cli-reference.md document no keys; now "exit the UI".
+- `read pr://can1357/oh-my-pi/1?comments=0` as a concrete example (README 4.4 step 6, demo 4.4) — PR existence not checkable here (`gh` not installed); replaced with `pr://owner/repo/N` placeholder.
+- "the status/title reflects a new session id" after `/fork` (README 4.6 step 1) — rendering undocumented; replaced with file/`/resume` evidence.
+- "the status line / composer indicates plan mode is on" (README 4.3 step 1) — rendering undocumented; replaced with the observable read-only-cards test.
+
+### Verified unchanged (spot list)
+`tools.approvalMode` default `yolo`; tier table and 6-step resolution (approval-mode.md); `tools.approval` record + `omp config set/get/reset` echoes (live); `bash.patterns` `*`-only wildcards (schema description, live `--json`); `bash.allowCompoundCommands` default `false`; `plan.enabled` `true`, `plan.defaultOnStartup` `false` (ignored under `--print`); `edit.blockAutoGenerated` `true`; `Alt+Shift+P` = `app.plan.toggle`, `Ctrl+G` = `app.editor.external`, remaps in `~/.omp/agent/keybindings.yml`; `xd://propose` + `local://<slug>-plan.md`; `/plan-review` and `/annotate` keys/sources/exits (slash-command-internals.md §12–13); plan-mode subagent tool restriction and `ask` timeout disable; `--plan-yolo`, `--plan-yolo-into` (default `smol`), `--plan`/`PI_PLAN_MODEL`/`modelRoles.plan`; `commit` is a chat role (models.md); `omp commit`/`omp git` flags (`--help`); `read <file>:conflicts`, `conflict://N[/ours|/theirs|/base|/both]`, `conflict://*`, `@ours/@theirs/@base/@both`, per-id directives, all-or-nothing per file, read-only scopes (tools/read.md, tools/write.md, live); `pr://`/`issue://` grammar (tools/read.md); `/fork` persistence/streaming guards and `--fork` vs `--no-session` (session-operations doc, cli-reference.md); `checkpoint.enabled` default `false`; global config path `~/.omp/agent/config.yml`; `omp config list --json` shape; `/settings`, `/quit`, `/model`, `/login`, `/rename`, `/resume` Tab scope toggle all documented.
 
 ## Coverage vs Appendix C
 - Approval modes, per-tool approval, `--yolo` (yolo default) — 4.1 ✔

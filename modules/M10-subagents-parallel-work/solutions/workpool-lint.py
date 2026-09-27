@@ -1,8 +1,8 @@
 # Module 10 — Lesson 10.5 / exercise G3: lint-fix pass with a kernel @tool + workpool().
-# Load into the Python eval kernel:   %load modules/M10-subagents-parallel-work/solutions/workpool-lint.py
+# Load into the Python eval kernel (from the omp-course-lab root):   %load ../modules/M10-subagents-parallel-work/solutions/workpool-lint.py
 # then run:                            run_pool(lab_files())
 #
-# API shapes copied from omp://tools/eval.md and omp://python-repl.md (omp 18.3.1):
+# API shapes copied from omp://tools/eval.md and verified with inspect.signature on omp 18.3.5:
 #   @tool / @tool(name=..., description=...)           -> kernel-defined tool for subagents (eval.tools.enabled)
 #   workpool(agent=None, *, name=None, context=None, tools=None)
 #   pool.push(*items) -> ["<pool>#<seq>", ...]; pool.status(); pool.peek(); pool.close()
@@ -30,7 +30,7 @@ def lint(path: Annotated[str, "project-relative .py file"]) -> list[str]:
         if isinstance(node, ast.Import):
             for a in node.names:
                 imported[(a.asname or a.name).split(".")[0]] = node.lineno
-        elif isinstance(node, ast.ImportFrom):
+        elif isinstance(node, ast.ImportFrom) and node.module != "__future__":  # `from __future__ import annotations` is never "unused"
             for a in node.names:
                 if a.name != "*":
                     imported[a.asname or a.name] = node.lineno

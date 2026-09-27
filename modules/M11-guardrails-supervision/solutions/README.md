@@ -10,12 +10,13 @@ Files in this directory:
 | `WATCHDOG.md` | `<repo>/WATCHDOG.md` (or `<repo>/.omp/WATCHDOG.md`) | 11-G1, Lesson 11.2 walkthrough |
 | `WATCHDOG.yml` | `<repo>/WATCHDOG.yml` | 11-G2 |
 
-All three rule files were verified on `omp/18.3.1` with `omp ttsr test -r …` and `omp ttsr scan -r …`
-(see `demos/11.1-ttsr-interrupt.md` Part A for the captured output). Verified outcomes:
+All three rule files were re-verified during the Wave 2 audit with `omp ttsr test -r …` and
+`omp ttsr scan -r …` against the real lab tree (see `demos/11.1-ttsr-interrupt.md` Part A for the
+captured output). Verified outcomes:
 
-- `no-console-log`: triggers on `--source text`, and on `--source tool --tool edit --path web/x.js`; does **not** trigger on `--path api/x.py` or `--source thinking`.
-- `no-bare-print`: triggers on `print("hi", x)` under `cli/*.py`; does not trigger on `sys.stdout.write(...)`.
-- `no-unverified-tests`: `omp ttsr test` never triggers (judge not called); `-v` prints the question; `omp ttsr scan` skips it.
+- `no-console-log`: triggers on `--source text`, and on `--source tool --tool edit --path web/app.js`; does **not** trigger on `--path api/server.py` or `--source thinking`.
+- `no-bare-print`: triggers on `print("hi")` under `--path cli/__main__.py`; does not trigger on `sys.stdout.write(...)` nor on `--source text`; `omp ttsr scan -v -r solutions/no-bare-print.md cli/` lists `cli/commands.py` only.
+- `no-unverified-tests`: `omp ttsr test` never triggers (judge not called); `-v` prints `question (judged at runtime, not tested)`; `omp ttsr scan` skips it (alone with `-r` it prints `Rule registered but produced no TTSR entry.`).
 
 ## Stretch answers
 
@@ -34,8 +35,10 @@ billed for it. Delivery is an aside after `message_end`, rendered from `ttsr-war
 
 **11-S3 (advised subagent).** Add `advisor: true` to the agent's frontmatter, or set it from the
 `/agents` hub (Enter → advisor strip → on). The child's log is
-`<session-artifacts>/<SubId>/__advisor.jsonl`. `/advisor status` in the parent only reports the
-parent's advisors, so "main session unadvised" is shown by `/advisor status` reporting nothing active.
+`<session-artifacts>/<SubId>/__advisor.jsonl`. "Main session unadvised" means `advisor.enabled`
+stays off and `/advisor on` is never run in the parent — so the parent's artifact dir has **no**
+`__advisor.jsonl` at its top level, while `<SubId>/__advisor.jsonl` exists and Agent Hub lists the
+child's `advisor`-kind row.
 
 **11-S4 (guardrail plan).** Expected predicates (any three equivalent ones pass):
 
@@ -51,8 +54,8 @@ the call reach dispatch and returns a tool error whose text is `reason`.
 ## Lesson 11.3 stretch (`--prewalk-into` cost comparison)
 
 Any target lacking credentials produces
-`Warning: prewalk disabled — no API key for <provider>/<id>` on stderr at startup and the session
-runs unarmed — that is the required captured line. Costs come from `omp stats`; the exact figures
+`Warning: prewalk disabled — no API key for <provider>/<id>` at startup and the session runs
+unarmed — that is the required captured line. Costs come from `omp stats`; the exact figures
 vary by provider, so grade on the presence of three rows with a cost and a tests-pass column.
 
 ## Grading shortcuts

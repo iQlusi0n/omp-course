@@ -16,12 +16,12 @@
 | Settings (defaults) | `ttsr.enabled=true` · `interruptMode=always` · `contextMode=discard` · `repeatMode=once` · `repeatGap=10` · `builtinRules=true` · `disabledRules=[]` · `judge=auto` |
 | Generate | `/omfg <complaint>` |
 | CLI | `omp ttsr list` · `omp ttsr test [-r rule.md] [--source text\|thinking\|tool] [--tool edit] [--path p] [--agent a] [--file -] [-v] [--json] '<snippet>'` · `omp ttsr scan [dir] [-r rule.md] [-v] [--no-gitignore] [--max-bytes n]` |
-| Exit codes | `test`: 0 triggered / 1 not · `scan`: 0 always — run from repo root (scope globs are root-relative) |
+| Exit codes | unreliable for CI: `scan` exits 0 either way; `test` exits 0 on no-trigger with project rules loaded (only `-r` mode exits 1) — grep for `Triggered (` / `Found violations/matches`; run from repo root (scope globs are root-relative) |
 
 ## Advisor / watchdog (off by default)
 | What | Where / value |
 |---|---|
-| Enable | `modelRoles.advisor <provider/id[:level]>` + `advisor.enabled: true` · session: `/advisor on` · headless: `omp -p --advisor` |
+| Enable | `modelRoles.advisor: <provider/id[:level]>` (config.yml or `/model` Roles view; `modelRoles` is a record — `omp config set modelRoles.advisor` is not a key) + `advisor.enabled: true` · session: `/advisor on` · headless: `omp -p --advisor` |
 | Commands | `/advisor [on\|off\|status\|dump [raw]\|configure]` |
 | Default tools | `read`, `grep`, `glob` (isolated `-advisor` tool session; approvals still apply) |
 | Severities | `nit` aside · `concern` steer (card if after terminal answer) · `blocker` steer |

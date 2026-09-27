@@ -553,7 +553,7 @@ Use this to verify "majority of features" before sign-off. Every row MUST appear
 | `task` single/batch/schema/async/effort | 10 | on |
 | Bundled agents, custom agents, model overrides | 10 | — |
 | Agent Hub, pinned agents, `agent://`, `history://`, steering, IRC | 10 | — |
-| Isolation/worktrees | 10 | on in 18.3.1 (`task.isolation.enabled`) |
+| Isolation/worktrees | 10 | off (`task.isolation.enabled`) |
 | eval `agent()`, `workpool()`, `@tool` | 10 | on |
 | `orchestrate`, `workflowz`, `jevify` | 10 | on |
 | Vibe mode | 10 | — |

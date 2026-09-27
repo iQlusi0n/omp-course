@@ -5,7 +5,7 @@
 | Built against | `omp --version` → `omp/18.3.1` |
 | Prerequisites | Module 9 (memory, `checkpoint`/`rewind`), Module 10 (subagents, Agent Hub, agent frontmatter) |
 | Practice repo | `omp-course-lab`, start from `git checkout module-11-start` |
-| Fixtures used | issue **#8** (error-swallowing temptation), `web/` (static JS), `cli/` (argparse, `print()`), `api/` |
+| Fixtures used | issue **#8** (`POST /signup` — catch-all `except Exception` temptation), `web/app.js` (static JS), `cli/` (argparse, `print()` in `cli/commands.py`), `api/server.py` |
 
 **Goal:** Put a second model, live rules, and cost hand-offs around the agent.
 
@@ -37,7 +37,7 @@ graph LR
 ## Lesson 11.1 — Time-Traveling Stream Rules (TTSR)              (~25 min)
 **You will be able to:** write a `.omp/rules/*.md` rule with a `condition:` / `astCondition:` / `question:` trigger; predict from `interruptMode` and `scope` whether it aborts mid-stream or lands as a reminder; test and scan rules with `omp ttsr` before trusting them in a live session.
 **Why this exists:** `AGENTS.md` and rulebook rules are advice the model reads once at the top of the context and can drift away from ten tool calls later. TTSR rules are different: omp watches the *token stream* — assistant prose and tool arguments as they arrive — and when a rule's regex or ast-grep pattern matches, it aborts the generation immediately, throws away the partial output, injects a `<system-interrupt>` carrying the rule body, and retries. The model never gets to finish the bad edit. "Time-traveling" is literal: from the model's point of view the violation never happened; it just received a reminder before writing the line.
-**Demo:** [`demos/11.1-ttsr-interrupt.md`](demos/11.1-ttsr-interrupt.md) — a `console.log` edit aborted mid-stream, the `Injecting rule: no-console-log` card, the retried edit using a guarded helper; plus real `omp ttsr test|scan|list` output captured on 18.3.1.
+**Demo:** [`demos/11.1-ttsr-interrupt.md`](demos/11.1-ttsr-interrupt.md) — a `console.log` edit aborted mid-stream, the `Injecting rule: no-console-log` card, the retried edit using a guarded helper; plus real `omp ttsr test|scan|list` output captured on the build machine against the lab repo.
 **Concepts:**
 - **Where rules live.**
   - Project: `<cwd>/.omp/rules/*.md` (or `.mdc`), loaded when `.omp/` is non-empty.
@@ -98,7 +98,7 @@ graph LR
   | `ttsr.interruptMode` | `always` |
   | `ttsr.contextMode` | `discard` |
   | `ttsr.repeatMode` / `ttsr.repeatGap` | `once` / `10` |
-  | `ttsr.builtinRules` | `true` (27 embedded Go/Rust/TS rules on 18.3.1 — `omp ttsr list`) |
+  | `ttsr.builtinRules` | `true` (27 embedded Go/Rust/TS rules, every one scoped to `tool:edit`/`tool:write` on `*.go`, `*.rs`, `*.ts(x)` — `omp ttsr list`) |
   | `ttsr.disabledRules` | `[]` (rule names to drop entirely) |
   | `ttsr.judge` | `auto` |
 - **`/omfg <complaint>`** — "TTSR rule from a complaint to stop a recurring behavior". Generates a
@@ -113,8 +113,9 @@ graph LR
     isolation, skips project rules), `--file -` (stdin), `-v` (show non-triggered), `--json`.
   - `scan [dir]` — run every regex/AST rule across files; question rules are skipped;
     `--no-gitignore`, `--max-bytes`, `-r`, `-v` (list matched files).
-  - Exit codes observed on 18.3.1: `test` → 0 when a rule triggered, 1 when none; `scan` → 0
-    either way (grep its output for `Found violations` in CI).
+  - Do **not** key CI on exit codes: `scan` exits 0 whether or not it found matches, and `test`
+    exits 0 on a no-trigger run when project rules are loaded (only the isolated `-r` mode exits 1
+    when nothing triggers). Grep the output for `Triggered (` / `Found violations/matches` instead.
   - Scope path globs resolve **relative to the scan/test root** — run from the repo root.
 
   Three complete rules are in `solutions/`: [`no-console-log.md`](solutions/no-console-log.md)
@@ -136,25 +137,30 @@ graph LR
    **Expected:** `omp ttsr list | grep no-console-log` prints
    `no-console-log [native] condition: console\.log  scope: text, tool:edit(web/*.js), tool:write(web/*.js)`.
 2. Dry-run it from the repo root:
-   `omp ttsr test --source tool --tool edit --path web/signup.js 'console.log("x")'`
-   **Expected:** `Triggered (1)` / `✓ no-console-log  condition: /console\.log/ [native]`, exit 0.
+   `omp ttsr test --source tool --tool edit --path web/app.js 'console.log("x")'`
+   **Expected:** `Triggered (1)` / `✓ no-console-log  condition: /console\.log/ [native]`.
    Repeat with `--path api/server.py`.
-   **Expected:** `No rules triggered. (evaluated 1)`, exit 1 — the scope glob excluded it.
+   **Expected:** `No rules triggered. (evaluated 28)` — the scope glob excluded it (the count is
+   every registered rule: yours plus the 27 builtins).
 3. Start `omp` in the repo and prompt:
-   *"In web/signup.js, log the form payload to the console right before the fetch so I can debug submissions."*
-   **Expected:** the edit stream is cut off; an **`Injecting rule: no-console-log`** card appears
-   (`ctrl+o` on it shows the rule body); the retried edit defines `debug()` and calls that instead.
-   `grep -n "console.log" web/signup.js` shows nothing new.
+   *"In web/app.js, log the form payload to the console right before the fetch so I can debug submissions."*
+   **Expected:** the edit stream is cut off; an **`Injecting rule: no-console-log`** card appears;
+   the retried edit defines `debug()` and calls that instead.
+   `grep -n "console.log" web/app.js` prints nothing (the seeded file has no `console.log`).
 4. Ask the same thing again in the same session.
    **Expected:** no card — `repeatMode: once`. Run `omp config set ttsr.repeatMode after-gap` and
    `omp config set ttsr.repeatGap 1`; ask again after one completed turn.
    **Expected:** the card fires again. Revert both keys.
-5. `read history://current` (or `/export`) and search for `ttsr`.
-   **Expected:** a `custom_message` with `customType: "ttsr-injection"` and a `ttsr_injection`
-   entry naming `no-console-log`.
+5. Find the persisted record. The session journal is
+   `~/.omp/agent/sessions/<encoded-cwd>/<timestamp>_<sessionId>.jsonl`; run
+   `grep -l ttsr_injection ~/.omp/agent/sessions/*/*.jsonl` (or `/export` and search the HTML — it
+   embeds the session entries).
+   **Expected:** a `custom_message` entry with `customType: "ttsr-injection"` and a
+   `ttsr_injection` entry naming `no-console-log`. (`read history://current` does **not** show
+   this — bare `history://current` names an ordinary agent called `current`.)
 **Guided task:** *Goal:* stop the CLI from growing new bare `print()` calls without touching the prose the model writes.
-*Hints:* `astCondition: "print($$$ARGS)"`; `scope: "tool:edit(cli/*.py), tool:write(cli/*.py)"`; `interruptMode: tool-only`. Verify with `omp ttsr test --source tool --tool edit --path cli/main.py 'print("hi")'` (should trigger) and the same with `'sys.stdout.write("hi\n")'` (should not).
-*Checkpoints:* `omp ttsr scan cli/` from the repo root lists the existing `print()` sites (the `ast_edit` fixture) under `cli/…`.
+*Hints:* `astCondition: "print($$$ARGS)"`; `scope: "tool:edit(cli/*.py), tool:write(cli/*.py)"`; `interruptMode: tool-only`. Verify with `omp ttsr test --source tool --tool edit --path cli/__main__.py 'print("hi")'` (should trigger) and the same with `'sys.stdout.write("hi\n")'` (should not).
+*Checkpoints:* `omp ttsr scan -v cli/` from the repo root lists `cli/commands.py` (the seeded `print()` sites; `cli/log.py`'s `logger` is the intended replacement).
 *Pass:* the rule shows in `omp ttsr list` with `astCondition: print($$$ARGS)`; the two `test` calls behave as stated; a live prompt that would add a `print()` to `cli/` produces the `Injecting rule: no-bare-print` card.
 **Stretch:** *Goal:* use `/omfg` to generate a rule from a complaint after the agent claims "tests pass" without running them; then convert it into a judged rule (`question:`) with a `condition:` prefilter so the judge is asked only when the reply contains "pass"/"verified".
 *Pass:* `omp ttsr list` shows the rule with both `condition:` and `question:`; `omp ttsr test -v --source text 'All tests pass'` prints `question (judged at runtime, not tested)`; with `ttsr.judge: on`, a live reply that claims success without a test run receives a warning injection after the message (not mid-stream).
@@ -169,7 +175,7 @@ graph LR
 | Fires once, then silent | `ttsr.repeatMode: once` | `omp config set ttsr.repeatMode after-gap` (+ `ttsr.repeatGap`) |
 | Model's partial bad output stays in the transcript | `ttsr.contextMode: keep` | `omp config set ttsr.contextMode discard` |
 | Judged rule never warns | `ttsr.judge: auto` needs a native judge model | `omp config set ttsr.judge on` (uses the chat model — costs tokens) |
-| Builtin TS/Go/Rust rules fire in a Python repo | `ttsr.builtinRules: true` | `omp config set ttsr.builtinRules false`, or list names in `ttsr.disabledRules` |
+| Builtin rules clutter `omp ttsr list` / `scan` output | `ttsr.builtinRules: true` (they are scoped to `.go`/`.rs`/`.ts` edits, so they never fire on the Python lab) | `omp config set ttsr.builtinRules false`, or list names in `ttsr.disabledRules` |
 **Cheat sheet:**
 | Item | Value |
 |---|---|
@@ -187,13 +193,20 @@ graph LR
 ## Lesson 11.2 — Advisor / Watchdog              (~25 min)
 **You will be able to:** enable a second model that reviews every turn; steer it with `WATCHDOG.md` priorities and a `WATCHDOG.yml` roster; read `<advisory>` notes by severity and know which ones interrupt; inspect the advisor with `/advisor status|dump`.
 **Why this exists:** A single model marking its own homework misses the same things every time. The advisor is a separate agent with its own model, its own read-only tool session, and its own append-only context. After each primary turn it receives only the *new transcript delta* (including reasoning and tool results) and may call one tool, `advise`, to push a note into the primary transcript. Nits batch quietly; a `concern` or `blocker` can interrupt and re-steer the run. It never approves or edits for the primary unless you explicitly grant mutating tools in the roster — it is a reviewer on the shoulder, priced separately, whose priorities you write down in `WATCHDOG.md`.
-**Demo:** [`demos/11.2-advisor.md`](demos/11.2-advisor.md) — enabling the advisor, the `<advisory severity="concern">` card landing while the agent tries to swallow an exception in issue #8, and `/advisor status`.
+**Demo:** [`demos/11.2-advisor.md`](demos/11.2-advisor.md) — enabling the advisor, the `<advisory severity="blocker">` card landing after the agent wraps issue #8's `_signup` in a catch-all `except Exception` → 400, and `/advisor status`.
 **Concepts:**
-- **Turn on (off by default).** Assign a model, then enable — persisted:
+- **Turn on (off by default).** Assign a model to the `advisor` role, then enable — persisted:
+  ```yaml
+  # ~/.omp/agent/config.yml (or <repo>/.omp/config.yml)
+  modelRoles:
+    advisor: anthropic/claude-sonnet-4-5:medium
+  advisor:
+    enabled: true
   ```
-  omp config set modelRoles.advisor anthropic/claude-sonnet-4-5:medium
-  omp config set advisor.enabled true
-  ```
+  `modelRoles` is a **record**: `omp config set modelRoles '{…}'` replaces the whole object
+  (Module 7), and `omp config get modelRoles.advisor` reports `Unknown setting` — read it with
+  `omp config get modelRoles`. `advisor` is also a chat role in the `/model` picker (Module 7).
+  `omp config set advisor.enabled true` persists the switch;
   or per session `/advisor on` (session-scoped, never persisted; `/advisor` alone toggles), or
   headless `omp -p --advisor "…"`. With `advisor.enabled: true` but no `modelRoles.advisor`,
   omp reports `Advisor setting enabled, but no model is assigned to the 'advisor' role.`
@@ -264,17 +277,22 @@ graph LR
   - The advised child re-runs `WATCHDOG.md`/`.yml` discovery for its own `cwd`; its log lands in
     `<session>/<SubId>/__advisor[.<slug>].jsonl`.
 **Try it (Walkthrough):**
-1. `omp config set modelRoles.advisor <a model you have credentials for>` then
-   `omp config get modelRoles.advisor`.
-   **Expected:** prints the selector you set.
+1. Assign the `advisor` role: pick a model you have credentials for in `/model` (Roles view) or add
+   `advisor: <provider/id>` under `modelRoles:` in `~/.omp/agent/config.yml`; then `omp config get modelRoles`.
+   **Expected:** the record now contains `"advisor":"<provider/id>"`.
 2. Copy [`solutions/WATCHDOG.md`](solutions/WATCHDOG.md) to `omp-course-lab/WATCHDOG.md`
    (or `.omp/WATCHDOG.md`). Start `omp`, run `/advisor on`.
    **Expected:** `Advisor enabled.`; `/advisor status` lists one advisor with your model and zero usage.
 3. Prompt: *"Fix issue #8 as described in docs/ISSUES.md. Keep the change minimal."* Watch the turn end.
-   **Expected:** an `<advisory severity="concern">` (or `blocker`) card appears if the agent hid
-   the failure; the agent's next step addresses it (re-raise or structured error instead of
-   `except: pass`). If the agent did it right first time you may only see a `nit` aside — also a
-   pass; `/advisor dump` shows the review either way.
+   Issue #8: `POST /signup` (`api/server.py::_signup`) answers 500 on a duplicate email and 201 on
+   `not-an-email`. The tempting minimal fix is to wrap the handler in `except Exception:` → 400 —
+   which also turns a genuine crash into a 400 and hides it; the gated test
+   (`LAB_ISSUE=8 python3 -m unittest tests.test_issues`) patches `create_user` to raise and expects
+   a 500.
+   **Expected:** an `<advisory severity="concern">` (or `blocker`) card appears if the agent
+   reached for the catch-all; the agent's next step narrows it (missing field / no `@` → 400,
+   `sqlite3.IntegrityError` → 409, anything else still 500). If the agent did it right first time
+   you may only see a `nit` aside — also a pass; `/advisor dump` shows the review either way.
 4. `/advisor status`.
    **Expected:** model id, state, context tokens, and non-zero cost. Then `read history://` —
    the advisor is **not** listed (excluded from the peer roster and `history://` index), but Agent
@@ -290,7 +308,7 @@ graph LR
 **Troubleshooting:**
 | Symptom | Cause | Fix |
 |---|---|---|
-| `Advisor setting enabled, but no model is assigned to the 'advisor' role.` | `modelRoles.advisor` unset | `omp config set modelRoles.advisor <provider/id>` |
+| `Advisor setting enabled, but no model is assigned to the 'advisor' role.` | `modelRoles.advisor` unset | assign the `advisor` role in `/model`, or add `advisor:` under `modelRoles:` in `config.yml` |
 | `/advisor status` says `no_model` for a roster entry | that entry's `model` cannot resolve or lacks credentials | fix the selector or drop `model:` to inherit the role |
 | Advisor never interrupts, only asides | `advisor.immuneTurns` cooldown after a delivered concern; or plan mode | wait for the cooldown (default 3 completed turns) or lower it; leave plan mode |
 | Concern arrived after the final answer as a card; agent did not react | documented behaviour (#4840) | send any message / `.` to resume — the advice re-enters context |
@@ -343,11 +361,12 @@ graph LR
 - **What you see.**
   - Start: `Prewalk: armed for <provider>/<id> — will switch at the first edit/write once the todo list exists.`
   - Status line mode segment shows the prewalk icon (`prewalk active`) while armed.
-  - After the first edit: `Prewalk: switched to <provider>/<id> after first edit call.` and the
-    model chip (Module 7's `^` chip) now names the target.
+  - After the first edit: `Prewalk: switched to <provider>/<id> after first edit call.` (or
+    `… after first write call.`) and the model chip (Module 7's `^` chip) now names the target.
 - **Mid-session.** `/prewalk` arms a hand-off to the current `@smol`
-  (`Prewalk on: switching to … at the next edit/write (todo-gated).`); if already armed, the
-  existing target stays. After a hand-off, `/prewalk restart` returns to `@default` **now** and
+  (`Prewalk on: switching to … at the next edit/write (todo-gated).`); if already armed:
+  `Prewalk: already armed for …, waiting for the first edit/write.` — the existing target stays.
+  After a hand-off, `/prewalk restart` returns to `@default` **now** and
   re-arms to `@smol`: `Prewalk restarted: using @default (…) for planning, then switching to @smol (…) at the next edit/write (todo-gated).`
   Both resolve roles at call time — nothing persisted changes. Anything else prints
   `Usage: /prewalk [restart]` — there is **no `status` subcommand**; the notices and the chip are the status.
@@ -361,10 +380,10 @@ graph LR
   instead of failing the spawn.
 **Try it (Walkthrough):**
 1. `omp config get modelRoles` — confirm `smol` and `default` differ.
-   **Expected:** two different selectors (else `omp config set modelRoles.smol <cheaper model>`).
+   **Expected:** two different selectors (else assign a cheaper model to `smol` in `/model`, or edit `modelRoles:` in `config.yml` — Module 7).
 2. `omp --prewalk` in `omp-course-lab`.
    **Expected:** `Prewalk: armed for <smol provider>/<id> — will switch at the first edit/write once the todo list exists.`; status line shows the prewalk indicator.
-3. Prompt: *"Add a `--json` flag to the CLI `orders list` command that prints the rows as a JSON array. Plan first, then implement, then run the tests."*
+3. Prompt: *"Add a `--json` flag to the CLI `orders` subcommand (`python3 -m cli orders --month 2026-03 --json`) that prints the rows as a JSON array instead of the table. Plan first, then implement, then run the tests."*
    **Expected:** a todo card *before* any edit (the planning nudge). After the first `edit` card
    completes: `Prewalk: switched to <smol> after first edit call.`; the model chip shows the smol
    model; remaining edits and the test run happen on it.
@@ -384,7 +403,7 @@ graph LR
 |---|---|---|
 | `Warning: prewalk disabled — no API key for …` at start | target model has no credentials | `/login` for that provider or `--prewalk-into` another |
 | Armed but never switches | no `todo` call happened, or files were written via `bash`/`eval` | ask for a plan/todo first; only `edit`/`write` (and write-classified `xd://` ops) count |
-| `… already matches the active model and thinking level; nothing to switch.` | `@smol` == active model | set a different `modelRoles.smol` |
+| `… already matches the active model and thinking level; nothing to switch.` | `@smol` == active model | assign a different model to `smol` (`/model` or `modelRoles:` in `config.yml`) |
 | `/prewalk status` → `Usage: /prewalk [restart]` | no status subcommand | read the `Prewalk:` notices / model chip |
 | Child subagent never hands off | prewalk not set for that agent; plan-mode spawn; `task.agentPrewalk` off | frontmatter `prewalk: true`, or `/agents` → prewalk strip |
 **Cheat sheet:**
@@ -529,7 +548,7 @@ graph LR
 | Symptom | Cause | Fix |
 |---|---|---|
 | Tools missing after enabling | roster not refreshed | `/restart` |
-| `Context notes are N UTF-8 bytes. Shorten the notebook and use history://current/full to recover raw detail.` | > 16,384 bytes | keep the notebook a summary; recover detail via `history://current/full` |
+| `Context notes are N bytes; the limit is 16384 UTF-8 bytes. Shorten the notebook and use history://current/full to recover raw detail.` | > 16,384 bytes | keep the notebook a summary; recover detail via `history://current/full` |
 | `Experimental context notes were not saved because the session branch changed.` | branch switched (`/tree`, `/fork`) during the write | re-issue the write on the new branch |
 | `new_context` acknowledged but no divider | rollover commits only at a safe tool-loop boundary after guards | continue the turn; check `read history://current/full` for the boundary |
 | `history://current/full?x` rejected | queries/fragments not allowed | use `:N-M` / `:raw:N-M` selectors only |

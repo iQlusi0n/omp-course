@@ -5,7 +5,7 @@
 | **Level** | basic → intermediate |
 | **Time** | ~1.5 h (lessons ≈ 50 min, coursework ≈ 40 min) |
 | **Prerequisites** | Modules 1–4 (you can run omp in `omp-course-lab`, read cards, use `Ctrl+O`, and know what `/fork` does in outline) |
-| **Built against** | `omp --version` → `omp/18.3.1` (Linux x64) |
+| **Built against** | `omp --version` → `omp/18.3.1` (Linux x64); facts re-audited against the `omp/18.3.5` binary and its bundled `omp://` docs |
 | **Lab checkpoint** | `cd omp-course-lab && git checkout module-5-start` |
 
 **Goal:** work across days without losing state or blowing the context window. By the end you can find any past session, rewind or branch inside one, keep a long session under the context limit, and get a session out as HTML, a share link, or a screen recording.
@@ -30,8 +30,8 @@ Every command, key, setting and default below was checked against the bundled do
 - Side files next to the session: a directory `<timestamp>_<sessionId>/` holds artifacts (subagent transcripts, `/btw` history, auto-handoff documents). `~/.omp/agent/blobs/<sha256>` stores large images referenced from entries.
 - Flags: `--session-dir <dir>` (store and look up sessions there instead of the cwd bucket), `--no-session` (ephemeral; nothing written; `/export` and `/fork` then fail, `/share` and `/dump` still work). `--cwd <dir>` starts in another directory.
 - `/rename <title>` sets a user title (auto-titling never overwrites it). `/rename` with no argument generates one from recent conversation with the tiny title model; failure prints `Could not generate a session title. Use /rename <title> to set one.` **[observed]** `Session renamed to "M5 smoke session".` and the title appears in the status line's right segment (`statusLine.rightSegments` default `[session_name, token_total, cost, context_pct]`) and in the `/resume` picker.
-- `/move <path>` relocates the *session* to another working directory (usage string **[observed]** `Usage: /move <path>`): the file moves to that cwd's bucket, the header records `previousSessionFiles`, and the running session's cwd changes. Refused while a `/btw` request is running.
-- `/wt` (alias `/worktree`) creates a linked git worktree carrying your uncommitted changes and moves the current session into it, leaving the original checkout untouched. Related settings: `worktree.base` (unset → `~/.omp/wt`; `OMP_WORKTREE_DIR` overrides), `worktree.clone` (default `true`, copy-on-write clone so build artifacts carry over), `worktree.cleanSource` (default `false`; when true, resets and cleans the original checkout after carrying changes over).
+- `/move <path>` relocates the *session* to another working directory (strings **[observed in binary]** `Usage: /move <path>`, `Directory does not exist: …`, `Moved to …`): the file moves to that cwd's bucket, the header records `previousSessionFiles`, and the running session's cwd changes. Refused while streaming (`Cannot move while streaming.`) and while a `/btw` request is running.
+- `/wt [<branch>]` (alias `/worktree`; description **[observed in binary]** "Move this session into a new worktree, changes included") creates a linked git worktree carrying your uncommitted changes and moves the current session into it, leaving the original checkout untouched. The branch name is optional — omitted, omp uses `wt/<YYYYMMDD-HHMMSS>`; an existing branch name is refused (`Branch '<name>' already exists; pick another name.`). Success prints `Moved to worktree <path> on branch <branch> (…)`. Refused while streaming (`Cannot create a worktree while streaming.`) and while a `/btw` request is running. Related settings: `worktree.base` (unset → `~/.omp/wt`; `OMP_WORKTREE_DIR` overrides), `worktree.clone` (default `true`; `/wt`, `github pr_checkout` and `git worktree add` via the `bash` tool start the worktree as a copy-on-write clone so ignored build artifacts carry over, falling back to a plain checkout when the filesystem cannot clone), `worktree.cleanSource` (default `false`; when true, resets tracked changes and removes untracked files from the original checkout after carrying them over).
 - CLI counterpart: `omp worktree [list|clear|add] …` — `omp worktree add -b feature ../feature origin/main`, `omp worktree clear --dry-run`, `--json`.
 - Housekeeping: `omp gc` previews; `omp gc --apply` sweeps unreferenced blobs, archives cold sessions (`--cold-archive-after-days`, `--retain-newest-per-cwd`), checkpoints DB WALs. Storage GC is unrelated to context compaction.
 
@@ -47,7 +47,7 @@ Every command, key, setting and default below was checked against the bundled do
 5. `/resume` → Esc. Expected: your session is listed with the new title and a `current` marker.
 
 **Guided task:** Move this session into a fresh git worktree.
-- Hints: `/wt` needs a clean way to name the branch — read its prompt; `omp worktree list` shows what was created; `!pwd` shows the session's new cwd.
+- Hints: `/wt m5-worktree` names the branch (plain `/wt` generates a name); `omp worktree list` shows what was created; `!pwd` shows the session's new cwd.
 - Checkpoints: `omp worktree list` lists a path under `~/.omp/wt` (or `worktree.base`); `!git branch --show-current` inside omp shows the new branch.
 - Pass: `/resume` (Tab → all projects) shows the session under the worktree path; `omp worktree clear --dry-run` lists it.
 
@@ -59,7 +59,7 @@ Every command, key, setting and default below was checked against the bundled do
 |---|---|---|
 | No `.jsonl` file after starting omp | File is created lazily on the first assistant message | Finish one turn, then look again |
 | Session listed under a strange `--…--` bucket | cwd is outside home and temp, so the absolute path is encoded | Normal; `/resume` Tab (all projects) finds it |
-| `/move` or `/wt` refuses with a BTW message | A `/btw` side question is still running | Finish/cancel the `/btw` request, retry |
+| `/move` or `/wt` refuses with a BTW or streaming message | A `/btw` side question or a response is still running | Finish/cancel the `/btw` request or wait for the response, retry |
 | `/rename` alone prints "Could not generate a session title" | Tiny title model missing or empty conversation | `omp tiny-models download`, or `/rename <title>` |
 | Sessions from another profile are missing | `--profile` uses its own agent dir | Run with the same `--profile` / `OMP_PROFILE` |
 
@@ -93,7 +93,7 @@ Every command, key, setting and default below was checked against the bundled do
 - `/resume @claude` / `/resume @codex`: read-only import pickers for Claude Code / Codex transcripts; the selection is converted into a **new** omp session and switched to. CLI: `--from-claude`, `--from-codex`.
 - **From the shell:** `omp --resume` (`-r`, `--session`) opens the same picker (prints `No sessions found` only if every project is empty; `No session selected` on Esc). `omp --resume <id|path>` opens directly; a path (contains `/` or ends in `.jsonl`) is opened as-is. **[observed]** `omp --session-dir /tmp/s --resume 01a0d994 -p "…"` continued the earlier conversation (the model counted three user messages).
 - If a matched session's recorded directory no longer exists you are asked `Move (re-root) it into the current directory? [Y/n]`; non-TTY runs fail instead. If the directory exists, omp switches *into* that project (settings, plugins, models reload) — it does not fork.
-- `omp -c` / `--continue`: **terminal breadcrumb first.** Each turn writes `~/.omp/agent/terminal-sessions/<terminal-id>` containing the cwd and the session path (**[observed]** third line `cwdstat …`; a `fresh` third line marks a `/new` whose file does not exist yet). Resolution: breadcrumb whose cwd matches → that session; cwd mismatch → newest session in this cwd's bucket; nothing → new session. Terminal id comes from the TTY path, falling back to `TMUX_PANE`, `ZELLIJ_PANE_ID`, `KITTY_WINDOW_ID`, `WEZTERM_PANE`, `TERM_SESSION_ID`, `WT_SESSION`, … So `-c` in the *same* pane reopens *that pane's* session; in a new pane it reopens the newest one for the directory. `-c <full-uuid>` is normalized to `--resume <uuid>`.
+- `omp -c` / `--continue`: **terminal breadcrumb first.** Each turn writes `~/.omp/agent/terminal-sessions/<terminal-id>` containing the cwd and the session path (**[observed]** third line `cwdstat …`; a `fresh` third line marks a `/new` whose file does not exist yet). Resolution: breadcrumb whose cwd matches → that session; cwd mismatch → newest session in this cwd's bucket; nothing → new session. Terminal id comes from the TTY path, falling back to `ZELLIJ_PANE_ID`, `TMUX_PANE`, `CMUX_SURFACE_ID`, `KITTY_WINDOW_ID`, `WEZTERM_PANE`, `TERM_SESSION_ID`, `WT_SESSION`. So `-c` in the *same* pane reopens *that pane's* session; in a new pane it reopens the newest one for the directory. `-c <full-uuid>` is normalized to `--resume <uuid>`.
 - `autoResume: false` (default) — set `true` to make plain `omp` behave like `-c` when no session flag is given. **[observed]** `omp config get autoResume` → `false`.
 - Welcome screen "Recent sessions" **[observed]** `• Read calc.py and identify bug (just now)` — a 4 KiB-prefix scan sorted by mtime.
 - On resume, an interrupted tool loop gets a synthetic aborted assistant message so the transcript does not look "live"; the persisted model, thinking level and service tier are restored.
@@ -102,7 +102,7 @@ Every command, key, setting and default below was checked against the bundled do
 1. Still in the 5.1 session: `/exit`. Then `omp -c`.
    Expected: the transcript from 5.1 re-renders; status line shows the same title.
 2. `!cat ~/.omp/agent/terminal-sessions/$(ls -t ~/.omp/agent/terminal-sessions | head -1)`
-   Expected: two lines — `…/omp-course-lab` and your `.jsonl` path.
+   Expected: the first two lines are `…/omp-course-lab` and your `.jsonl` path (a third bookkeeping line may follow).
 3. `/resume`, type `lesson`, Esc.
    Expected: the list narrows to sessions whose title/first message contains "lesson".
 4. `/exit`; `omp --resume <first 8 chars of the id from step 2's filename>` then `What did I rename this session to?`
@@ -176,7 +176,7 @@ Every command, key, setting and default below was checked against the bundled do
 - Hints: after step 3 above, run `/export notes/m5-clear.html` (Lesson 5.6) and search the HTML for `PINEAPPLE`.
 - Pass: the string is present in the export even though the model could not recall it.
 
-**Stretch:** Enable an extension or change a `.omp/config.yml` value that needs a restart, run `/restart`, and confirm the transcript is still there. Pass: same session id in the status line / `/resume` `current` marker after relaunch.
+**Stretch:** Enable an extension or change a `.omp/config.yml` value that needs a restart, run `/restart`, and confirm the transcript is still there. Pass: after relaunch the status line shows the same session title and `/resume` marks the same file `current`.
 
 **Troubleshooting:**
 
@@ -222,7 +222,7 @@ Every command, key, setting and default below was checked against the bundled do
 - `/fork` **[observed]** `✔ Session forked to <timestamp>_<newid>.jsonl`; the `/resume` picker marks the copy `⑂ fork`; the title carries over. Startup `omp --fork 01a0d994 -p "Say FORKED."` **[observed]** created a second file whose header had `parentSession` and `providerPromptCacheKey` equal to the source id.
 
 **Try it (Walkthrough):** (start a new session: `/new`)
-1. Three turns, no edits: (a) `Read cli/main.py and summarize its subcommands in one line.` (b) `Which of those subcommands touches data/lab.sqlite? One line.` (c) `List the files in tests/. Filenames only.`
+1. Three turns, no edits: (a) `Read cli/__main__.py and summarize its subcommands in one line.` (b) `Which of those subcommands touches data/lab.sqlite? One line.` (c) `List the files in tests/. Filenames only.`
    Expected: three answers; the `context_pct` segment barely moves.
 2. `/tree` → press `Up` until `›` sits on the user row for turn (b) → `Shift+L`, type `sqlite-question`, Enter.
    Expected: the row now reads `[sqlite-question] user: Which of those…`.
@@ -280,7 +280,7 @@ Every command, key, setting and default below was checked against the bundled do
 **Demo:** `demos/5.5-compaction.md`
 
 **Concepts:**
-- **Indicator.** The status line's `context_pct` segment (**[observed]** `▶─1%` at the right of the composer border; `statusLine.contextLine` default `embedded` also tints the border line by usage). The auto-compact icon pulses while a speculative summary runs and holds in accent when one is armed **[doc]**.
+- **Indicator.** The status line's `context_pct` segment (**[observed]** `▶─1%` at the right of the composer border; `statusLine.contextLine`, default `embedded`, controls how the composer's top border line between the left and right segments reflects context usage — values `off|percentage|annotated|embedded`). The auto-compact icon pulses while a speculative summary runs and holds in accent when one is armed **[doc]**.
 - **Threshold.** `compaction.thresholdPercent` = `-1` and `compaction.thresholdTokens` = `-1` by default → *reserve-based*: compaction fires when context exceeds `contextWindow − reserve`, reserve = max(`16384`, 15 % of the window) (`compaction.reserveTokens` unset). Set `thresholdTokens` (> 0 wins) or `thresholdPercent` to fire earlier. Per-subagent overrides: `task.agentCompactionThresholdOverrides`.
 - **Triggers** (all automatic unless noted): `/compact [instructions]` (manual), context-overflow error recovery, incomplete-output (`stopReason: length`) recovery, post-turn threshold, mid-turn threshold at safe tool-loop boundaries (`compaction.midTurnEnabled: true`), idle (`compaction.idleEnabled: false`, `idleThresholdTokens: 200000`, `idleTimeoutSeconds: 300`).
 - **What is kept.** A cut point is chosen at a user/assistant boundary (never at a `toolResult`) so that at least `compaction.keepRecentTokens` (`20000`) of recent conversation stay verbatim; everything older becomes one summary entry (`type: compaction`, `firstKeptEntryId`, `tokensBefore`). Before that, tool-result pruning may blank old outputs (`[Output truncated - N tokens]`; protects the newest 40 000 tool-output tokens) and superseded/useless results are elided (`compaction.supersedeReads`, `compaction.dropUseless`, both `true`). Summaries carry a `<files>` list of what was read/written.
@@ -300,17 +300,17 @@ Every command, key, setting and default below was checked against the bundled do
 - Turning it off: `omp config set compaction.enabled false` (default `true`).
 
 **Try it (Walkthrough):** Lower the trigger so you can watch it on a small repo.
-1. `omp config set compaction.thresholdTokens 30000` (project layer: run inside `omp-course-lab` with a `.omp/config.yml`, or global). `omp config get compaction.thresholdTokens` → `30000`.
+1. `omp config set compaction.thresholdTokens 30000` (this writes the **global** `config.yml`; to scope it to the lab only, add `compaction: {thresholdTokens: 30000}` to `omp-course-lab/.omp/config.yml` by hand instead). `omp config get compaction.thresholdTokens` → `30000`.
 2. `omp` (new session). Ask: `Read docs/spec.md in full, then read every file under api/ and cli/ in full. Do not summarize yet.` Expected: several `read` cards; `context_pct` climbs past the 30k threshold after the turn (watch the right end of the composer border).
-3. Expected after the turn ends: the divider `── 📷 compacted · ctrl+o ──` (or a plain `compacted` divider when a text method ran) appears; `Ctrl+O` on it opens the summary with a `<files>` list; `context_pct` drops.
+3. Expected after the turn ends: the divider `── 📷 compacted · ctrl+o ──` appears where compaction fired; `Ctrl+O` on it opens the summary with a `<files>` list; `context_pct` drops.
 4. `/handoff "focus on the API refactor"`. Expected: loader `Generating handoff… (esc to cancel)`, then `Context handed off and compacted in place`; a second divider; `Ctrl+O` shows the handoff document.
-5. `/tree` → `Alt+A` (all filter) → type `compact`. Expected: `compaction` rows exist on the active path (they are hidden in the default filter, visible under `all`).
+5. `/tree` → type `compact`. Expected: `compaction` rows exist on the active path (`Alt+A` switches to the `all` filter if you want every bookkeeping entry too).
 6. Reset: `omp config reset compaction.thresholdTokens`.
 
 **Guided task:** Compare two methods.
-- Hints: repeat step 2 with `omp config set compaction.methodOrder '["shake","soft"]'` and then with `'["snapcompact","soft"]'` (needs a vision-capable model); look at the divider text and at what `Ctrl+O` shows (artifact references vs. image frames vs. prose).
+- Hints: repeat step 2 with `omp config set compaction.methodOrder '["shake","soft"]'` and then with `'["snapcompact","soft"]'` (needs a vision-capable model); look at what `Ctrl+O` on the divider shows (artifact references vs. image frames vs. prose).
 - Checkpoints: `omp config get compaction.methodOrder` shows each order; each run produces exactly one divider.
-- Pass: `notes/m5.md` states, for each order, which method actually ran (from the divider/summary) and how much `context_pct` dropped.
+- Pass: `notes/m5.md` states, for each order, which method actually ran (from the expanded summary) and how much `context_pct` dropped.
 
 **Stretch:** Set `compaction.handoffSaveToDisk: true`, put `handoff` first in `methodOrder`, trigger an automatic compaction. Pass: a `handoff-*.md` file exists in the session's artifact directory (`<bucket>/<timestamp>_<id>/`).
 
@@ -318,7 +318,7 @@ Every command, key, setting and default below was checked against the bundled do
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `Nothing to compact (session too small)` | Under the recent-tokens floor | Read more, or lower `compaction.thresholdTokens` |
+| `Nothing to compact (session too small)` | Nothing older than the verbatim recent tail (`compaction.keepRecentTokens`) to summarize | Do more work first (`thresholdTokens`/`thresholdPercent` only govern *automatic* compaction) |
 | `Nothing to hand off (already compacted)` | The kept tail is already the whole context | Do more work first |
 | Compaction never fires on a 1M-context model | Reserve-based threshold is ~850k tokens | Set `thresholdTokens` / `thresholdPercent` |
 | `Auto-compaction failed: …` | Summarizer model/credential error | Check `/model`; retry `/compact` |
@@ -367,7 +367,7 @@ Every command, key, setting and default below was checked against the bundled do
 5. `/record` → one short prompt → `/record`. Expected: `● REC` in the status line while recording; `Saved …s recording to …ompcast`. Then `/exit` and `omp play -s 2`.
 
 **Guided task:** Export the 5.4 branching session and find the abandoned branch.
-- Hints: `/export` renders the *active path*; `Ctrl+O`-style expansion exists in the HTML for compactions and branch summaries; `--themes` changes colours only.
+- Hints: `/export` embeds the entries and the current leaf, so the abandoned branch itself is not on the rendered path — its `branch_summary` entry is (it is converted to a message on the active path); pre-`/clear` history stays in and compactions render chronologically; `--themes` changes colours only.
 - Checkpoints: the HTML contains the branch-summary text; the share page shows the same.
 - Pass: `notes/m5.md` records the export path, the share URL's *id* (not the fragment), and one sentence on what the branch summary said.
 

@@ -1,6 +1,17 @@
 # Module 7 — Build notes
 
-Built against `omp/18.3.1` on the build machine (Python 3 only). Verification method: `read omp://<doc>` for every claim, `omp --help` / `omp models|stats|usage|tiny-models|setup|login|config|commit --help`, and a live smoke run in an isolated profile (`PI_CODING_AGENT_DIR=/tmp/…`, `HOME=/tmp/…`) against a stdlib replica of `tools/mock-provider.py` whose contract was confirmed with the lab builder (`LabRepo`): default port 8765, `mock-1`, JSON + SSE chat completions, `--fail` → HTTP **429** with `Retry-After: 1` (not 503 as I first assumed), stderr request log, `--model` flag.
+Built against `omp/18.3.1` on the build machine (Python 3 only). Verification method: `read omp://<doc>` for every claim, `omp --help` / `omp models|stats|usage|tiny-models|setup|login|config|commit --help`, and a live smoke run in an isolated profile (`PI_CODING_AGENT_DIR=/tmp/…`, `HOME=/tmp/…`) against `tools/mock-provider.py`: default port 8765, `mock-1`, JSON + SSE chat completions, `--fail` → HTTP **429** with `Retry-After: 1`, stderr request log (`[mock-provider] <METHOD> <path> -> "<request line>" <status> -`), stdout banner `mock-provider serving model 'mock-1' on http://127.0.0.1:8765/v1 in normal mode`, `--model` / `--host` flags, `<system-reminder>` stripped from the echo, echo cut at 80 chars.
+
+## Wave-2 audit (2026-09-27)
+- Re-verified every command/flag/key/default in README, exercises, cheatsheet, demos and solutions against `omp://models.md`, `settings.md`, `providers.md`, `environment-variables.md`, `keybindings.md`, `non-compaction-retry-policy.md`, `local-models.md`, `task-agent-discovery.md`, `cli-reference.md`, `user-facing-packages.md` and the `--help` output of `omp`, `omp models|stats|usage|tiny-models|setup|login|commit|config`.
+- Smoke-run (isolated profile, lab mock on 8765 `--fail` + 8766): `omp models` tables, `omp models --json` keys, validation banner for a missing `baseUrl`, implicit `lm-studio` discovery (`128K`/`33K`, cached in `models.db`), `omp -p --mode json --no-session` fallback events (`retry_fallback_applied` → `auto_retry_start` → `retry_fallback_succeeded` → `auto_retry_end`, ≈12 s), path-scoped `enabledModels` (`omp config get` per cwd, initial model inside the path), `omp config set modelRoles` record replacement, `omp commit --dry-run` resolving `modelRoles.commit`, `omp stats --summary|--json`, `omp models --kind tiny`, `omp tiny-models list`, `omp usage`.
+- **Lab fixture defect (outside this module's write scope, reported to the orchestrator):** `omp-course-lab/tools/mock-provider.py` never imports `sys` (and imports `json` twice), so `log_message` raises `NameError` on every request and every `curl`/omp call gets an empty reply. Verified by running the shipped file. Needs `import sys` in the lab repo; the smoke run used a copy with that one-line fix.
+- Fixed in this module: mock banner goes to **stdout** (was described as a stderr `[mock] listening …` line); stderr log-line format; the mock now strips the `<system-reminder>` block (README/exercises/demos/solutions no longer hedge with `…`); `omp stats --json` `byModel` is a **list** of objects, not an id-keyed map (README step 7.6-2, guided task and exercise 7-S2 pass check rewrote their Python one-liners); `providers.tinyModelDtype` default is `default` (= each model's shipped dtype, `q4`), not `q4`; `omp tiny-models list` also prints `smollm` (word completion) after the eight tiny models; `omp models --kind bogus` prefix is lower-case `error:`; fallback wall time ≈10–15 s (observed 12 s).
+- Binary on the audit machine reports `omp/18.3.5`; module headers keep `18.3.1` for consistency with the other modules (orchestrator decision).
+
+## Removed (unverifiable)
+- Demo 7.5 "earlier capture with an HTTP 503 primary and `retry.maxRetries: 2`" — the lab mock has no 503 mode (`--fail` is 429 only), so the transcript cannot be reproduced with the fixture.
+- Solutions 7-G3 "≈ 30 s with a 503 primary" — same reason.
 
 ## Verified live (not just doc-read)
 - `omp models mock` table, `omp models find`, `omp models --kind tiny|all|bogus`, `omp models --json` shape, `omp models refresh`.
@@ -21,7 +32,7 @@ Built against `omp/18.3.1` on the build machine (Python 3 only). Verification me
 - Outline 7.1 lists `Shift+Ctrl+P` cycling in 7.2 — kept; chord verified in `omp://keybindings.md` (`app.model.cycleBackward`).
 - Outline 7.6 "per-turn cost in status line": docs describe a `cost` segment showing *recorded session cost* (`omp://settings.md`), not per-turn; lesson wording follows the doc.
 - Outline 7.5 "round-robin credentials": docs say stored OAuth accounts are "ranked and rotated automatically" (`omp://providers.md`) and that credential switching happens before model fallback (`omp://non-compaction-retry-policy.md`); the phrase "round-robin" appears only in an internal porting doc, so lessons say "rotated".
-- The mock echoes omp's injected `<system-reminder>` block inside "You said: …". I asked LabRepo to strip it; expectations in README/exercises are hedged with `…`.
+- The mock strips omp's injected `<system-reminder>` block from "You said: …" (re-checked in the shipped `tools/mock-provider.py`), so the expected echo is exactly `Hello from mock-1. You said: say hi`.
 
 ## Not verified / dropped
 - `Ctrl+P` / `Alt+P` / `^` chip / `Alt+M` interactive behaviour could not be exercised in the pty (raw escape sequences were interpreted as search text by the picker); claims are limited to `omp://keybindings.md`, `omp://task-agent-discovery.md`, `omp://tools/task.md`.

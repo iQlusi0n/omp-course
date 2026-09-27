@@ -29,10 +29,10 @@ Prerequisites per exercise are listed; the CLI-only exercises (11-W1, 11-W2) nee
    **Expected:** `omp ttsr list | grep -A1 no-console-log` prints the rule as `[native]` with
    `condition: console\.log` and `scope: text, tool:edit(web/*.js), tool:write(web/*.js)`.
 2. From the repo root:
-   `omp ttsr test --source tool --tool edit --path web/signup.js 'console.log("x")'; echo exit=$?`
-   **Expected:** `Triggered (1)` … `✓ no-console-log` … `exit=0`.
-3. `omp ttsr test --source tool --tool edit --path api/server.py 'console.log("x")'; echo exit=$?`
-   **Expected:** `No rules triggered. (evaluated 1)` … `exit=1` (scope glob excluded the path).
+   `omp ttsr test --source tool --tool edit --path web/app.js 'console.log("x")'`
+   **Expected:** `Triggered (1)` … `✓ no-console-log  condition: /console\.log/ [native]`.
+3. `omp ttsr test --source tool --tool edit --path api/server.py 'console.log("x")'`
+   **Expected:** `No rules triggered. (evaluated 28)` (scope glob excluded the path; 28 = your rule + 27 builtins). Do not grade on exit codes — see the cheat sheet.
 4. `omp ttsr test --source thinking 'maybe console.log here'`
    **Expected:** not triggered — `thinking` is outside the rule's `scope`.
 5. `omp ttsr test --json --source text 'console.log(1)'`
@@ -44,43 +44,51 @@ Prerequisites per exercise are listed; the CLI-only exercises (11-W1, 11-W2) nee
 
 1. Add `.omp/rules/no-bare-print.md` from `solutions/no-bare-print.md` (an `astCondition` rule scoped to `cli/*.py`).
 2. From the repo root: `omp ttsr scan -v cli/`
-   **Expected:** header `TTSR scan — directory=…/cli files=N scanned=N rules=…`, then
-   `Found violations/matches:` and each `cli/*.py` file that calls `print(...)` listed with
-   `✓ no-bare-print  astCondition: print($$$ARGS) [native]`.
+   **Expected:** header `TTSR scan — directory=…/cli files=5 scanned=5 rules=29 …`, then
+   `Found violations/matches: (1 matches across 1 files)` and
+   `cli/commands.py` / `✓ no-bare-print  astCondition: print($$$ARGS) [native]` (the only seeded
+   `print()` sites are in `cli/commands.py`; `cli/__main__.py` uses `sys.stderr.write`).
 3. `omp ttsr scan -v web/`
-   **Expected:** `no-console-log` matches only if the seeded `web/*.js` contains `console.log`; otherwise `No rule matches found.`
+   **Expected:** `No rule matches found. (evaluated 29 rules on 1/2 files)` — the seeded `web/app.js`
+   contains no `console.log`; `index.html` is skipped as `no-relevant-rules=1`.
 4. `cd cli && omp ttsr scan -v .`
-   **Expected:** `no-relevant-rules=<N>` and no matches — the `cli/*.py` scope glob no longer matches
-   the paths as seen from inside `cli/`. This is why you scan from the repo root.
+   **Expected:** `scanned=0 rules=27` and `no-relevant-rules=5`, no matches — the `cli/*.py` scope
+   glob no longer matches the paths as seen from inside `cli/`, so both project rules drop out.
+   This is why you scan from the repo root.
 
-**Pass:** step 2 lists at least one `cli/*.py` match; step 4 lists none.
+**Pass:** step 2 lists `cli/commands.py`; step 4 lists no matches.
 
 ## 11-W3 — Watch a rule abort a live edit (W, 11.1)
 
 Prereq: 11-W1 done; a chat model logged in.
 
 1. `omp` in the lab repo. Prompt:
-   *"In web/signup.js, log the form payload to the console right before the fetch so I can debug submissions."*
-   **Expected:** the streaming edit is cut off; an `Injecting rule: no-console-log` card appears;
-   press `ctrl+o` on it → the rule body. The retried edit adds a `DEBUG`-guarded `debug()` helper.
-2. `!grep -n "console.log" web/signup.js`
-   **Expected:** no *new* `console.log` line (a pre-existing one from the fixture may remain).
+   *"In web/app.js, log the form payload to the console right before the fetch so I can debug submissions."*
+   **Expected:** the streaming edit is cut off; an `Injecting rule: no-console-log` card appears.
+   The retried edit adds a `DEBUG`-guarded `debug()` helper.
+2. `!grep -n "console.log" web/app.js`
+   **Expected:** no output — the seeded file has no `console.log` and the rule kept it that way.
 3. Ask for the same change again.
    **Expected:** no card (`ttsr.repeatMode: once`).
-4. `/export` (or `read history://current`) and search for `ttsr-injection`.
-   **Expected:** one hidden `custom_message` with `customType: "ttsr-injection"` and a
-   `ttsr_injection` entry listing `no-console-log`.
+4. `!grep -l ttsr_injection ~/.omp/agent/sessions/*/*.jsonl` (the session journal), or `/export`
+   and search the HTML (it embeds the session entries). `read history://current` is **not** the
+   session — that URL names an agent called `current`.
+   **Expected:** the journal holds one hidden `custom_message` with `customType: "ttsr-injection"`
+   and a `ttsr_injection` entry listing `no-console-log`.
 
 **Pass:** the card in step 1 and the `ttsr_injection` entry in step 4.
 
 ## 11-G1 — Advisor with WATCHDOG.md on issue #8 (G, 11.2)
 
-*Goal:* a second model catches the error-swallowing temptation in issue #8 before you do.
+*Goal:* a second model catches the catch-all-exception temptation in issue #8 (`POST /signup`) before you do.
 
 *Hints:*
-- `omp config set modelRoles.advisor <provider/model>`; leave `advisor.enabled` alone and use `/advisor on`.
-- Put `solutions/WATCHDOG.md` at `<repo>/WATCHDOG.md` ("watch for silent error swallowing").
-- Prompt for the #8 fix with *"keep the change minimal"* — that phrasing tempts an `except: pass`.
+- Assign the `advisor` role in `/model` (Roles view) or under `modelRoles:` in `~/.omp/agent/config.yml`
+  (`modelRoles` is a record; `omp config set modelRoles.advisor` is not a key); leave `advisor.enabled` alone and use `/advisor on`.
+- Put `solutions/WATCHDOG.md` at `<repo>/WATCHDOG.md` ("watch for catch-all exception handling").
+- Prompt for the #8 fix with *"keep the change minimal"* — that phrasing tempts wrapping `_signup` in
+  `except Exception:` → 400, which also hides genuine crashes. `docs/ISSUES.md` #8 wants: missing field
+  or no `@` → 400, `sqlite3.IntegrityError` → 409, anything else still 500.
 - If nothing lands, `/advisor dump` and read what the advisor actually said; a `nit` is delivered as a
   quiet aside at the next step boundary, not as an interrupt.
 
@@ -90,7 +98,8 @@ Prereq: 11-W1 done; a chat model logged in.
 3. `/advisor status` → non-zero tokens and cost.
 
 *Pass:* an `<advisory …>` note is visible in the transcript **and** `/advisor status` shows the
-model id you configured. Bonus evidence: `ls <session-dir>/__advisor.jsonl`.
+model id you configured **and** `LAB_ISSUE=8 python3 -m unittest tests.test_issues` passes (a catch-all
+fails its 500 test). Bonus evidence: `ls <session-dir>/__advisor.jsonl`.
 
 ## 11-G2 — Roster with WATCHDOG.yml (G, 11.2)
 
@@ -116,7 +125,7 @@ model id you configured. Bonus evidence: `ls <session-dir>/__advisor.jsonl`.
 *Hints:*
 - `omp config get modelRoles` — `smol` must differ from `default`.
 - Start with `omp --prewalk` (or `/prewalk` inside a session).
-- Ask for a feature that needs a plan: a `--json` flag on the CLI `orders list` command, *"plan first, then implement, then run the tests"*.
+- Ask for a feature that needs a plan: a `--json` flag on the CLI `orders` subcommand (`python3 -m cli orders --month 2026-03 --json`), *"plan first, then implement, then run the tests"*.
 - The gate is `todo` call → first completed `edit`/`write`. Files written through `bash` never trigger it.
 
 *Checkpoints:*
@@ -134,7 +143,7 @@ model chip changed. (`/prewalk` has no `status` subcommand — the notice is the
 *Goal:* turn a complaint into a saved TTSR rule without hand-writing regex.
 
 *Hints:*
-- Provoke a behaviour first: ask the agent to "quickly add a debug print to cli/main.py".
+- Provoke a behaviour first: ask the agent to "quickly add a debug print to cli/__main__.py".
 - Then `/omfg stop adding bare print() calls to the CLI` — omp drafts a rule (regex or ast-grep),
   validates it against the recent outputs, and offers to save it.
 - Inspect with `omp ttsr list` and `omp ttsr test -v -r .omp/rules/<generated>.md --source tool --tool edit --path cli/x.py 'print("x")'`.
@@ -168,7 +177,8 @@ without running tests receives a warning injection after the message ends (never
 small `api/` change, and locate its review log.
 
 *Pass:* Agent Hub shows an `advisor`-kind row under the subagent with ≥ 1 review turn, at
-`<session>/<SubId>/__advisor.jsonl`; `/advisor status` in the main session shows no active advisor.
+`<session>/<SubId>/__advisor.jsonl`; the parent's artifact dir has no top-level `__advisor.jsonl`
+(`advisor.enabled` off, `/advisor on` never run in the main session).
 
 ## 11-S4 — Guardrail plan for Module 12 (S, 11.4)
 

@@ -52,7 +52,7 @@ Checkpoints:
 **Goal:** the lab's mock endpoint is a first-class provider named `mock`, and omp can chat with it.
 
 Hints:
-- Start it: `python3 tools/mock-provider.py --port 8765` (stderr prints a listening line; every request is logged there).
+- Start it: `python3 tools/mock-provider.py --port 8765` (stdout prints one banner line `mock-provider serving model 'mock-1' on http://127.0.0.1:8765/v1 in normal mode`; every request is logged to stderr).
 - `~/.omp/agent/models.yml` root key is `providers:`. A provider with `models:` needs `baseUrl`, `api`, and either `apiKey` or `auth: none`. The mock is keyless and speaks `/v1/chat/completions`, i.e. `api: openai-completions`.
 - Model fields worth setting: `id: mock-1`, `name`, `contextWindow`, `maxTokens`, and `cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}` (a flat override — see 7.6).
 - Validate with `omp models mock`. A malformed file prints `Warning: models.yml validation failed — custom providers disabled` and the reason.
@@ -62,7 +62,7 @@ Checkpoints:
 - `omp models mock` prints a `mock (1)` table whose row starts `│ mock-1 │     33K │    4.1K │`.
 - `omp models find mock` returns the same row; `omp models --json` includes `{"provider":"mock","id":"mock-1",…}`.
 
-**Pass:** `omp -p --model mock/mock-1 "say hi"` prints `Hello from mock-1. You said: … say hi` (the `…` may be a `<system-reminder>` block omp prepends), and the mock's stderr shows `"POST /v1/chat/completions HTTP/1.1" 200`.
+**Pass:** `omp -p --model mock/mock-1 "say hi"` prints `Hello from mock-1. You said: say hi` (the mock strips the `<system-reminder>` block omp prepends), and the mock's stderr shows `[mock-provider] POST /v1/chat/completions -> "POST /v1/chat/completions HTTP/1.1" 200 -`.
 
 ---
 
@@ -119,7 +119,7 @@ Bonus (no pass check): repeat with `disabledProviders: [{path: <sibling>, provid
 
 **Goal:** the same prompt run through `@smol` and `@slow` appears as two rows in `omp stats`.
 
-**Pass:** `omp stats --summary` prints a `By Model:` section listing both model ids with a request count and `$` value each, and `omp stats --json | sed -n '/^{/,$p' | python3 -c 'import json,sys; print(sorted(json.load(sys.stdin)["byModel"]))'` lists both ids. State which one cost more.
+**Pass:** `omp stats --summary` prints a `By Model:` section listing both model ids with a request count and `$` value each, and `omp stats --json | sed -n '/^{/,$p' | python3 -c 'import json,sys; print(sorted(m["model"] for m in json.load(sys.stdin)["byModel"]))'` lists both ids (`byModel` is a list of objects with `model`, `totalCost`, `totalOutputTokens`). State which one cost more.
 
 ---
 

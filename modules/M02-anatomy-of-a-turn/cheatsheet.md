@@ -17,7 +17,7 @@
 | `Ctrl+V` (`Alt+V` Win, `Cmd+V` mac) | `app.clipboard.pasteImage` | Paste image, text fallback; `Ctrl+Shift+V` raw text |
 | `Alt+R` / `Alt+L` | `app.retry` / `app.display.reset` | Retry failed turn / redraw terminal |
 | `Alt+Shift+L` / `Alt+Shift+C` | `app.clipboard.copyLine/copyPrompt` | Copy line / whole prompt |
-| `!cmd` / `$code` | — | Run shell / Python locally, no model turn |
+| `!cmd` | — | Run a shell command locally, no model turn |
 | `@path` | — | Attach file (fuzzy autocomplete); `omp @file "prompt"` on the CLI |
 
 ## Slash commands used here

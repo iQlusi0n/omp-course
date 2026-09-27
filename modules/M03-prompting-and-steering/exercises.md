@@ -2,7 +2,7 @@
 
 Built against `omp/18.3.1`. Work in `omp-course-lab`; start from `git checkout module-3-start`. Every result goes in `notes/m3.md` (the `notes/` directory is gitignored). Each exercise names its **pass condition**; check it before moving on. Time: ~50 min total.
 
-Fixture: `docs/ISSUES.md` **#3** — *CLI: `orders` has no `--format csv`* (`cli/__main__.py`, `cli/commands.py`). Repro today: `python3 -m cli orders --month 2026-03 --format csv` → argparse error, exit 2. Gated test: `LAB_ISSUE=3 python3 -m unittest tests.test_issues` (fails before, passes after). Full suite: `python3 -m unittest discover -s tests`.
+Fixture: `docs/ISSUES.md` **#3** — *CLI: `orders` has no `--format csv` (export for spreadsheets)* (`cli/__main__.py`, `cli/commands.py`). Repro today: `python3 -m cli orders --month 2026-03 --format csv` → `error: unrecognized arguments: --format csv`, exit 2. Expected: `--format {table,csv}` (default `table`); CSV via the `csv` module with header `id,user_id,created_at,status,total_cents`, one row per order, integer `total_cents`, no summary line; table output unchanged. Gated test: `LAB_ISSUE=3 python3 -m unittest tests.test_issues` (`FAILED (failures=1, skipped=18)` before, `OK (skipped=18)` after). Full suite: `python3 -m unittest discover -s tests` (`OK (skipped=20)`).
 
 Prerequisite keys from Module 2: `Ctrl+O` (expand card), `Ctrl+Shift+O` (hide/show cards), `!cmd`, `@path`.
 

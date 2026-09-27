@@ -54,7 +54,7 @@ omp --profile course            # /login inside, then /exit
 omp --profile course config path          # ~/.omp/profiles/course/agent
 omp --profile course --alias omp-course   # writes function to rc file
 . ~/.bashrc && omp-course --version
-omp-course config set theme.dark dracula && omp-course config get theme.dark && omp config get theme.dark
+omp-course config set theme.dark dark && omp-course config get theme.dark && omp config get theme.dark
 ls ~/.omp/profiles/course/agent/          # agent.db  config.yml  (sessions/ after first session)
 ```
 Isolation proof: the default profile's `~/.omp/agent/config.yml` is unchanged (`cmp` against a copy taken before). Keybindings are the documented exception (profile inherits them).

@@ -1,6 +1,6 @@
 # Module 7 — Instructor notes and solutions
 
-Verified on `omp/18.3.1` in an isolated profile (`PI_CODING_AGENT_DIR=<tmp>`), with a stdlib replica of `tools/mock-provider.py` implementing the contract confirmed by the lab builder: default port 8765, `GET /v1/models` → `mock-1`, `POST /v1/chat/completions` (JSON + SSE), `--fail` → HTTP 429 with `Retry-After: 1`, requests logged to stderr.
+Verified on `omp/18.3.1` in an isolated profile (`PI_CODING_AGENT_DIR=<tmp>`) against the lab's `tools/mock-provider.py` (default port 8765, `GET /v1/models` → `mock-1`, `POST /v1/chat/completions` JSON + SSE, `--fail` → HTTP 429 with `Retry-After: 1`, requests logged to stderr as `[mock-provider] <METHOD> <path> -> "<request line>" <status> -`). **Fixture defect at audit time:** the checked-in script omits `import sys` (and imports `json` twice), so its `log_message` raises `NameError` on every request and omp gets empty responses; the audit ran a copy with `import sys` added. Until the lab owner fixes it, no exercise in this module passes with the shipped file.
 
 ## Reference `models.yml`
 
@@ -66,7 +66,7 @@ The mock cannot follow the commit agent's protocol, so the fallback message is e
 
 ## 7-G2 (custom provider)
 
-Pass line observed: `Hello from mock-1. You said: <system-reminder>…</system-reminder> say hi`. omp prepends the reminder block to the user message; the lab builder was asked to strip it from the echo, so learners may see either form. Grade on `Hello from mock-1` and the `200` in the mock's stderr.
+Pass line observed: `Hello from mock-1. You said: say hi`. omp prepends a `<system-reminder>` block to the user message; the mock strips it from the echo (and cuts the echo at 80 characters). Grade on `Hello from mock-1` and the `200` in the mock's stderr.
 
 ## 7-G3 (fallback chain)
 
@@ -82,7 +82,7 @@ retry:
       - <real>/<model>
 ```
 
-Observed JSON events (in order): `retry_fallback_applied` (`from: mock/mock-1`, `to: mock-backup/mock-1`, `role: default`, `reason: Request failed: 429 rate limited (mock --fail) retry-after-ms=1000 …`), `auto_retry_start` (`attempt: 1`, `maxAttempts: 10`, `delayMs: 0`), `retry_fallback_succeeded`, `auto_retry_end` (`success: true`). Wall time ≈ 11 s with 429+Retry-After; ≈ 30 s with a 503 primary (omp retried the primary several times first). Learners who see `Retrying (1/10) in Ns…` for a long time usually have `retry.modelFallback: false` or a misspelled chain entry (startup prints `Warning: Fallback chain for role 'default' references unknown model: …`).
+Observed JSON events (in order): `retry_fallback_applied` (`from: mock/mock-1`, `to: mock-backup/mock-1`, `role: default`, `reason: Request failed: 429 rate limited (mock --fail) retry-after-ms=1000 …`), `auto_retry_start` (`attempt: 1`, `maxAttempts: 10`, `delayMs: 0`), `retry_fallback_succeeded`, `auto_retry_end` (`success: true`). Wall time ≈ 12 s end to end. Learners who see `Retrying (1/10) in Ns…` for a long time usually have `retry.modelFallback: false` or a misspelled chain entry (startup prints `Warning: Fallback chain for role 'default' references unknown model: …`).
 
 A second chain entry that is *not* available (no credentials) is fine — only the first resolvable candidate is used; unknown entries only produce the startup warning.
 

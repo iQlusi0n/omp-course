@@ -41,6 +41,20 @@ Built against `omp/18.3.1` on Linux x64 (Python 3 only; no system Chrome, no des
 
 ## Fixture references (from LabRepo, cwd lab root)
 
-- `python3 -m api` → :8080, serves `/` = `web/index.html`; form `#signup-form` with `#name`, `#email`, `#submit` ("Sign up"); `#banner` gets text `Welcome aboard!` and loses `hidden` on 201; page title `omp-course-lab signup`.
+- `python3 -m api` → :8080, serves `/` = `web/index.html`; form `#signup-form` with `#name`, `#email`, `#submit` ("Sign up"); `#banner` gets text `Welcome aboard!` and loses `hidden` on 201, or `Signup failed: <error>` with class `error` otherwise (`web/app.js`); page title `omp-course-lab signup`.
+- `data/lab.sqlite` (tracked) is seeded with 12 users whose emails are `<first>@example.com` — including `ada@example.com`. `api/server.py::_signup` inserts straight into it and a duplicate email raises `sqlite3.IntegrityError` → HTTP 500 (`docs/ISSUES.md` #8). All 14.1 cells therefore use a fresh `m14-<timestamp>@example.com`, and the cleanup step reseeds with `git checkout -- data/lab.sqlite` / `python3 tools/seed_db.py`.
 - `bin/gui-demo.py`: window "Lab GUI Demo", `ttk.Button` "Click me", `ttk.Label` "Ready" → "Clicked!"; without tkinter prints `tkinter is not available: …` and exits 1.
 - `.env.example`: `LAB_TOKEN=labtok_0123456789abcdef`, `DATABASE_URL=sqlite:///data/lab.sqlite`.
+
+## Wave-2 audit (2026-09-27, omp 18.3.1)
+
+Re-verified every command, flag, key, setting key/default, path and URI in this module against `omp://tools/browser.md`, `omp://tools/computer.md`, `omp://computer-use.md`, `omp://collab.md`, `omp://stream.md`, `omp://keybindings.md`, `omp://user-facing-packages.md`, `omp://settings.md`, `omp://approval-mode.md`, `omp://tools/eval.md`, `omp://tools/bash.md`, `omp://bash-tool-runtime.md`, `omp://agent-hub.md`, `omp://local-models.md`, `omp config list --json`, and `omp {stream,play,clip,collab,join,browser-relay,setup} --help`; fixtures against `omp-course-lab/web/index.html`, `web/app.js`, `bin/gui-demo.py`, `.env.example`, `data/lab.sqlite`, `docs/ISSUES.md`.
+
+### Fixed
+
+1. **Duplicate-email fixture bug (14.1 W/G, demo §3–4, solutions).** The reference cells signed up `ada@example.com`, which is seeded user #1; against the real API the banner reads `Signup failed: internal error` and the assert throws. Reproduced with `curl` (500, `IntegrityError`) and then the corrected cell was run end-to-end through `omp -p` with headless Chromium against `python3 -m api` on a DB copy: `banner: Welcome aboard!`, row 13 inserted. The original demo was captured against a stand-in page with no seeded table, which is why it passed; its header now says so. Added a troubleshooting row, a deliberate-failure step, and the `data/lab.sqlite` reseed to cleanup.
+2. **14.1 step 1 claimed a `!` bang command could start the supervised service.** `bash-tool-runtime.md`: the bang surface goes through `AgentSession.executeBash()` and only the tool-call path handles named services. Reworded to "ask omp".
+
+### Removed (unverifiable)
+
+- none this pass.

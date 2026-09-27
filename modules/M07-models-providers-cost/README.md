@@ -218,7 +218,7 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
   | `lm-studio` | `LM_STUDIO_BASE_URL` → `http://127.0.0.1:1234/v1` | `openai-completions`; `GET /models` — works for *any* OpenAI-compatible local server |
   All three are keyless; their models are selectable as soon as the engine answers. `OLLAMA_CONTEXT_LENGTH` only changes omp's budget, not Ollama's `num_ctx`.
 - **Discovered proxy/gateway models are priced at zero** ("local-unknown") — see 7.6.
-- **The lab's mock provider:** `python3 tools/mock-provider.py --port 8765` serves `GET /v1/models` (one model, `mock-1`) and `POST /v1/chat/completions` (streaming and non-streaming; reply `Hello from mock-1. You said: <last user message>` — omp prepends a `<system-reminder>` block with the date and cwd to your message, so the echo may include it), logs every request to stderr, needs no key. `--fail` turns every chat request into HTTP `429` with `Retry-After: 1` (7.5). `--model <id>` renames the model.
+- **The lab's mock provider:** `python3 tools/mock-provider.py --port 8765` serves `GET /v1/models` (one model, `mock-1`) and `POST /v1/chat/completions` (streaming and non-streaming; reply `Hello from mock-1. You said: <last user message>` — the `<system-reminder>` block omp prepends to your message is stripped from the echo, and the echo is cut at 80 characters), prints one banner line to stdout, logs every request to stderr as `[mock-provider] POST /v1/chat/completions -> "POST /v1/chat/completions HTTP/1.1" 200 -`, needs no key. `--fail` turns every chat request into HTTP `429` with `Retry-After: 1` (7.5). `--model <id>` renames the model; `--host` rebinds it.
 - **Exact block for the mock** — append to `~/.omp/agent/models.yml`:
   ```yaml
   providers:
@@ -239,14 +239,14 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
             cacheRead: 0
             cacheWrite: 0
   ```
-- **Verify:** `omp models mock` → a `mock (1)` table with `mock-1 │ 33K │ 4.1K │ - │ no`; `omp -p --model mock/mock-1 "say hi"` → `Hello from mock-1. You said: … say hi`.
-- **Tiny on-device models** (catalog provider `local`, kind `tiny`): `omp models --kind tiny`; `omp tiny-models list`; `omp tiny-models download <id>` / `download all` (default download `lfm2.5-230m`, ~214 MB). Assign with `modelRoles.tiny: local/lfm2.5-230m` (titles) and `modelRoles.memory: local/lfm2-1.2b` (Module 9 memory); `judge: local/lfm2-1.2b` for on-device judgments. Weights download only when a local candidate is used or prefetched; inference runs in a per-model worker (`~/.omp/run/tiny/<model>-<backend>.sock`) that exits after 15 min idle. CPU by default; `providers.tinyModelDevice` / `PI_TINY_DEVICE` (`gpu`, `cuda`, `mlx`, …) and `providers.tinyModelDtype` / `PI_TINY_DTYPE` (`q4` default) are opt-outs.
+- **Verify:** `omp models mock` → a `mock (1)` table with `mock-1 │ 33K │ 4.1K │ - │ no`; `omp -p --model mock/mock-1 "say hi"` → `Hello from mock-1. You said: say hi`.
+- **Tiny on-device models** (catalog provider `local`, kind `tiny`): `omp models --kind tiny`; `omp tiny-models list`; `omp tiny-models download <id>` / `download all` (default download `lfm2.5-230m`, ~214 MB). Assign with `modelRoles.tiny: local/lfm2.5-230m` (titles) and `modelRoles.memory: local/lfm2-1.2b` (Module 9 memory); `judge: local/lfm2-1.2b` for on-device judgments. Weights download only when a local candidate is used or prefetched; inference runs in a per-model worker (`~/.omp/run/tiny/<model>-<backend>.sock`) that exits after 15 min idle. CPU by default; `providers.tinyModelDevice` / `PI_TINY_DEVICE` (`gpu`, `cuda`, `mlx`, …) and `providers.tinyModelDtype` / `PI_TINY_DTYPE` (setting default `default` = each model's shipped dtype, currently `q4`) are opt-outs.
 - **Speech:** `omp setup speech` picks, persists and downloads `modelRoles.speech` (`local/kokoro`, ~100 MB) and `modelRoles.dictation` (`local/parakeet-tdt-0.6b-v3` default, or `local/whisper-*`); `omp models --kind tts|stt` lists them. Keep chains empty (`retry.fallbackChains.speech: []`) to stay local.
 - **Cache:** discovered rows persist in `<agent dir>/models.db`; `omp models refresh` forces a re-fetch (the help text calls it the replacement for `rm -rf ~/.omp/models.db`).
 
 **Try it (Walkthrough):**
 1. In `omp-course-lab`: `python3 tools/mock-provider.py --port 8765` (leave it running).
-   Expected: a listening line on stderr, e.g. `[mock] listening on http://127.0.0.1:8765 …`.
+   Expected: one banner line on stdout: `mock-provider serving model 'mock-1' on http://127.0.0.1:8765/v1 in normal mode`.
 2. Append the block above to `~/.omp/agent/models.yml` (create the file with `providers:` at the top if it does not exist). Run `omp models mock`.
    Expected:
    ```
@@ -258,13 +258,13 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
    └────────┴─────────┴─────────┴──────────┴────────┘
    ```
 3. `omp -p --model mock/mock-1 "say hi"`.
-   Expected: `Working...` then `Hello from mock-1. You said: … say hi`; the mock's stderr shows `"POST /v1/chat/completions HTTP/1.1" 200`.
+   Expected: `Working...` then `Hello from mock-1. You said: say hi`; the mock's stderr shows `"POST /v1/chat/completions HTTP/1.1" 200`.
 4. Break it on purpose: delete the `baseUrl:` line and run `omp models`.
    Expected: `Warning: models.yml validation failed — custom providers disabled` followed by `Provider mock: "baseUrl" is required when defining custom models.`; built-in providers still list. Restore the line.
 5. Discovery without a file: comment out the whole `mock:` block, then `LM_STUDIO_BASE_URL=http://127.0.0.1:8765/v1 omp models lm-studio`.
    Expected: an `lm-studio (1)` table containing `mock-1` (context `128K`, max-out `33K` — local defaults synthesized by discovery). Uncomment the block afterwards.
 6. `omp tiny-models list` then `omp models --kind tiny`.
-   Expected: the eight tiny models with descriptions; the second command shows them under `local (8)` (`qwen3-1.7b` is the only one listing thinking levels).
+   Expected: the eight tiny models with descriptions plus `smollm` (the word-completion model, not a chat/tiny role candidate); the second command shows the eight under `local (8)` (`qwen3-1.7b` is the only one listing thinking levels).
 
 **Guided task:** Local engine as `commit` model. Goal: assign a local model to `modelRoles.commit` and prove `omp commit` resolves it. Hints: with Ollama running, `omp models ollama` must list a pulled model (`ollama pull <name>` first); without Ollama, use `LM_STUDIO_BASE_URL=http://127.0.0.1:8765/v1` so `lm-studio/mock-1` is discovered. Set the role (`/model` → the model → `commit`), stage a change in the lab (`echo "# note" >> README.md && git add README.md`), run `omp commit --dry-run`. Checkpoint: the first card reads `● Resolving model...` / `└─ <your local model name>`. Pass condition: that line names the local model (the mock will fail to produce a proposal and omp prints `Commit generated using fallback due to agent failure` — that is expected for the mock; a real Ollama model produces a message). `git restore --staged README.md && git checkout README.md`.
 **Stretch:** Tiny titles. Goal: `omp tiny-models download lfm2.5-230m`, set `modelRoles.tiny: local/lfm2.5-230m`, start a session with a real chat model and a descriptive first message. Pass condition: `omp models --kind tiny` lists the model; the session gets a title (M5 `/resume` list or `/rename` view) and `ls ~/.omp/run/tiny/` shows a `lfm2.5-230m-*.sock` worker socket while the session is alive.
@@ -339,7 +339,7 @@ Coursework for the whole module is in [`exercises.md`](exercises.md); the one-pa
    ```
    Expected: `omp config get retry.fallbackChains` → `{"default":["mock-backup/mock-1","…"]}`.
 4. In the lab: `omp` then `say hi`.
-   Expected: the request fails on `mock/mock-1`, omp shows a fallback warning from `mock/mock-1` to `mock-backup/mock-1` with the `429 rate limited (mock --fail)` reason, and the answer `Hello from mock-1. You said: … say hi` arrives from the backup (~10–30 s; the mock's `Retry-After: 1` is honoured first). The status line chip now reads `Mock 1 (backup)`.
+   Expected: the request fails on `mock/mock-1`, omp shows a fallback warning from `mock/mock-1` to `mock-backup/mock-1` with the `429 rate limited (mock --fail)` reason, and the answer `Hello from mock-1. You said: say hi` arrives from the backup (~10–15 s; the mock's `Retry-After: 1` is honoured first). The status line chip now reads `Mock 1 (backup)`.
 5. Same thing headless, as proof you can grep: `omp -p --mode json --no-session "say hi" | grep -E 'retry_fallback_(applied|succeeded)'`.
    Expected: two JSON lines — `{"type":"retry_fallback_applied","from":"mock/mock-1","to":"mock-backup/mock-1","role":"default","reason":"Request failed: 429 rate limited (mock --fail) …"}` and `{"type":"retry_fallback_succeeded","model":"mock-backup/mock-1","role":"default"}`.
 6. Restore `modelRoles.default` to your real model and stop the `--fail` mock.
@@ -386,7 +386,7 @@ enabledModels:
 **Concepts:**
 - **Status line:** the `cost` segment shows the recorded session cost; the model chip shows the live model. With scheduled pricing (first-party `deepseek`) it appends `↑` during peak / `↓` off-peak for the *active* model, refreshing at tariff boundaries — the arrow is about the current tariff, not past spend. `statusLine.preset` (`default`, `minimal`, `compact`, `full`, `nerd`, `ascii`, `custom`); with `custom`, put `cost` in `statusLine.leftSegments` / `rightSegments`.
 - **How cost is estimated:** from the selected provider/model's catalog pricing, preferring server-reported cost when the provider streams one. Completed messages keep their recorded cost — switching models, crossing a tariff boundary or reopening a session never reprices history. An explicit `cost` in `models.yml` is a flat override; discovered proxy/gateway models stay at zero ("local-unknown"), so a `$0.00` session on a gateway is *unpriced*, not free.
-- **`omp stats`:** syncs `~/.omp/agent/sessions/` into `~/.omp/stats.db`, then serves the dashboard at `http://localhost:3847` (`Dashboard available at: http://127.0.0.1:3847`, stop with `Ctrl+C`). `--port <n>`, `--host <h>`. `--summary` prints the console report (Requests, Error Rate, Total/Input/Output Tokens, Cache Rate, Cache Savings, Total Cost, Premium Requests, Avg Duration/TTFT/Tokens-per-second, then **By Model** and **By Folder**). `--json` prints `{overall, byModel, byFolder, byAgentType, timeSeries, modelSeries, modelPerformanceSeries, costSeries}` after a sync line. Dashboard API: `/api/stats`, `/api/stats/models`, `/api/stats/folders`, `/api/stats/timeseries`, `/api/sync`.
+- **`omp stats`:** syncs `~/.omp/agent/sessions/` into `~/.omp/stats.db`, then serves the dashboard at `http://localhost:3847` (`Dashboard available at: http://127.0.0.1:3847`, stop with `Ctrl+C`). `--port <n>`, `--host <h>`. `--summary` prints the console report (Requests, Error Rate, Total/Input/Output Tokens, Cache Rate, Cache Savings, Total Cost, Premium Requests, Avg Duration/TTFT/Tokens-per-second, then **By Model** and **By Folder**). `--json` prints `{overall, byModel, byFolder, byAgentType, timeSeries, modelSeries, modelPerformanceSeries, costSeries}` after a sync line; `byModel` is a **list** of objects (`model`, `provider`, `totalRequests`, `totalInputTokens`, `totalOutputTokens`, `totalCost`, `unpricedRequests`, …), not a map keyed by id. Dashboard API: `/api/stats`, `/api/stats/models`, `/api/stats/folders`, `/api/stats/timeseries`, `/api/sync`.
 - **`omp usage`:** per-account limit windows for every authenticated account (OAuth and coding-plan providers); `--provider <id>`, `--json`, `--redact` (for screenshots), `--history --days N` (hourly snapshots), `omp usage clients --days N` (token burn per machine/app), `omp usage invalidate [--provider id]` (drop cached reports). Env-key-only setups print `No credentials found`.
 - **Picker hints:** `/model` rows show price per million (`free` for zero-cost entries), observed tokens/s and TTFT.
 - **Subagents:** Agent Hub (`Alt+A`, Module 10) lists each task agent's model and usage, so fan-out cost is attributable per agent.
@@ -395,8 +395,8 @@ enabledModels:
 **Try it (Walkthrough):**
 1. Finish a short real-model session in the lab (`omp -p "Summarize cli/ in two sentences"`), then `omp stats --summary`.
    Expected: `Syncing session files...`, `Synced N new entries…`, then `=== AI Usage Statistics ===` with `Requests`, `Total Tokens`, `Total Cost: $…`, a `By Model:` line naming your model, and `By Folder:` naming the lab directory.
-2. `omp stats --json | sed -n '/^{/,$p' | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["overall"]["totalCost"], list(d["byModel"]))'`.
-   Expected: the total cost and the list of model ids seen (the mock, if used, appears as `mock-1` at `0`).
+2. `omp stats --json | sed -n '/^{/,$p' | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["overall"]["totalCost"], [m["model"] for m in d["byModel"]])'`.
+   Expected: the total cost and the list of model ids seen (the mock, if used, appears as `mock-1` with `totalCost` `0`).
 3. `omp stats` (no flags) and open the printed URL in a browser; `Ctrl+C` to stop.
    Expected: `Dashboard available at: http://127.0.0.1:3847`; the page shows the same totals, per-model and per-folder charts.
 4. `omp usage --redact`.
@@ -404,7 +404,7 @@ enabledModels:
 5. In a live session, look at the status line after one answer.
    Expected: a `cost` value; if you are on a discovered/mock model it stays `$0.00` (unpriced).
 
-**Guided task:** Compare two roles by cost. Goal: run the same prompt (`Explain what api/__init__.py re-exports and why`) once with `--model @smol` and once with `--model @slow`, then attribute cost per model. Hints: `omp stats --json` → `byModel`; `omp stats --summary` → `By Model:`. Checkpoint: both models appear under `By Model:`. Pass condition: you can state the per-model cost for each and which one had more output tokens (`byModel[...]` fields).
+**Guided task:** Compare two roles by cost. Goal: run the same prompt (`Explain what api/__init__.py re-exports and why`) once with `--model @smol` and once with `--model @slow`, then attribute cost per model. Hints: `omp stats --json` → `byModel` (list of objects); `omp stats --summary` → `By Model:`. Checkpoint: both models appear under `By Model:`. Pass condition: you can state the per-model cost for each and which one had more output tokens (`totalCost` and `totalOutputTokens` on the matching `byModel` entries).
 **Stretch:** Put `cost` on the left. Goal: `statusLine.preset: custom` with `cost` in `statusLine.leftSegments` and the model chip on the right. Pass condition: after restart the cost value renders on the left of the status line; `omp config get statusLine.leftSegments` includes `cost`.
 
 **Troubleshooting:**
