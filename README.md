@@ -28,7 +28,7 @@ Already cloned without submodules? `git submodule update --init`.
 | `omp-course-lab/` | Submodule → sibling repo `omp-course-lab` |
 | `tools/check.py` | CI: module structure, lesson template fields, prose line length, Appendix C coverage |
 | `tools/coverage_check.py` | Regenerates `COVERAGE-REPORT.md` (CI fails if it is stale) |
-| `.omp/` | The agent definitions and rules used to build the course with omp |
+| `.omp/` | omp project config for contributors: conventions (`AGENTS.md`, `RULES.md`) and the `course-builder` / `course-verifier` agent definitions used to build the course. Build-time setting overrides were removed before publishing. |
 | `.github/workflows/check.yml` | Runs the above plus the lab suite on every push/PR |
 
 Contributing a fix: edit the module, run `python3 tools/check.py`, and if you changed a fact about omp cite the `omp://` doc in the lesson's `Source:` line and note it in that module's `BUILD-NOTES.md`. Lab changes go to the `omp-course-lab` repo; after merging there, bump the submodule pointer here. The `module-N-start` tags must keep pointing at the lab's `main` HEAD (`for t in $(git tag -l 'module-*'); do git tag -f $t main; done`).
