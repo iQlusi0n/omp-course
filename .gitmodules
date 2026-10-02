@@ -1,0 +1,3 @@
+[submodule "omp-course-lab"]
+	path = omp-course-lab
+	url = ../omp-course-lab.git

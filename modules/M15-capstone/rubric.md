@@ -60,4 +60,4 @@ Quick behavioural spot checks (server on a scratch DB: `DATABASE_URL=/tmp/g.sqli
 
 ## Reference
 
-`git checkout capstone-solution` in `omp-course-lab` (branch and tag): four commits — migration, API, CLI+web, docs — 65 tests, 20 skipped, `LAB_ISSUE=all` still 16 failures. `solutions/instructor-notes.md` explains the design choices and the failure modes seen while building it.
+`git checkout capstone-solution` in `omp-course-lab` (a branch): four commits — migration, API, CLI+web, docs — 65 tests, 20 skipped, `LAB_ISSUE=all` still 16 failures. `solutions/instructor-notes.md` explains the design choices and the failure modes seen while building it.

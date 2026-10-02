@@ -1,0 +1,37 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  course:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Structural checks (modules, template fields, line length, coverage matrix)
+        run: python3 tools/check.py
+      - name: Coverage report is up to date
+        run: git diff --exit-code -- COVERAGE-REPORT.md
+      - name: Lab test suite (main)
+        working-directory: omp-course-lab
+        run: python3 -m unittest discover -s tests
+      - name: Lab fixtures present
+        working-directory: omp-course-lab
+        run: |
+          test "$(git tag -l 'module-*-start' | wc -l)" = 15
+          git show-ref --verify refs/remotes/origin/conflict-lab
+          git show-ref --verify refs/remotes/origin/capstone-solution
+          python3 -c "import zipfile; assert 'README.md' in zipfile.ZipFile('fixtures/bundle.zip').namelist()"
+          head -c 8 docs/spec.pdf | grep -q '%PDF-1.'
+      - name: Solution scripts parse
+        run: |
+          bash -n modules/M13-headless-scripted-embedded/solutions/ci-review.sh
+          python3 -m py_compile modules/M13-headless-scripted-embedded/solutions/*.py modules/M12-extending-omp/solutions/mcp/*.py modules/M10-subagents-parallel-work/solutions/*.py
+          python3 -c "import json,glob; [json.load(open(f)) for f in glob.glob('modules/M12-extending-omp/solutions/**/*.json', recursive=True)]"

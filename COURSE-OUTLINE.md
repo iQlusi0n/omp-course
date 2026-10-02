@@ -485,7 +485,7 @@ Seeded fixtures (tagged issues in `docs/ISSUES.md`):
 - Fake token format in `.env.example` for secrets exercise (M6).
 - v2 feature spec for capstone (M15).
 
-Git tags: `module-1-start` … `module-15-start`, plus `capstone-solution` (private/instructor).
+Git tags: `module-1-start` … `module-15-start`; branches `conflict-lab` (M4) and `capstone-solution` (instructor reference, M15). The lab is its own repository, included in the course repo as a git submodule.
 
 ## Appendix B — Reference sheets to produce
 1. Keybindings (default chords + action IDs for `keybindings.yml`).

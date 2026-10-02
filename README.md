@@ -4,19 +4,34 @@ A 15-module, ~22-hour course on driving `omp` (Oh My Pi, https://omp.sh), the te
 
 - **Spec:** `COURSE-OUTLINE.md` — audience, design rules, per-module scope, coverage matrix.
 - **Modules:** `modules/M01-…` through `modules/M15-…`. Each has `README.md` (lessons), `exercises.md`, `cheatsheet.md`, `demos/`, `solutions/` (instructor), `BUILD-NOTES.md` (deviations from spec, unverifiable claims dropped).
-- **Practice repo:** `omp-course-lab/` — Python-only lab with seeded issues (`docs/ISSUES.md`), fixtures, and `module-N-start` tags.
+- **Practice repo:** `omp-course-lab/` — a git submodule (its own repository, so it can carry the `module-N-start` tags and the `conflict-lab` / `capstone-solution` branches). Python-only lab with seeded issues (`docs/ISSUES.md`) and fixtures.
 - **Reference sheets:** `reference/`.
 - **Coverage:** `COVERAGE-REPORT.md` — Appendix C rows vs. what modules actually cover.
 
 ## Learner quick start
 
 ```sh
-git clone <this repo>
+git clone --recurse-submodules <course repo url>
 cd omp-course/omp-course-lab
 git checkout module-1-start
-python -m unittest discover -s tests     # should pass
+python3 -m unittest discover -s tests     # expect: OK (skipped=20)
 cd .. && open modules/M01-setup-first-contact/README.md
 ```
+
+Already cloned without submodules? `git submodule update --init`.
+
+## Repository layout and checks
+
+| Path | Purpose |
+|---|---|
+| `modules/`, `reference/` | Learner-facing content and instructor solutions |
+| `omp-course-lab/` | Submodule → sibling repo `omp-course-lab` |
+| `tools/check.py` | CI: module structure, lesson template fields, prose line length, Appendix C coverage |
+| `tools/coverage_check.py` | Regenerates `COVERAGE-REPORT.md` (CI fails if it is stale) |
+| `.omp/` | The agent definitions and rules used to build the course with omp |
+| `.github/workflows/check.yml` | Runs the above plus the lab suite on every push/PR |
+
+Contributing a fix: edit the module, run `python3 tools/check.py`, and if you changed a fact about omp cite the `omp://` doc in the lesson's `Source:` line and note it in that module's `BUILD-NOTES.md`. Lab changes go to the `omp-course-lab` repo; after merging there, bump the submodule pointer here. The `module-N-start` tags must keep pointing at the lab's `main` HEAD (`for t in $(git tag -l 'module-*'); do git tag -f $t main; done`).
 
 ## How this course was built
 
