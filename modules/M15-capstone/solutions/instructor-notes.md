@@ -2,19 +2,19 @@
 
 ## The reference solution: `capstone-solution`
 
-In `omp-course-lab`, branch **and** tag `capstone-solution` (git prints `refname 'capstone-solution' is ambiguous` — both point at the same commit; use `refs/tags/capstone-solution` if you need to be explicit). `main` and `module-15-start` are unchanged (`16a70c8`).
+In `omp-course-lab`, branch `capstone-solution`, four commits on top of the `module-15-start` base (`4799e2a`; `main` has since gained one unrelated mock-provider fix and the tags were moved with it).
 
 ```
-$ git -C omp-course-lab log --oneline main..capstone-solution
-685fdee docs: describe v2 (spec.md, regenerated spec.pdf, README)
-5d24d5a cli+web: orders --status filter and optional company on signup
-909351f api: GET /users/<id>/orders and company on GET /users/<id>
-d7646a3 migration: users.company column and schema version 2
+$ git -C omp-course-lab log --oneline 4799e2a..capstone-solution
+91634e3 docs: describe v2 (spec.md, regenerated spec.pdf, README)
+6789bc3 cli+web: orders --status filter and optional company on signup
+635beeb api: GET /users/<id>/orders and company on GET /users/<id>
+38c1102 migration: users.company column and schema version 2
 $ git -C omp-course-lab diff --stat main..capstone-solution | tail -1
  16 files changed, 400 insertions(+), 77 deletions(-)
 ```
 
-Built by hand in a scratch clone (`git clone omp-course-lab /tmp/lab-solution`), committed with `-c user.name=lab -c user.email=lab@local`, then fetched into the real lab and tagged. Verified: `python3 -m unittest discover -s tests` → `Ran 65 tests … OK (skipped=20)`; `LAB_ISSUE=all` → still 16 failures (issues #1–#8 untouched, exactly as on `main`); live server smoke on a private port (`/users/9/orders?status=cancelled` → `count: 2`; `?status=bogus` → 400 naming the four statuses; `/users/9999/orders` → 404; `/users/1` has `company: null`; `POST /signup` with `company` echoes it; `/` contains `id="company"`).
+Built by hand in a scratch clone (`git clone omp-course-lab /tmp/lab-solution`), then fetched into the real lab as a branch. Verified: `python3 -m unittest discover -s tests` → `Ran 65 tests … OK (skipped=20)`; `LAB_ISSUE=all` → still 16 failures (issues #1–#8 untouched, exactly as on `main`); live server smoke on a private port (`/users/9/orders?status=cancelled` → `count: 2`; `?status=bogus` → 400 naming the four statuses; `/users/9999/orders` → 404; `/users/1` has `company: null`; `POST /signup` with `company` echoes it; `/` contains `id="company"`).
 
 ### Design choices worth defending in class
 

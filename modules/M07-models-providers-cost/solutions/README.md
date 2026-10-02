@@ -66,7 +66,7 @@ The mock cannot follow the commit agent's protocol, so the fallback message is e
 
 ## 7-G2 (custom provider)
 
-Pass line: `Hello from mock-1. You said: say hi`. The lab mock (commit `6ccce2e`) strips omp's injected `<system-reminder>` block before echoing the first 80 characters of the user message, so the echo is exactly the learner's words. Grade on the full line and the `200` in the mock's stderr.
+Pass line: `Hello from mock-1. You said: say hi`. The lab mock (commit `3f754fd`) strips omp's injected `<system-reminder>` block before echoing the first 80 characters of the user message, so the echo is exactly the learner's words. Grade on the full line and the `200` in the mock's stderr.
 
 ## 7-G3 (fallback chain)
 
