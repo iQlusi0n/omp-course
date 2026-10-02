@@ -1,4 +1,4 @@
 - Never state an omp command, flag, key, setting, or default without having read it in `omp://` docs or `omp --help` output this session.
 - Never cite third-party blogs or guides as fact.
-- Never edit files outside the directory you were assigned.
-- Never run `git commit`; the orchestrator commits.
+- Never change a lesson's pass condition or a quoted default without noting it in that module's `BUILD-NOTES.md`.
+- Never edit `omp-course-lab/` from this repository; it is a submodule with its own repo.

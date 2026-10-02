@@ -1,9 +1,9 @@
-# omp-course — build conventions
+# omp-course — conventions
 
-This repository builds a hands-on course on `omp` (Oh My Pi). The spec is `COURSE-OUTLINE.md`. Read it before doing anything.
+This repository is a hands-on course on `omp` (Oh My Pi). The spec is `COURSE-OUTLINE.md`; read it before changing content. These conventions apply to anyone editing the course with omp (they were also the rules the course was built under — see README "How this course was built").
 
 ## Ground truth
-- Every command, flag, keybinding, setting key, file path, and default MUST be verified by reading the bundled docs at `omp://<file>` (index: `read omp://`) or the binary (`omp --help`, `omp <cmd> --help`). Cite doc files in a `Source:` line at the end of each lesson.
+- Every command, flag, keybinding, setting key, file path, and default MUST be verified by reading the bundled docs at `omp://<file>` (index: `read omp://`) or the binary (`omp --help`, `omp <cmd> --help`). Cite doc files in a `Source:` line at the end of each lesson. Verify setting defaults from a directory with no `.omp/config.yml` so project overrides do not masquerade as defaults.
 - Third-party guides are not sources. Do not copy benchmark claims.
 - If a doc contradicts the outline, the doc wins; note the deviation in the module's `BUILD-NOTES.md`.
 - Record `omp --version` in each module README header.
@@ -21,5 +21,6 @@ Use the lesson template in COURSE-OUTLINE.md §1 verbatim. Every exercise has an
 - Call out every setting that is off by default and the key to enable it.
 - Fixture references use the numbers in `omp-course-lab/docs/ISSUES.md` / Appendix A.
 
-## Environment for building
-- Python 3 available; no node/bun/C compiler/debuggers on the build machine. The lab is Python-only. Exercises that need debuggers, LSP servers, or Chrome describe the learner's prerequisites explicitly.
+## Verification
+- Run `python3 tools/check.py` before committing content changes (structure, template fields, prose length, Appendix C coverage).
+- The lab (`omp-course-lab/`) is Python-only, stdlib only. Lab changes go to its own repository; then bump the submodule pointer here. Exercises that need debuggers, LSP servers, or Chrome state the learner's prerequisites explicitly.
